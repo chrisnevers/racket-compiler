@@ -1,11 +1,7 @@
-open Stream
 open List
+open Stream
 
-(*  *)
-(*  *)
-(* Token *)
-(*  *)
-(*  *)
+(* token *)
 
 type token = 
   | TProgram
@@ -45,12 +41,12 @@ let string_of_token t =
 let print_tokens tokens =
   List.iter (fun t -> print_string ((string_of_token t) ^ " ")) tokens;
   print_string "\n";
+(* rProgram *)
 
-(*  *)
-(*  *)
-(* RProgram *)
-(*  *)
-(*  *)
+type datatype =
+  | TypeInt
+  | TypeBool
+  | TypeUnit
 
 type rexp =
   | RVar of string
@@ -66,7 +62,13 @@ type rexp =
   | RRead
 
 type rprogram =
-  | RProgram of rexp
+  | RProgram of datatype * rexp
+
+let string_of_datatype dt : string =
+  match dt with
+  | TypeInt -> "int"
+  | TypeBool -> "bool"
+  | TypeUnit -> "()"
 
 let rec string_of_rexp e : string =
   "(" ^ (fun e ->
@@ -87,25 +89,96 @@ let rec string_of_rexp e : string =
 
 let print_rprogram p =
   match p with
-  | RProgram e -> print_endline ("Program " ^ (string_of_rexp e))
+  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype dt) ^ " " ^ (string_of_rexp e))
 
-(*  *)
-(*  *)
-(* Lexer *)
-(*  *)
-(*  *)
+(* cProgram *)
+
+
+type ccmp =
+  | CEq | CL | CLE | CG | CGE
+
+type carg =
+  | CInt of int
+  | CVar of string
+  | CBool of bool
+
+type cexp =
+  | CArg of carg
+  | CRead
+  | CUnOp of string * carg
+  | CBinOp of string * carg * carg
+  | CNot of carg
+  | CCmp of ccmp * carg * carg
+
+type cstmt =
+  | CAssign of string * cexp
+  | CReturn of carg
+  | CIf of cexp * cstmt list * cstmt list
+
+type cprogram =
+  | CProgram of string list * datatype * cstmt list
+
+let string_of_ccmp o : string =
+  match o with
+  | CEq -> "eq?"
+  | CL -> "<"
+  | CLE -> "<="
+  | CG -> ">"
+  | CGE -> ">="
+
+let string_of_carg a : string =
+  match a with
+  | CInt i -> "Int " ^ (string_of_int i)
+  | CVar v -> "Var " ^ v
+  | CBool b -> "Bool " ^ (string_of_bool b)
+
+let string_of_cexp e : string =
+  match e with
+  | CArg a -> "Arg " ^ (string_of_carg a)
+  | CRead -> "Read"
+  | CUnOp (o, a) -> "UnOp " ^ o ^ " " ^ (string_of_carg a)
+  | CBinOp (o, l, r) -> "BinOp " ^ o ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
+  | CNot a -> "Not " ^ (string_of_carg a)
+  | CCmp (cmp, l, r) -> "Cmp " ^ (string_of_ccmp cmp) ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
+
+let rec string_of_cstmts stmts : string =
+  List.fold_left (fun acc s -> acc ^ string_of_cstmt s ^ " ") "" stmts
+
+and string_of_cstmt a : string =
+  "(" ^ (fun e ->
+  match a with
+  | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
+  | CReturn a -> "Return " ^ (string_of_carg a)
+  | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ " " ^ (string_of_cstmts thn) ^ " " ^ (string_of_cstmts els)
+  ) a
+  ^ ")"
+
+let string_of_string_list l : string =
+  List.fold_left (fun acc s -> acc ^ s ^ " ") "" l
+
+let print_cprogram program =
+  match program with
+  | CProgram (vars, dt, stmts) ->
+    print_endline (
+      "Program : " ^ (string_of_datatype dt) ^ 
+      "\n\tVars: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\n\t[" ^ (string_of_cstmts stmts) ^ "]"
+      )
+
+(* lexer *)
+
 
 exception LexerError of string
 
 let lexer_error s = raise (LexerError s)
 
 (* is character a digit? *)
-let is_digit c =
+let is_digit c : bool =
   let code = Char.code c in
   code >= Char.code('0') && code <= Char.code('9')
 
 (* is character alphanumerical? *)
-let is_alpha c =
+let is_alpha c : bool =
   let code = Char.code c in
   (code >= Char.code('A') && code <= Char.code('Z')) ||
   (code >= Char.code('a') && code <= Char.code('z'))
@@ -135,7 +208,7 @@ let is_stream_empty stream : bool =
   try Stream.empty stream; true
   with Stream.Failure -> false
 
-let rec scan_literal stream acc =
+let rec scan_literal stream acc : token =
   let next = peek_char stream in
   match next with
   | Some c when is_digit c -> 
@@ -143,7 +216,7 @@ let rec scan_literal stream acc =
     scan_literal stream (acc ^ (Char.escaped c))
   | _ -> TInt (int_of_string acc)
 
-let rec scan_identifier stream acc =
+let rec scan_identifier stream acc : token =
   let next = peek_char stream in
   match next with
   | Some c when is_valid_id c ->
@@ -166,7 +239,7 @@ let get_cmp_op c : token =
   | 'f' -> TBool false
   | _ -> lexer_error ("scan_token: Expected #t or #f but received #" ^ (Char.escaped c))
 
-let scan_token stream =
+let scan_token stream : token =
   match is_stream_empty stream with
   | true -> TEOF
   | false ->
@@ -195,12 +268,9 @@ let rec scan_all_tokens stream tokens : token list =
   let token = scan_token stream in
   if token = TEOF then tokens @ [token]
   else scan_all_tokens stream (tokens @ [token])
+  
+(* parser *)
 
-(*  *)
-(*  *)
-(* Parser *)
-(*  *)
-(*  *)
 
 exception ParserError of string
 
@@ -221,7 +291,7 @@ let parse_var tokens =
   let actual = get_token tokens in
   match actual with
   | TVar v -> v
-  | _ -> parser_error ("Expected var but received" ^ (string_of_token actual))
+  | _ -> parser_error ("Expected var but received " ^ (string_of_token actual))
 
 let rec parse_exp tokens : rexp =
   let token = get_token tokens in
@@ -272,34 +342,33 @@ let parse_program tokens : rprogram =
   let exp = parse_exp tokens in
   expect_token tokens TRParen;
   expect_token tokens TEOF;
-  RProgram exp
+  RProgram (TypeUnit, exp)
 
 let parse tokens =
   let token_list = ref tokens in
   parse_program token_list
 
-(*  *)
-(*  *)
-(* Uniquify *)
-(*  *)
-(*  *)
+(* uniquify *)
+
 
 exception UniquifyError of string
 
 let uniquify_error s = raise (UniquifyError s)
 
-let get_var_name v table =
-  let count = Hashtbl.find table v in
-  v ^ (string_of_int count)
+let get_var_name v table : string =
+  try
+    let count = Hashtbl.find table v in
+    v ^ (string_of_int count)
+  with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
-let uniquify_name v table =
+let uniquify_name v table : string =
   try
     let count = (Hashtbl.find table v) + 1 in
     let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
   with Not_found -> 
     let _ = Hashtbl.add table v 1 in v ^ "1"
 
-let rec uniquify_exp ast table =
+let rec uniquify_exp ast table : rexp =
   match ast with
   | RLet (v, i, b) ->
     let iexp = uniquify_exp i table in
@@ -308,31 +377,88 @@ let rec uniquify_exp ast table =
     RLet (uniq_var, iexp, bexp)
   | RUnOp (o, e) -> RUnOp (o, uniquify_exp e table)
   | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp l table, uniquify_exp r table)
-  | RVar v -> 
-    (try
-      RVar (get_var_name v table)
-    with Not_found -> uniquify_error ("uniquify_exp: Variable " ^ v ^ " used before declaration"))
+  | RVar v -> RVar (get_var_name v table)
   | RAnd (l, r) -> RAnd (uniquify_exp l table, uniquify_exp r table)
   | RNot e -> RNot (uniquify_exp e table)
   | RIf (cnd, thn, els) -> RIf (uniquify_exp cnd table, uniquify_exp thn table, uniquify_exp els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp l table, uniquify_exp r table)
   | _ -> ast
 
-let uniquify ast =
+let uniquify ast : rprogram =
   match ast with
-  | RProgram e -> RProgram (uniquify_exp e (Hashtbl.create 10))
-
-let run_lex program =
-  let stream = get_stream program `String in
-  let tokens = scan_all_tokens stream [] in tokens
-
-let run_parse program =
-  let stream = get_stream program `String in
-  let tokens = scan_all_tokens stream [] in
-  let ast = parse tokens in ast
+  | RProgram (dt, e) -> RProgram (dt, uniquify_exp e (Hashtbl.create 10))
   
-let run_uniquify program =
-  let stream = get_stream program `String in
-  let tokens = scan_all_tokens stream [] in
-  let ast = parse tokens in
-  let uniq = uniquify ast in uniq
+(* typecheck *)
+
+
+exception TypecheckError of string
+
+let typecheck_error s = raise (TypecheckError s)
+
+let get_var_type v table =
+  try Hashtbl.find table v
+  with Not_found -> typecheck_error ""
+
+let rec typecheck_exp exp table : datatype =
+  match exp with
+  | RInt i -> TypeInt
+  | RBool b -> TypeBool
+  | RVar v -> get_var_type v table
+  | RAnd (l, r) ->
+    let ltype = typecheck_exp l table in
+    let rtype = typecheck_exp r table in
+    if ltype = TypeBool && rtype = TypeBool then TypeBool
+    else typecheck_error "typecheck_exp: And expressions must operate on boolean values"
+  | RNot e ->
+    let etype = typecheck_exp e table in
+    if etype = TypeBool then TypeBool
+    else typecheck_error "typecheck_exp: Not expressions must operate on boolean values"
+  | RIf (cnd, thn, els) ->
+    let ctype = typecheck_exp cnd table in
+    let ttype = typecheck_exp thn table in
+    let etype = typecheck_exp els table in
+    if ctype != TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
+    else if ttype = etype then etype
+    else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same value"
+  | RCmp (o, l, r) ->
+    let ltype = typecheck_exp l table in
+    let rtype = typecheck_exp r table in
+    (match o with
+    | ">" | ">=" | "<" | "<=" -> 
+      if ltype != TypeInt || rtype != TypeInt then TypeBool
+      else typecheck_error ("typecheck_exp: " ^ o ^ "operates on integers")
+    | "eq?" -> 
+      if ltype = rtype then TypeBool
+      else typecheck_error "typecheck_exp: eq? only compares same type"
+    | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
+  | RUnOp (o, e) ->
+    let etype = typecheck_exp e table in
+    if etype = TypeInt then TypeInt
+    else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integer")
+  | RBinOp (o, l, r) ->
+    let ltype = typecheck_exp l table in
+    let rtype = typecheck_exp r table in
+    if ltype = TypeInt && rtype = TypeInt then TypeInt
+    else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integers")
+  | RLet (v, i, b) ->
+    let itype = typecheck_exp i table in
+    let _ = Hashtbl.add table v itype in
+    let btype = typecheck_exp b table in
+    btype
+  | RRead -> TypeInt
+
+let typecheck program : rprogram =
+  match program with
+  | RProgram (_, e) -> RProgram (typecheck_exp e (Hashtbl.create 10), e)
+
+(* flatten *)
+
+
+let flatten_exp e : carg * cstmt list * string list =
+  (CInt 0, [CReturn (CInt 0)], [])
+
+let flatten program : cprogram =
+  match program with
+  | RProgram (dt, e) ->
+    let (arg, stmts, vars) = flatten_exp e in
+    CProgram (vars, dt, stmts)

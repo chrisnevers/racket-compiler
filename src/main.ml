@@ -5,6 +5,7 @@ open RProgram
 open Uniquify
 open Typecheck
 open Flatten
+open CProgram
 
 let () =
   try
@@ -19,7 +20,8 @@ let () =
     let ast = parse tokens in
     let uniq = uniquify ast in
     let typed = typecheck uniq in
-    print_rprogram typed
+    let flat = flatten typed in
+    print_cprogram flat
   with ex ->
     print_endline "There was an error compiling the program:";
     print_endline (Printexc.to_string ex)
