@@ -7,7 +7,7 @@ let get_var_name_test = (fun () ->
   let works () = 
     let table = Hashtbl.create 1 in
     let _ = Hashtbl.add table v 1 in
-    assert_equal "name1" (get_var_name v table);
+    assert_equal "name" (get_var_name v table);
   in
   let throws_exn () =
     let table = Hashtbl.create 1 in
@@ -22,13 +22,13 @@ let get_var_name_test = (fun () ->
 let uniquify_name_test = (fun () ->
   let v = "name" in
   let table = Hashtbl.create 2 in
-  assert_equal "name1" (uniquify_name v table);
+  assert_equal "name" (uniquify_name v table);
   assert_equal "name2" (uniquify_name v table);
 )
 
 let uniquify_test = (fun () ->
   let program = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a", RUnOp ("-", RVar "a"), RVar "a"))) in
-  let expected = RProgram (TypeUnit, RLet ("a1", RInt 2, RLet ("a2", RUnOp ("-", RVar "a1"), RVar "a2"))) in
+  let expected = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a2", RUnOp ("-", RVar "a"), RVar "a2"))) in
   assert_equal expected (uniquify program);
 )
 

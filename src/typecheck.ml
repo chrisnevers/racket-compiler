@@ -6,7 +6,7 @@ let typecheck_error s = raise (TypecheckError s)
 
 let get_var_type v table =
   try Hashtbl.find table v
-  with Not_found -> typecheck_error ""
+  with Not_found -> typecheck_error "get_var_type: Undeclared variable"
 
 let rec typecheck_exp exp table : datatype =
   match exp with

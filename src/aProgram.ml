@@ -1,4 +1,5 @@
 open RProgram
+open CProgram
 
 type aregister =
   | Rsp   | Rbp
@@ -44,10 +45,25 @@ type ainstr =
   | AIf of (acmp * aarg * aarg) * ainstr list * ainstr list
 
 type aprogram =
-  int * datatype * ainstr list
+  AProgram of int * datatype * ainstr list
 
 type pprogram =
-  string list * datatype * ainstr list
+  PProgram of string list * datatype * ainstr list
+
+let get_aarg_of_carg c : aarg =
+  match c with
+  | CVar v -> AVar v
+  | CInt i -> AInt i
+  | CBool true -> AInt 1
+  | CBool false -> AInt 0
+
+let get_acmp_of_ccmp c : acmp =
+  match c with
+  | CEq -> AE
+  | CL -> AL
+  | CLE -> ALE
+  | CG -> AG
+  | CGE -> AGE
 
 let string_of_acmp c : string =
   match c with
@@ -78,12 +94,15 @@ let string_of_register r : string =
   | Al -> "al"
 
 let string_of_aarg a : string =
+  "(" ^ (fun e ->
   match a with
   | AInt i -> "Int " ^ (string_of_int i)
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)
   | Deref (r, i) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_int i)
   | ByteReg r -> "ByteReg " ^ (string_of_register r)
+  ) a
+  ^ ")"
 
 let rec string_of_ainstrs i : string =
   (List.fold_left (fun acc s -> acc ^ string_of_ainstr s ^ "\n\t") "" i)
@@ -108,5 +127,14 @@ and string_of_ainstr a : string =
   | AIf ((cmp, l, r), thn, els) ->
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     (string_of_ainstrs thn) ^ " " ^ (string_of_ainstrs els)
+
+let print_pprogram p =
+  match p with
+  | PProgram (vars, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
+    )
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]

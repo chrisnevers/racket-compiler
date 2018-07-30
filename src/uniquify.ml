@@ -7,7 +7,9 @@ let uniquify_error s = raise (UniquifyError s)
 let get_var_name v table : string =
   try
     let count = Hashtbl.find table v in
-    v ^ (string_of_int count)
+    match count with
+    | 1 -> v
+    | _ -> v ^ (string_of_int count)
   with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
@@ -15,7 +17,7 @@ let uniquify_name v table : string =
     let count = (Hashtbl.find table v) + 1 in
     let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
   with Not_found -> 
-    let _ = Hashtbl.add table v 1 in v ^ "1"
+    let _ = Hashtbl.add table v 1 in v
 
 let rec uniquify_exp ast table : rexp =
   match ast with
