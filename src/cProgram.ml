@@ -33,12 +33,16 @@ let string_of_ccmp o : string =
   | CGE -> ">="
 
 let string_of_carg a : string =
+  "(" ^ (fun e ->
   match a with
   | CInt i -> "Int " ^ (string_of_int i)
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
+  ) a
+  ^ ")"
 
 let string_of_cexp e : string =
+  "(" ^ (fun e ->
   match e with
   | CArg a -> "Arg " ^ (string_of_carg a)
   | CRead -> "Read"
@@ -46,9 +50,11 @@ let string_of_cexp e : string =
   | CBinOp (o, l, r) -> "BinOp " ^ o ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CNot a -> "Not " ^ (string_of_carg a)
   | CCmp (cmp, l, r) -> "Cmp " ^ (string_of_ccmp cmp) ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
+  ) e
+  ^ ")"
 
 let rec string_of_cstmts stmts : string =
-  List.fold_left (fun acc s -> acc ^ string_of_cstmt s ^ " ") "" stmts
+  List.fold_left (fun acc s -> acc ^ string_of_cstmt s ^ "\n\t") "" stmts
 
 and string_of_cstmt a : string =
   "(" ^ (fun e ->
@@ -66,7 +72,7 @@ let print_cprogram program =
   match program with
   | CProgram (vars, dt, stmts) ->
     print_endline (
-      "Program : " ^ (string_of_datatype dt) ^ 
-      "\n\tVars: [" ^ (string_of_string_list vars) ^ "]" ^
-      "\n\t[" ^ (string_of_cstmts stmts) ^ "]"
-      )
+      "Program\t: " ^ (string_of_datatype dt) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
+    )

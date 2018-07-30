@@ -15,4 +15,13 @@ for f in order:
                 continue
             top_fp.write(line)
 
+drivers = 
+"""\n\nlet run_parse program = 
+  let stream = get_stream program `String in
+  let tokens = scan_all_tokens stream [] in
+  let ast = parse tokens in
+  ast\n\n"""
+
+top_fp.write(drivers)
+
 top_fp.close()
