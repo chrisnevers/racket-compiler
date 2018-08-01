@@ -44,7 +44,7 @@ let rec select_stmts stmt : ainstr list =
     let rarg = get_aarg_of_carg r in 
     let thninstrs = select_stmts thn in
     let elsinstrs = select_stmts els in
-    AIf ((cmp, larg, rarg), thninstrs, elsinstrs) :: select_stmts t
+    AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
   | CIf (_, thn, els) :: t ->
     select_instruction_error "select_stmt: If statement must use compare to true in condition"
   | [] -> []

@@ -155,7 +155,7 @@ and string_of_cstmt a : string =
   match a with
   | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
   | CReturn a -> "Return " ^ (string_of_carg a)
-  | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ " " ^ (string_of_cstmts thn) ^ " " ^ (string_of_cstmts els)
+  | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
   ) a
   ^ ")"
 
@@ -170,6 +170,202 @@ let print_cprogram program =
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
     )
+
+(* aProgram *)
+
+
+type aregister =
+  | Rsp   | Rbp
+  | Rax   | Rbx
+  | Rcx   | Rdx
+  | Rsi   | Rdi
+  | R8    | R9
+  | R10   | R11
+  | R12   | R13
+  | R14   | R15
+  | Al
+
+type acmp =
+  | AE
+  | AL  
+  | ALE
+  | AG   
+  | AGE
+
+type aarg =
+  | AInt of int
+  | AVar of string
+  | Reg of aregister
+  | Deref of aregister * int
+  | ByteReg of aregister
+
+type ainstr =
+  | Addq of aarg * aarg
+  | Subq of aarg * aarg
+  | Movq of aarg * aarg
+  | Retq
+  | Negq of aarg
+  | Callq of string
+  | Pushq of aarg
+  | Popq of aarg
+  | Xorq of aarg * aarg
+  | Cmpq of aarg * aarg
+  | Set of acmp * aarg
+  | Movzbq of aarg * aarg
+  | Jmp of string
+  | JmpIf of acmp * string
+  | Label of string
+  | AIf of (acmp * aarg * aarg) * ainstr list * string list list * ainstr list * string list list
+
+type aprogram =
+  AProgram of int * datatype * ainstr list
+
+type pprogram =
+  PProgram of string list * datatype * ainstr list
+
+type lprogram =
+  LProgram of string list * string list list * datatype * ainstr list
+
+type interference = ((aarg, aarg list) Hashtbl.t)
+
+type gprogram =
+  GProgram of string list * interference * datatype * ainstr list
+
+let get_aarg_of_carg c : aarg =
+  match c with
+  | CVar v -> AVar v
+  | CInt i -> AInt i
+  | CBool true -> AInt 1
+  | CBool false -> AInt 0
+
+let get_acmp_of_ccmp c : acmp =
+  match c with
+  | CEq -> AE
+  | CL -> AL
+  | CLE -> ALE
+  | CG -> AG
+  | CGE -> AGE
+
+let string_of_acmp c : string =
+  match c with
+  | AE -> "eq?"
+  | AL -> "<"
+  | ALE -> "<="
+  | AG -> ">"
+  | AGE -> ">="
+
+let string_of_register r : string =
+  match r with
+  | Rsp -> "rsp"
+  | Rbp -> "rbp"
+  | Rax -> "rax"
+  | Rbx -> "rbx"
+  | Rcx -> "rcx"
+  | Rdx -> "rdx"
+  | Rsi -> "rsi"
+  | Rdi -> "rdi"
+  | R8 -> "r8"
+  | R9 -> "r9"
+  | R10 -> "r10"
+  | R11 -> "r11"
+  | R12 -> "r12"
+  | R13 -> "r13"
+  | R14 -> "r14"
+  | R15 -> "r15"
+  | Al -> "al"
+
+let string_of_aarg a : string =
+  "(" ^ (fun e ->
+  match a with
+  | AInt i -> "Int " ^ (string_of_int i)
+  | AVar s -> "Var " ^ s
+  | Reg r -> "Reg " ^ (string_of_register r)
+  | Deref (r, i) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_int i)
+  | ByteReg r -> "ByteReg " ^ (string_of_register r)
+  ) a
+  ^ ")"
+
+let rec string_of_ainstrs i : string =
+  (List.fold_left (fun acc s -> acc ^ string_of_ainstr s ^ "\n\t") "" i)
+
+and string_of_ainstr a : string =
+  match a with
+  | Addq (l, r) -> "Addq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Subq (l, r) -> "Subq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Movq (l, r) -> "Movq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Retq -> "Retq"
+  | Negq e -> "Negq " ^ (string_of_aarg e)
+  | Callq s -> "Callq " ^ s
+  | Pushq e -> "Pushq " ^ (string_of_aarg e)
+  | Popq e -> "Popq " ^ (string_of_aarg e)
+  | Xorq (l, r) -> "Xorq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Cmpq (l, r) -> "Cmpq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Set (cmp, e) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg e)
+  | Movzbq (l, r) -> "Movzbq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
+  | Jmp s -> "Jmp " ^ s
+  | JmpIf (cmp, s) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ s
+  | Label s -> "Label " ^ s
+  | AIf ((cmp, l, r), thn, thn_live_afters, els, els_live_afters) ->
+    "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
+    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\n\t[\n\t" ^ (string_of_ainstrs els) ^ "]"
+
+let print_pprogram p =
+  match p with
+  | PProgram (vars, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
+    )
+
+let print_lprogram p =
+  match p with
+  | LProgram (vars, live_afters, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nLive-Afters: [");
+      List.iter (fun e -> print_endline ("\t[" ^ string_of_string_list e ^ "]")) live_afters;
+      print_endline ("\t]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_gprogram p =
+  match p with
+  | GProgram (vars, graph, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nGraph\t: [");
+      Hashtbl.iter (fun k v ->
+        print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: ["); 
+        List.iter (fun e -> print_string ((string_of_aarg e) ^ ", ")) v;
+        print_endline " ]";
+      ) graph;
+      print_endline ("\t]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
+let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
+
+let register_of_string s : aarg =
+    match s with
+    | "rsp" -> Reg Rsp
+    | "rbp" -> Reg Rbp
+    | "rax" -> Reg Rax
+    | "rbx" -> Reg Rbx
+    | "rcx" -> Reg Rcx
+    | "rdx" -> Reg Rdx
+    | "rsi" -> Reg Rsi
+    | "rdi" -> Reg Rdi
+    | "r8" -> Reg R8
+    | "r9" -> Reg R9
+    | "r10" -> Reg R10
+    | "r11" -> Reg R11
+    | "r12" -> Reg R12
+    | "r13" -> Reg R13
+    | "r14" -> Reg R14
+    | "r15" -> Reg R15
+    | "al" -> Reg Al
 
 (* lexer *)
 
@@ -354,11 +550,6 @@ let parse tokens =
   let token_list = ref tokens in
   parse_program token_list
 
-let run_parse program = 
-  let stream = get_stream program `String in
-  let tokens = scan_all_tokens stream [] in
-  let ast = parse tokens in
-  ast
 (* uniquify *)
 
 
@@ -369,7 +560,9 @@ let uniquify_error s = raise (UniquifyError s)
 let get_var_name v table : string =
   try
     let count = Hashtbl.find table v in
-    v ^ (string_of_int count)
+    match count with
+    | 1 -> v
+    | _ -> v ^ (string_of_int count)
   with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
@@ -377,7 +570,7 @@ let uniquify_name v table : string =
     let count = (Hashtbl.find table v) + 1 in
     let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
   with Not_found -> 
-    let _ = Hashtbl.add table v 1 in v ^ "1"
+    let _ = Hashtbl.add table v 1 in v
 
 let rec uniquify_exp ast table : rexp =
   match ast with
@@ -408,7 +601,7 @@ let typecheck_error s = raise (TypecheckError s)
 
 let get_var_type v table =
   try Hashtbl.find table v
-  with Not_found -> typecheck_error ""
+  with Not_found -> typecheck_error "get_var_type: Undeclared variable"
 
 let rec typecheck_exp exp table : datatype =
   match exp with
@@ -430,14 +623,14 @@ let rec typecheck_exp exp table : datatype =
     let etype = typecheck_exp els table in
     if ctype != TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
     else if ttype = etype then etype
-    else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same value"
+    else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"
   | RCmp (o, l, r) ->
     let ltype = typecheck_exp l table in
     let rtype = typecheck_exp r table in
     (match o with
     | ">" | ">=" | "<" | "<=" -> 
-      if ltype != TypeInt || rtype != TypeInt then TypeBool
-      else typecheck_error ("typecheck_exp: " ^ o ^ "operates on integers")
+      if ltype = TypeInt && rtype = TypeInt then TypeBool
+      else typecheck_error ("typecheck_exp: " ^ o ^ " operates on integers")
     | "eq?" -> 
       if ltype = rtype then TypeBool
       else typecheck_error "typecheck_exp: eq? only compares same type"
@@ -525,11 +718,12 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let var_list = if v = None then var_name :: evars else evars in
     (flat_arg, stmts, var_list)    
   | RIf (cnd, thn, els) ->
-    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
-    let (thn_arg, thn_stmts, thn_vars) = flatten_exp thn tmp_count in
-    let (els_arg, els_stmts, els_vars) = flatten_exp els tmp_count in
-    let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let var_name = get_var_name v tmp_count in
+    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
+    (* Assign result of then and else conditions to lhs variable / or newly created tmp *)
+    let (thn_arg, thn_stmts, thn_vars) = flatten_exp thn tmp_count ~v:(Some var_name) in
+    let (els_arg, els_stmts, els_vars) = flatten_exp els tmp_count ~v:(Some var_name) in
+    let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let flat_arg = CVar var_name in
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
@@ -581,3 +775,170 @@ let flatten program : cprogram =
     let (arg, stmts, vars) = flatten_exp e tmp_count in
     let new_stmts = stmts @ [CReturn arg] in
     CProgram (vars, dt, new_stmts)
+
+(* selectInstructions *)
+
+
+exception SelectInstructionError of string
+let select_instruction_error s = raise (SelectInstructionError s)
+
+let select_exp e v : ainstr list =
+  match e with
+  | CArg a ->
+    let arg = get_aarg_of_carg a in
+    [Movq (arg, v)]
+  | CRead ->
+    [Callq "read_int"; Movq (Reg Rax, v)]
+  | CUnOp (o, a) ->
+    let arg = get_aarg_of_carg a in
+    if arg = v then [Negq v] else [Movq (arg, v); Negq v]
+  | CBinOp ("+", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    if larg = v then [Addq (rarg, v)] else
+    if rarg = v then [Addq (larg, v)] else
+    [Movq (larg, v); Addq (rarg, v)]
+  | CBinOp (_, _, _) ->
+    select_instruction_error "select_exp: Unsupported binary arithmetic operator"
+  | CNot a ->
+    let arg = get_aarg_of_carg a in
+    [Movq (arg, v); Xorq (AInt 1, v)]
+  | CCmp (o, l, r) ->
+    let op = get_acmp_of_ccmp o in
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    [Cmpq (rarg, larg); Set (op, ByteReg Al); Movzbq (ByteReg Al, v)]
+
+let rec select_stmts stmt : ainstr list =
+  match stmt with
+  | CAssign (v, e) :: t ->
+    select_exp e (AVar v) @ select_stmts t
+  | CReturn a :: t -> 
+    let arg = get_aarg_of_carg a in
+    Movq (arg, Reg Rax) :: select_stmts t
+  | CIf (CCmp(o, l, r), thn, els) :: t ->
+    let cmp = get_acmp_of_ccmp o in
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in 
+    let thninstrs = select_stmts thn in
+    let elsinstrs = select_stmts els in
+    AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
+  | CIf (_, thn, els) :: t ->
+    select_instruction_error "select_stmt: If statement must use compare to true in condition"
+  | [] -> []
+
+let select_instructions program : pprogram =
+  match program with
+  | CProgram (vars, datatype, stmts) ->
+    PProgram (vars, datatype, select_stmts stmts) 
+
+(* uncoverLive *)
+
+
+let get_var_list_or_empty v : string list =
+  match v with
+  | AVar s -> [s]
+  | _ -> []
+
+let get_written_vars i =
+  match i with
+  | Movq (l, r) -> get_var_list_or_empty r
+  | Addq (l, r) -> get_var_list_or_empty r
+  | Subq (l, r) -> get_var_list_or_empty r
+  | Movzbq (l, r) -> get_var_list_or_empty r
+  | Xorq (l, r) -> get_var_list_or_empty r
+  | Set (l, r) -> get_var_list_or_empty r
+  | Negq e -> get_var_list_or_empty e
+  | _ -> []
+
+let get_read_vars i =
+  match i with
+  | Addq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Subq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Movq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Movzbq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Cmpq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Negq e -> get_var_list_or_empty e
+  | Callq s -> caller_save_registers
+  | _ -> []
+
+let rec uncover stmts live_after : (ainstr * string list) list =
+  match stmts with
+  | AIf ((o, l, r), thn, _, els, _) :: t ->
+    let (thn_stmts, thn_live_after) = List.split (List.rev (uncover (List.rev thn) live_after)) in
+    let (els_stmts, els_live_after) = List.split (List.rev (uncover (List.rev els) live_after)) in
+    let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ List.concat(els_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r ) in
+    (AIf ((o, l, r), thn_stmts, thn_live_after, els_stmts, els_live_after), live_now) :: uncover t live_now
+  | s :: t ->
+    let written = get_written_vars s in
+    let read = get_read_vars s in
+    let live_now = List.sort_uniq compare ((List.filter (fun e -> not (List.mem e written)) live_after) @ read) in
+    (s, live_now) :: (uncover t live_now)
+  | [] -> []
+
+let uncover_live program : lprogram =
+  match program with
+  | PProgram (vars, datatype, stmts) ->
+    (* I don't think it matters if its missing the empty array at the last instruction *)
+    let (new_stmts, live_afters)= List.split (List.rev (uncover (List.rev stmts) [])) in
+    let live_afters =  (tl live_afters) @ [[]] in
+    LProgram (vars, live_afters, datatype, new_stmts)
+
+
+
+let run_lex program = 
+    let stream = get_stream program `String in
+    scan_all_tokens stream []
+
+
+let run_parse program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    parse tokens
+
+
+let run_uniquify program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    let ast = parse tokens in
+    uniquify ast
+
+
+let run_typecheck program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    let ast = parse tokens in
+    let uniq = uniquify ast in
+    typecheck uniq
+
+
+let run_flatten program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    let ast = parse tokens in
+    let uniq = uniquify ast in
+    let typed = typecheck uniq in
+    flatten typed
+
+
+let run_select_instrs program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    let ast = parse tokens in
+    let uniq = uniquify ast in
+    let typed = typecheck uniq in
+    let flat = flatten typed in
+    select_instructions flat
+
+
+let run_uncover_live program = 
+    let stream = get_stream program `String in
+    let tokens = scan_all_tokens stream [] in
+    let ast = parse tokens in
+    let uniq = uniquify ast in
+    let typed = typecheck uniq in
+    let flat = flatten typed in
+    let instr = select_instructions flat in
+    uncover_live instr
+  

@@ -42,13 +42,21 @@ type ainstr =
   | Jmp of string
   | JmpIf of acmp * string
   | Label of string
-  | AIf of (acmp * aarg * aarg) * ainstr list * ainstr list
+  | AIf of (acmp * aarg * aarg) * ainstr list * string list list * ainstr list * string list list
 
 type aprogram =
   AProgram of int * datatype * ainstr list
 
 type pprogram =
   PProgram of string list * datatype * ainstr list
+
+type lprogram =
+  LProgram of string list * string list list * datatype * ainstr list
+
+type interference = ((aarg, aarg list) Hashtbl.t)
+
+type gprogram =
+  GProgram of string list * interference * datatype * ainstr list
 
 let get_aarg_of_carg c : aarg =
   match c with
@@ -124,9 +132,9 @@ and string_of_ainstr a : string =
   | Jmp s -> "Jmp " ^ s
   | JmpIf (cmp, s) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ s
   | Label s -> "Label " ^ s
-  | AIf ((cmp, l, r), thn, els) ->
+  | AIf ((cmp, l, r), thn, thn_live_afters, els, els_live_afters) ->
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
-    (string_of_ainstrs thn) ^ " " ^ (string_of_ainstrs els)
+    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\n\t[\n\t" ^ (string_of_ainstrs els) ^ "]"
 
 let print_pprogram p =
   match p with
@@ -137,4 +145,51 @@ let print_pprogram p =
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
+let print_lprogram p =
+  match p with
+  | LProgram (vars, live_afters, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nLive-Afters: [");
+      List.iter (fun e -> print_endline ("\t[" ^ string_of_string_list e ^ "]")) live_afters;
+      print_endline ("\t]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_gprogram p =
+  match p with
+  | GProgram (vars, graph, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nGraph\t: [");
+      Hashtbl.iter (fun k v ->
+        print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: ["); 
+        List.iter (fun e -> print_string ((string_of_aarg e) ^ ", ")) v;
+        print_endline " ]";
+      ) graph;
+      print_endline ("\t]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
+let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
+
+let register_of_string s : aarg =
+    match s with
+    | "rsp" -> Reg Rsp
+    | "rbp" -> Reg Rbp
+    | "rax" -> Reg Rax
+    | "rbx" -> Reg Rbx
+    | "rcx" -> Reg Rcx
+    | "rdx" -> Reg Rdx
+    | "rsi" -> Reg Rsi
+    | "rdi" -> Reg Rdi
+    | "r8" -> Reg R8
+    | "r9" -> Reg R9
+    | "r10" -> Reg R10
+    | "r11" -> Reg R11
+    | "r12" -> Reg R12
+    | "r13" -> Reg R13
+    | "r14" -> Reg R14
+    | "r15" -> Reg R15
+    | "al" -> Reg Al

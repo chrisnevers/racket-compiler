@@ -61,11 +61,12 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let var_list = if v = None then var_name :: evars else evars in
     (flat_arg, stmts, var_list)    
   | RIf (cnd, thn, els) ->
-    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
-    let (thn_arg, thn_stmts, thn_vars) = flatten_exp thn tmp_count in
-    let (els_arg, els_stmts, els_vars) = flatten_exp els tmp_count in
-    let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let var_name = get_var_name v tmp_count in
+    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
+    (* Assign result of then and else conditions to lhs variable / or newly created tmp *)
+    let (thn_arg, thn_stmts, thn_vars) = flatten_exp thn tmp_count ~v:(Some var_name) in
+    let (els_arg, els_stmts, els_vars) = flatten_exp els tmp_count ~v:(Some var_name) in
+    let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let flat_arg = CVar var_name in
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in

@@ -28,14 +28,14 @@ let rec typecheck_exp exp table : datatype =
     let etype = typecheck_exp els table in
     if ctype != TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
     else if ttype = etype then etype
-    else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same value"
+    else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"
   | RCmp (o, l, r) ->
     let ltype = typecheck_exp l table in
     let rtype = typecheck_exp r table in
     (match o with
     | ">" | ">=" | "<" | "<=" -> 
-      if ltype != TypeInt || rtype != TypeInt then TypeBool
-      else typecheck_error ("typecheck_exp: " ^ o ^ "operates on integers")
+      if ltype = TypeInt && rtype = TypeInt then TypeBool
+      else typecheck_error ("typecheck_exp: " ^ o ^ " operates on integers")
     | "eq?" -> 
       if ltype = rtype then TypeBool
       else typecheck_error "typecheck_exp: eq? only compares same type"

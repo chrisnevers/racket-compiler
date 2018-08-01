@@ -61,7 +61,7 @@ and string_of_cstmt a : string =
   match a with
   | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
   | CReturn a -> "Return " ^ (string_of_carg a)
-  | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ " " ^ (string_of_cstmts thn) ^ " " ^ (string_of_cstmts els)
+  | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
   ) a
   ^ ")"
 
