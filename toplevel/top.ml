@@ -842,23 +842,16 @@ let get_var_list_or_empty v : string list =
 
 let get_written_vars i =
   match i with
-  | Movq (l, r) -> get_var_list_or_empty r
-  | Addq (l, r) -> get_var_list_or_empty r
-  | Subq (l, r) -> get_var_list_or_empty r
-  | Movzbq (l, r) -> get_var_list_or_empty r
-  | Xorq (l, r) -> get_var_list_or_empty r
+  | Movq (l, r) | Addq (l, r) | Subq (l, r) 
+  | Movzbq (l, r) | Xorq (l, r) -> get_var_list_or_empty r
   | Set (l, r) -> get_var_list_or_empty r
   | Negq e -> get_var_list_or_empty e
   | _ -> []
 
 let get_read_vars i =
   match i with
-  | Addq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
-  | Subq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
-  | Movq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
-  | Movzbq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
-  | Cmpq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
-  | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | Movq (l, r) | Movzbq (l, r) -> get_var_list_or_empty l
   | Negq e -> get_var_list_or_empty e
   | Callq s -> caller_save_registers
   | _ -> []
@@ -880,10 +873,65 @@ let rec uncover stmts live_after : (ainstr * string list) list =
 let uncover_live program : lprogram =
   match program with
   | PProgram (vars, datatype, stmts) ->
-    (* I don't think it matters if its missing the empty array at the last instruction *)
-    let (new_stmts, live_afters)= List.split (List.rev (uncover (List.rev stmts) [])) in
+    let (new_stmts, live_afters) = List.split (List.rev (uncover (List.rev stmts) [])) in
     let live_afters =  (tl live_afters) @ [[]] in
     LProgram (vars, live_afters, datatype, new_stmts)
+
+(* buildInterference *)
+
+
+let find_in_map key map = 
+  try Hashtbl.find map key
+  with Not_found -> []
+
+let append_to_value key value map =
+  let current_value = find_in_map key map in
+  Hashtbl.remove map key;
+  Hashtbl.add map key (List.sort_uniq compare (value :: current_value))
+
+let add_bidirected_edge n1 n2 map =
+  append_to_value n1 n2 map;
+  append_to_value n2 n1 map
+
+let rec add_edges cnd (d: aarg) (targets: string list) map = 
+  match targets with
+  | n :: t ->
+    if cnd (AVar n) then (add_bidirected_edge d (AVar n) map; add_edges cnd d t map)
+    else add_edges cnd d t map
+  | [] -> ()
+
+let rec add_edges_from_nodes nodes targets map =
+  match nodes with
+  | h :: t ->
+    add_edges (fun v -> true) (register_of_string h) targets map;
+    add_edges_from_nodes t targets map
+  | [] -> ()
+
+let rec build_graph stmts live_afters map =
+  match stmts with
+  | Movq (s, d) :: t ->
+    (* add the edge (d, v) for every v of Lafter(k) unless v = d or v = s. *)
+    let live_vars = hd (live_afters) in
+    add_edges (fun v -> v <> d && v <> s) d live_vars map;
+    build_graph t (tl live_afters) map
+  | Addq (s, d) :: t | Subq (s, d) :: t ->
+    (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
+    let live_vars = hd (live_afters) in
+    add_edges (fun v -> v <> d) d live_vars map;
+    build_graph t (tl live_afters) map
+  | Callq label :: t ->
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
+    let live_vars = hd (live_afters) in
+    add_edges_from_nodes caller_save_registers live_vars map;
+    build_graph t (tl live_afters) map
+  | h :: t -> build_graph t (tl live_afters) map
+  | [] -> map
+
+let build_interference program : gprogram =
+  match program with
+  | LProgram (vars, live_afters, datatype, stmts) ->
+    let map = build_graph stmts live_afters (Hashtbl.create 10) in
+    GProgram (vars, map, datatype, stmts)
 
 
 
@@ -893,52 +941,37 @@ let run_lex program =
 
 
 let run_parse program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
+    let tokens = run_lex program in
     parse tokens
 
 
 let run_uniquify program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
-    let ast = parse tokens in
+    let ast = run_parse program in
     uniquify ast
 
 
 let run_typecheck program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
-    let ast = parse tokens in
-    let uniq = uniquify ast in
+    let uniq = run_uniquify program in
     typecheck uniq
 
 
 let run_flatten program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
-    let ast = parse tokens in
-    let uniq = uniquify ast in
-    let typed = typecheck uniq in
+    let typed = run_typecheck program in
     flatten typed
 
 
 let run_select_instrs program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
-    let ast = parse tokens in
-    let uniq = uniquify ast in
-    let typed = typecheck uniq in
-    let flat = flatten typed in
+    let flat = run_flatten program in
     select_instructions flat
 
 
 let run_uncover_live program = 
-    let stream = get_stream program `String in
-    let tokens = scan_all_tokens stream [] in
-    let ast = parse tokens in
-    let uniq = uniquify ast in
-    let typed = typecheck uniq in
-    let flat = flatten typed in
-    let instr = select_instructions flat in
+    let instr = run_select_instrs program in
     uncover_live instr
-  
+
+
+let run_build_inter program = 
+    let instr = run_uncover_live program in
+    build_interference instr
+
+

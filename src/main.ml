@@ -10,6 +10,7 @@ open SelectInstructions
 open AProgram
 open UncoverLive
 open BuildInterference
+open AllocateRegisters
 
 let () =
   try
@@ -20,6 +21,7 @@ let () =
             (+ z (- y))))))))"
     in
     let stream = get_stream program `String in
+    (* Change [] to use [] -> [] case in scan_all_tokens *)
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
     (* print_tokens tokens; *)
@@ -42,8 +44,11 @@ let () =
     (* print_endline "\nUncover Live"; *)
     print_lprogram uncovered;
     let inter = build_interference uncovered in
-    print_endline "\nBuild Interference";
-    print_gprogram inter
+    (* print_endline "\nBuild Interference";
+    print_gprogram inter *)
+    let alloc = allocate_registers inter in
+    print_endline "\nAllocate Registers";
+    print_gprogram alloc
   with ex ->
     print_endline "There was an error compiling the program:";
     print_endline (Printexc.to_string ex)
