@@ -2,3 +2,4 @@
 _build
 **/*.o
 **/*.native
+runtime/runtime.o
