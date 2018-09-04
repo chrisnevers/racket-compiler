@@ -2,6 +2,7 @@ BUILD_PKGS=
 TEST_PKGS=oUnit
 
 BUILD_FLAGS=-Is src
+DEBUG_FLAGS=-tag 'debug'
 TEST_FLAGS=-use-ocamlfind -pkgs ${TEST_PKGS} -Is src
 
 # ^: add -build-dir _build to put .native in _build/
@@ -15,6 +16,10 @@ build:
 
 repl:
 	ocamlbuild ${BUILD_FLAGS} src/repl.native
+
+debug:
+	ocamlbuild ${BUILD_FLAGS} ${DEBUG_FLAGS} src/main.d.byte
+	gcc -c runtime/runtime.c -o runtime/runtime.o
 
 doc:
 	ocamldoc -html src/*mli -d docs

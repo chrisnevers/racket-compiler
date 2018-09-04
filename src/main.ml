@@ -11,14 +11,19 @@ open AProgram
 open UncoverLive
 open BuildInterference
 open AllocateRegisters
+open LowerConditionals
 
 let () =
   try
-    let program = 
-      "(program
-      (let ([v 1]) (let ([w 46]) (let ([x (+ v 7)]) 
+    let program =
+      (* "(program
+      (let ([v 1]) (let ([w 46]) (let ([x (+ v 7)])
       (let ([y (+ 4 x)]) (let ([z (+ x w)])
-            (+ z (- y))))))))"
+            (+ z (- y))))))))" *)
+      "(program
+        (let ([a (if (> 3 4)
+                    (let ([b 3])(+ 4 b))
+                    (+ 2 0))]) a))"
     in
     let stream = get_stream program `String in
     (* Change [] to use [] -> [] case in scan_all_tokens *)
@@ -42,13 +47,16 @@ let () =
     (* print_pprogram selins; *)
     let uncovered = uncover_live selins in
     (* print_endline "\nUncover Live"; *)
-    print_lprogram uncovered;
+    (* print_lprogram uncovered; *)
     let inter = build_interference uncovered in
-    (* print_endline "\nBuild Interference";
-    print_gprogram inter *)
+    (* print_endline "\nBuild Interference"; *)
+    (* print_gprogram inter; *)
     let alloc = allocate_registers inter in
-    print_endline "\nAllocate Registers";
-    print_gprogram alloc
+    (* print_endline "\nAllocate Registers"; *)
+    (* print_gprogram alloc; *)
+    let lowercnd = lower_conditionals alloc in
+    print_endline "\nLower Conditionals";
+    print_gprogram lowercnd
   with ex ->
     print_endline "There was an error compiling the program:";
     print_endline (Printexc.to_string ex)

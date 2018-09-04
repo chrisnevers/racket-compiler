@@ -1,7 +1,7 @@
 open AProgram
 open List
 
-let find_in_map key map : aarg list = 
+let find_in_map key map : aarg list =
   try Hashtbl.find map key
   with Not_found -> []
 
@@ -14,7 +14,7 @@ let add_bidirected_edge n1 n2 map : unit =
   append_to_value n1 n2 map;
   append_to_value n2 n1 map
 
-let rec add_edges cnd (d: aarg) (targets: string list) map = 
+let rec add_edges cnd (d: aarg) (targets: string list) map =
   match targets with
   | n :: t ->
     if cnd (AVar n) then (add_bidirected_edge d (AVar n) map; add_edges cnd d t map)
@@ -30,12 +30,12 @@ let rec add_edges_from_nodes nodes targets map =
 
 let rec build_graph stmts live_afters map : interference =
   match stmts with
-  | Movq (s, d) :: t ->
+  | Movq (s, d) :: t | Movzbq(s, d) :: t ->
     let live_vars = hd (live_afters) in
     (* add the edge (d, v) for every v of Lafter(k) unless v = d or v = s. *)
     add_edges (fun v -> v <> d && v <> s) d live_vars map;
     build_graph t (tl live_afters) map
-  | Addq (s, d) :: t | Subq (s, d) :: t ->
+  | Addq (s, d) :: t | Subq (s, d) :: t (* | XOrq :: t ? *)->
     let live_vars = hd (live_afters) in
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_edges (fun v -> v <> d) d live_vars map;
@@ -44,6 +44,10 @@ let rec build_graph stmts live_afters map : interference =
     let live_vars = hd (live_afters) in
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
     add_edges_from_nodes caller_save_registers live_vars map;
+    build_graph t (tl live_afters) map
+  | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
+    let _ = build_graph thn_instrs thn_lafter map in
+    let _ = build_graph els_instrs els_lafter map in
     build_graph t (tl live_afters) map
   | h :: t -> build_graph t (tl live_afters) map
   | [] -> map

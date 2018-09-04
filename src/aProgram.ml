@@ -14,9 +14,9 @@ type aregister =
 
 type acmp =
   | AE
-  | AL  
+  | AL
   | ALE
-  | AG   
+  | AG
   | AGE
 
 type aarg =
@@ -140,7 +140,7 @@ let print_pprogram p =
   match p with
   | PProgram (vars, datatype, instrs) ->
     print_endline (
-      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "Program\t: " ^ (string_of_datatype datatype) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
@@ -149,7 +149,7 @@ let print_lprogram p =
   match p with
   | LProgram (vars, live_afters, datatype, instrs) ->
     print_endline (
-      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "Program\t: " ^ (string_of_datatype datatype) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nLive-Afters: [");
       List.iter (fun e -> print_endline ("\t[" ^ string_of_string_list e ^ "]")) live_afters;
@@ -160,16 +160,22 @@ let print_gprogram p =
   match p with
   | GProgram (vars, graph, datatype, instrs) ->
     print_endline (
-      "Program\t: " ^ (string_of_datatype datatype) ^ 
+      "Program\t: " ^ (string_of_datatype datatype) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nGraph\t: [");
       Hashtbl.iter (fun k v ->
-        print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: ["); 
+        print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: [");
         List.iter (fun e -> print_string ((string_of_aarg e) ^ ", ")) v;
         print_endline " ]";
       ) graph;
       print_endline ("\t]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_color_graph colors =
+  print_endline "Color graph:";
+  Hashtbl.iter (fun k v ->
+      print_endline ((string_of_aarg k) ^ " : " ^ (string_of_int v));
+    ) colors
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
 let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
