@@ -12,6 +12,19 @@ open UncoverLive
 open BuildInterference
 open AllocateRegisters
 open LowerConditionals
+open AssignHomes
+open PatchInstructions
+open Printx86
+
+let write_to_file file str =
+  let channel = open_out file in
+  output_string channel str;
+  close_out channel
+
+let compile filename =
+  let _ = Sys.command ("gcc -c " ^ filename ^ ".S -o " ^ filename ^ ".o") in
+  let _ = Sys.command ("gcc " ^ filename ^ ".o" ^ " runtime/runtime.o -o " ^ filename) in
+  let _ = Sys.command ("rm " ^ filename ^ ".o") in ()
 
 let () =
   try
@@ -24,9 +37,9 @@ let () =
         (let ([a (if (> 3 4)
                     (let ([b 3])(+ 4 b))
                     (+ 2 0))]) a))"
+      (* "(program (let ([a 42]) (let ([b a]) b)))" *)
     in
     let stream = get_stream program `String in
-    (* Change [] to use [] -> [] case in scan_all_tokens *)
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
     (* print_tokens tokens; *)
@@ -42,21 +55,31 @@ let () =
     let flat = flatten typed in
     (* print_endline "\nFlatten"; *)
     (* print_cprogram flat; *)
-    let selins = select_instructions flat in
+    let selinstr = select_instructions flat in
     (* print_endline "\nSelect Instructions"; *)
     (* print_pprogram selins; *)
-    let uncovered = uncover_live selins in
+    let uncovered = uncover_live selinstr in
     (* print_endline "\nUncover Live"; *)
     (* print_lprogram uncovered; *)
-    let inter = build_interference uncovered in
+    let interfer = build_interference uncovered in
     (* print_endline "\nBuild Interference"; *)
     (* print_gprogram inter; *)
-    let alloc = allocate_registers inter in
+    let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)
     let lowercnd = lower_conditionals alloc in
-    print_endline "\nLower Conditionals";
-    print_gprogram lowercnd
+    (* print_endline "\nLower Conditionals"; *)
+    (* print_gprogram lowercnd; *)
+    let assignhomes = assign_homes lowercnd in
+    (* print_endline "\nAssign Homes";
+    print_gprogram asshomes; *)
+    let patchinstrs = patch_instructions assignhomes in
+    (* print_endline "\nPatch Instructions";
+    print_aprogram patchi; *)
+    let x86 = print_x86 patchinstrs in
+    let filename = "output" in
+    write_to_file (filename ^ ".S") x86;
+    compile filename
   with ex ->
     print_endline "There was an error compiling the program:";
     print_endline (Printexc.to_string ex)

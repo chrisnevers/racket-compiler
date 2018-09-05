@@ -132,7 +132,7 @@ let allocate_registers program : gprogram =
   match program with
   | GProgram (vars, graph, datatype, instrs) ->
     let colors = color_graph graph vars in
-    print_color_graph colors;
+    (* print_color_graph colors; *)
     (* Reiterate over instructions & replace vars with registers *)
     let new_instrs = get_new_instrs instrs colors in
     GProgram (vars, graph, datatype, new_instrs)

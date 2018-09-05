@@ -145,6 +145,15 @@ let print_pprogram p =
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
+let print_aprogram p =
+  match p with
+  | AProgram (vars_space, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^
+      "\nSpace\t: " ^ (string_of_int vars_space) ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
+    )
+
 let print_lprogram p =
   match p with
   | LProgram (vars, live_afters, datatype, instrs) ->
@@ -179,6 +188,8 @@ let print_color_graph colors =
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
 let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
+let os_label_prefix = "_"
+let callee_save_stack_size = (List.length callee_save_registers) * 8
 
 let register_of_string s : aarg =
     match s with
