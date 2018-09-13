@@ -19,14 +19,14 @@ let is_alpha c : bool =
 (* Construct a stream from a file or a string. Valid types are File or String *)
 let get_stream src stream_type : char Stream.t =
   match stream_type with
-  | `File -> 
+  | `File ->
     let channel = open_in src in
-    let stream = Stream.of_channel channel in
-    let _ = close_in channel in stream
+    let stream = Stream.of_channel channel in stream
+    (* let _ = close_in channel in stream *)
   | `String -> Stream.of_string src
 
 (* Skips white space *)
-let rec next_char stream : char = 
+let rec next_char stream : char =
   let nc = Stream.next stream in
   match nc with
   | ' ' | '\t' | '\n' -> next_char stream
@@ -37,14 +37,14 @@ let peek_char stream : char option = Stream.peek stream
 let is_valid_id c : bool =
   is_alpha c || is_digit c || c = '_' || c = '?'
 
-let is_stream_empty stream : bool = 
+let is_stream_empty stream : bool =
   try Stream.empty stream; true
   with Stream.Failure -> false
 
 let rec scan_literal stream acc : token =
   let next = peek_char stream in
   match next with
-  | Some c when is_digit c -> 
+  | Some c when is_digit c ->
     let _ = next_char stream in
     scan_literal stream (acc ^ (Char.escaped c))
   | _ -> TInt (int_of_string acc)
@@ -53,7 +53,7 @@ let rec scan_identifier stream acc : token =
   let next = peek_char stream in
   match next with
   | Some c when is_valid_id c ->
-    let _ = next_char stream in 
+    let _ = next_char stream in
     scan_identifier stream (acc ^ (Char.escaped c))
   | _ ->
     match acc with
@@ -72,7 +72,7 @@ let get_cmp_op c : token =
   | 'f' -> TBool false
   | _ -> lexer_error ("scan_token: Expected #t or #f but received #" ^ (Char.escaped c))
 
-let scan_token stream : token =
+let scan_token stream : token = try
   match is_stream_empty stream with
   | true -> TEOF
   | false ->
@@ -96,9 +96,9 @@ let scan_token stream : token =
       let next = next_char stream in
       get_cmp_op next
     | _ -> lexer_error ("scan_token: Unrecognised token: " ^ (Char.escaped c))
+  with Stream.Failure -> TEOF
 
 let rec scan_all_tokens stream tokens : token list =
   let token = scan_token stream in
   if token = TEOF then tokens @ [token]
   else scan_all_tokens stream (tokens @ [token])
-  

@@ -5,6 +5,7 @@ open UniquifyTest
 open TypecheckTest
 open FlattenTest
 open SelectInstructionsTest
+open UncoverLiveTest
 
 let _ =
   let _ = lexer_tests in
@@ -13,4 +14,5 @@ let _ =
   let _ = typecheck_tests in
   let _ = flatten_tests in
   let _ = select_instructions_tests in
+  let _ = uncover_live_tests in
   ()

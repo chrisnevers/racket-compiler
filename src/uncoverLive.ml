@@ -9,7 +9,7 @@ let get_var_list_or_empty v : string list =
 
 let get_written_vars i =
   match i with
-  | Movq (l, r) | Addq (l, r) | Subq (l, r) 
+  | Movq (l, r) | Addq (l, r) | Subq (l, r)
   | Movzbq (l, r) | Xorq (l, r) -> get_var_list_or_empty r
   | Set (l, r) -> get_var_list_or_empty r
   | Negq e -> get_var_list_or_empty e
@@ -20,7 +20,7 @@ let get_read_vars i =
   | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
   | Movq (l, r) | Movzbq (l, r) -> get_var_list_or_empty l
   | Negq e -> get_var_list_or_empty e
-  | Callq s -> caller_save_registers
+  (* | Callq s -> caller_save_registers *)
   | _ -> []
 
 let rec uncover stmts live_after : (ainstr * string list) list =
