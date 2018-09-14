@@ -1,5 +1,6 @@
 (program
     (let ([a read])
-        (if (> a 10)
-            #t
-            #f)))
+    (let ([b (if (> a 10)
+            10
+            (- 10))])
+        (+ a b))))

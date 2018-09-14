@@ -1,5 +1,6 @@
 open RProgram
 open CProgram
+open List
 
 type aregister =
   | Rsp   | Rbp
@@ -42,7 +43,7 @@ type ainstr =
   | Jmp of string
   | JmpIf of acmp * string
   | Label of string
-  | AIf of (acmp * aarg * aarg) * ainstr list * string list list * ainstr list * string list list
+  | AIf of (acmp * aarg * aarg) * ainstr list * aarg list list * ainstr list * aarg list list
 
 type aprogram =
   AProgram of int * datatype * ainstr list
@@ -51,7 +52,7 @@ type pprogram =
   PProgram of string list * datatype * ainstr list
 
 type lprogram =
-  LProgram of string list * string list list * datatype * ainstr list
+  LProgram of string list * aarg list list * datatype * ainstr list
 
 type interference = ((aarg, aarg list) Hashtbl.t)
 
@@ -112,6 +113,11 @@ let string_of_aarg a : string =
   ) a
   ^ ")"
 
+let string_of_aarg_list a : string =
+  "[" ^
+  List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ " ") " " a
+  ^ "]"
+
 let rec string_of_ainstrs i : string =
   (List.fold_left (fun acc s -> acc ^ string_of_ainstr s ^ "\n\t") "" i)
 
@@ -161,7 +167,7 @@ let print_lprogram p =
       "Program\t: " ^ (string_of_datatype datatype) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nLive-Afters: [");
-      List.iter (fun e -> print_endline ("\t[" ^ string_of_string_list e ^ "]")) live_afters;
+      List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
       print_endline ("\t]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
 
@@ -188,8 +194,12 @@ let print_color_graph colors =
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
 let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
+let callee_save_aregisters = [Reg Rbx; Reg R12; Reg R13; Reg R14; Reg R15]
+let caller_save_aregisters = [Reg Rax; Reg Rdx; Reg Rcx; Reg Rsi; Reg Rdi; Reg R8; Reg R9; Reg R10; Reg R11]
 let os_label_prefix = "_"
 let callee_save_stack_size = (List.length callee_save_registers) * 8
+
+exception RegisterException of string
 
 let register_of_string s : aarg =
     match s with
@@ -210,3 +220,4 @@ let register_of_string s : aarg =
     | "r14" -> Reg R14
     | "r15" -> Reg R15
     | "al" -> Reg Al
+    | _ -> raise (RegisterException "register does not exist")

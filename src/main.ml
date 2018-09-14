@@ -39,7 +39,7 @@ let () =
                     (+ 2 0))]) a))"
       (* "(program (let ([a 42]) (let ([b a]) b)))" *)
     in *)
-    let program = Sys.argv.(1) in
+    let program = "examples/if.rkt" in (*Sys.argv.(1) in*)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -58,16 +58,17 @@ let () =
     (* print_cprogram flat; *)
     let selinstr = select_instructions flat in
     (* print_endline "\nSelect Instructions"; *)
-    (* print_pprogram selins; *)
+    (* print_pprogram selinstr; *)
     let uncovered = uncover_live selinstr in
     (* print_endline "\nUncover Live"; *)
     (* print_lprogram uncovered; *)
     let interfer = build_interference uncovered in
     (* print_endline "\nBuild Interference"; *)
-    (* print_gprogram inter; *)
+    (* print_gprogram interfer; *)
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)
+    (* print_color_graph colors; *)
     let lowercnd = lower_conditionals alloc in
     (* print_endline "\nLower Conditionals"; *)
     (* print_gprogram lowercnd; *)
