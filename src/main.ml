@@ -28,18 +28,7 @@ let compile filename =
 
 let () =
   try
-    (* let program =
-      (* "(program
-      (let ([v 1]) (let ([w 46]) (let ([x (+ v 7)])
-      (let ([y (+ 4 x)]) (let ([z (+ x w)])
-            (+ z (- y))))))))" *)
-      "(program
-        (let ([a (if (> 5 4)
-                    (let ([b read])(+ 4 b))
-                    (+ 2 0))]) a))"
-      (* "(program (let ([a 42]) (let ([b a]) b)))" *)
-    in *)
-    let program = "examples/if.rkt" in (*Sys.argv.(1) in*)
+    let program = Sys.argv.(1) in
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -68,7 +57,6 @@ let () =
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)
-    (* print_color_graph colors; *)
     let lowercnd = lower_conditionals alloc in
     (* print_endline "\nLower Conditionals"; *)
     (* print_gprogram lowercnd; *)

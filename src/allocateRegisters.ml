@@ -1,8 +1,7 @@
 open AProgram
 open Registers
+open Helper
 
-let cdr = fun (_, b) -> b
-let car = fun (a, _) -> a
 let is_var a = match a with AVar _ -> true | _ -> false
 
 let find_in_map key map =

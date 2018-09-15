@@ -140,7 +140,8 @@ and string_of_ainstr a : string =
   | Label s -> "Label " ^ s
   | AIf ((cmp, l, r), thn, thn_live_afters, els, els_live_afters) ->
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
-    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\n\t[\n\t" ^ (string_of_ainstrs els) ^ "]"
+    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n[\n\t"
+    ^ (string_of_ainstrs els) ^ "]\nElse Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" els_live_afters) ^ "]"
 
 let print_pprogram p =
   match p with

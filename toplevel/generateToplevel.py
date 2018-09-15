@@ -1,5 +1,5 @@
 modules = ['List', 'Stream']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'lexer', 'parser', 'uniquify', 'typecheck', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'registers', 'lexer', 'parser', 'uniquify', 'typecheck', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'lowerConditionals', 'assignHomes', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -16,30 +16,45 @@ for f in order:
             top_fp.write(line)
 
 drivers = """\n\n
-let run_lex program = 
+let run_lex program =
     let stream = get_stream program `String in
     scan_all_tokens stream []\n\n
-let run_parse program = 
+let run_parse program =
     let tokens = run_lex program in
     parse tokens\n\n
-let run_uniquify program = 
+let run_uniquify program =
     let ast = run_parse program in
     uniquify ast\n\n
-let run_typecheck program = 
+let run_typecheck program =
     let uniq = run_uniquify program in
     typecheck uniq\n\n
-let run_flatten program = 
+let run_flatten program =
     let typed = run_typecheck program in
     flatten typed\n\n
-let run_select_instrs program = 
+let run_select_instrs program =
     let flat = run_flatten program in
     select_instructions flat\n\n
-let run_uncover_live program = 
+let run_uncover_live program =
     let instr = run_select_instrs program in
     uncover_live instr\n\n
-let run_build_inter program = 
+let run_build_inter program =
     let instr = run_uncover_live program in
     build_interference instr\n\n
+let run_allocate_registers program =
+    let instr = run_build_inter program in
+    allocate_registers instr\n\n
+let run_lower_conditionals program =
+    let instr = run_allocate_registers program in
+    lower_conditionals instr\n\n
+let run_assign_homes program =
+    let instr = run_lower_conditionals program in
+    assign_homes instr\n\n
+let run_patch_instructions program =
+    let instr = run_assign_homes program in
+    patch_instructions instr\n\n
+let run_print_x86 program =
+    let instr = run_patch_instructions program in
+    print_x86 instr\n\n
 """
 
 top_fp.write(drivers)
