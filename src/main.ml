@@ -28,17 +28,6 @@ let compile filename =
 
 let () =
   try
-    (* let program =
-      (* "(program
-      (let ([v 1]) (let ([w 46]) (let ([x (+ v 7)])
-      (let ([y (+ 4 x)]) (let ([z (+ x w)])
-            (+ z (- y))))))))" *)
-      "(program
-        (let ([a (if (> 5 4)
-                    (let ([b read])(+ 4 b))
-                    (+ 2 0))]) a))"
-      (* "(program (let ([a 42]) (let ([b a]) b)))" *)
-    in *)
     let program = Sys.argv.(1) in
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
@@ -58,13 +47,13 @@ let () =
     (* print_cprogram flat; *)
     let selinstr = select_instructions flat in
     (* print_endline "\nSelect Instructions"; *)
-    (* print_pprogram selins; *)
+    (* print_pprogram selinstr; *)
     let uncovered = uncover_live selinstr in
     (* print_endline "\nUncover Live"; *)
     (* print_lprogram uncovered; *)
     let interfer = build_interference uncovered in
     (* print_endline "\nBuild Interference"; *)
-    (* print_gprogram inter; *)
+    (* print_gprogram interfer; *)
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)

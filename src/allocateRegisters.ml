@@ -1,8 +1,8 @@
 open AProgram
 open Registers
+open Helper
 
-let cdr = fun (_, b) -> b
-let car = fun (a, _) -> a
+let is_var a = match a with AVar _ -> true | _ -> false
 
 let find_in_map key map =
   try Hashtbl.find map key
@@ -25,7 +25,7 @@ let rec get_most_saturated graph saturations =
   let current = ref (AVar "", 0) in
   Hashtbl.iter (fun k v ->
     let no_of_saturations = List.length (find_in_map k saturations) in
-    if no_of_saturations >= (cdr !current) then
+    if no_of_saturations >= (cdr !current) && (is_var k) then
       current := (k, no_of_saturations)) graph;
   (car !current)
 
@@ -132,7 +132,6 @@ let allocate_registers program : gprogram =
   match program with
   | GProgram (vars, graph, datatype, instrs) ->
     let colors = color_graph graph vars in
-    (* print_color_graph colors; *)
     (* Reiterate over instructions & replace vars with registers *)
     let new_instrs = get_new_instrs instrs colors in
     GProgram (vars, graph, datatype, new_instrs)

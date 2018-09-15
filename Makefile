@@ -26,6 +26,7 @@ doc:
 
 test:
 	ocamlbuild ${TEST_FLAGS} tests/test.native --
+	./tests/test_examples.sh
 
 clean:
 	ocamlbuild -clean

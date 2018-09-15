@@ -14,17 +14,17 @@ let add_bidirected_edge n1 n2 map : unit =
   append_to_value n1 n2 map;
   append_to_value n2 n1 map
 
-let rec add_edges cnd (d: aarg) (targets: string list) map =
+let rec add_edges cnd (d: aarg) (targets: aarg list) map =
   match targets with
   | n :: t ->
-    if cnd (AVar n) then (add_bidirected_edge d (AVar n) map; add_edges cnd d t map)
+    if cnd n then (add_bidirected_edge d n map; add_edges cnd d t map)
     else add_edges cnd d t map
   | [] -> ()
 
 let rec add_edges_from_nodes nodes targets map =
   match nodes with
   | h :: t ->
-    add_edges (fun v -> true) (register_of_string h) targets map;
+    add_edges (fun v -> true) h targets map;
     add_edges_from_nodes t targets map
   | [] -> ()
 
@@ -40,11 +40,14 @@ let rec build_graph stmts live_afters map : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_edges (fun v -> v <> d) d live_vars map;
     build_graph t (tl live_afters) map
+
+  (* TODO: Ask Jay
   | Callq label :: t ->
     let live_vars = hd (live_afters) in
-    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_edges_from_nodes caller_save_registers live_vars map;
-    build_graph t (tl live_afters) map
+    add an edge (r, v) for every caller-save register r and every variable v of Lafter(k).
+    add_edges_from_nodes caller_save_aregisters live_vars map;
+    build_graph t (tl live_afters) map *)
+
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
