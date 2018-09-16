@@ -64,6 +64,9 @@ let rec scan_identifier stream acc : token =
     | "and"     -> TLogOp "and"
     | "not"     -> TLogOp "not"
     | "eq?"     -> TCmpOp "eq?"
+    | "pos?"    -> TPos
+    | "neg?"    -> TNeg
+    | "zero?"   -> TZero
     | _         -> TVar acc
 
 let get_cmp_op c : token =

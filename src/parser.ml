@@ -37,7 +37,7 @@ let rec parse_exp tokens : rexp =
     let exp = parse_exp tokens in
     (match next_token tokens with
     | TRParen -> RUnOp (o, exp)
-    | _ -> 
+    | _ ->
       let exp2 = parse_exp tokens in
       RBinOp(o, exp, exp2))
   | TLogOp "and" ->
@@ -46,6 +46,15 @@ let rec parse_exp tokens : rexp =
     RAnd (l, r)
   | TLogOp "not" ->
     let exp = parse_exp tokens in RNot exp
+  | TPos ->
+    let exp = parse_exp tokens in
+    RCmp (">", exp, RInt 0)
+  | TNeg ->
+    let exp = parse_exp tokens in
+    RCmp ("<", exp, RInt 0)
+  | TZero ->
+    let exp = parse_exp tokens in
+    RCmp ("eq?", exp, RInt 0)
   | TCmpOp o ->
     let l = parse_exp tokens in
     let r = parse_exp tokens in

@@ -15,7 +15,7 @@ if [ "$res" -eq "0" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('add: expected result to equal 0')
+    errors+=("add: expected result to equal 0, but received $res")
 fi
 
 ################################################################################
@@ -30,7 +30,7 @@ if [ "$res" -eq "-45" ]; then
     printf "    passed\n"
 else
     printf "    failed\n"
-    errors+=('neg: expected result to equal -45')
+    errors+=("neg: expected result to equal -45, but received $res")
 fi
 
 ################################################################################
@@ -45,7 +45,7 @@ if [ "$res" -eq "18" ]; then
     printf "    passed\n"
 else
     printf "    failed\n"
-    errors+=('uniquify: expected result to equal 18')
+    errors+=("uniquify: expected result to equal 18, but received $res")
 fi
 
 ################################################################################
@@ -60,7 +60,7 @@ if [ "$res" -eq "42" ]; then
     printf "    passed\n"
 else
     printf "    failed\n"
-    errors+=('liveness: expected result to equal 42')
+    errors+=("liveness: expected result to equal 42, but received $res")
 fi
 
 ################################################################################
@@ -71,19 +71,19 @@ printf "and\n"
 ./main.native examples/control-flow/and.rkt
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('and: expected result to equal 1')
+    errors+=("and: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "5" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '5'\n"
 else
     printf "    failed - '5'\n"
-    errors+=('and: expected result to equal 0')
+    errors+=("and: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -94,11 +94,11 @@ printf "not\n"
 ./main.native examples/control-flow/not.rkt
 
 res=$(./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed\n"
 else
     printf "    failed\n"
-    errors+=('not: expected result to equal 0')
+    errors+=("not: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -109,19 +109,19 @@ printf "eq?\n"
 ./main.native examples/control-flow/eq.rkt
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('eq?: expected result to equal 1')
+    errors+=("eq?: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "5" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '5'\n"
 else
     printf "    failed - '5'"
-    errors+=('eq?: expected result to equal 0')
+    errors+=("eq?: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -132,19 +132,19 @@ printf "gt\n"
 ./main.native examples/control-flow/gt.rkt
 
 res=$(echo "15" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '15'\n"
 else
     printf "    failed - '15'\n"
-    errors+=('gt: expected result to equal 1')
+    errors+=("gt: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('gt: expected result to equal 0')
+    errors+=("gt: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -155,19 +155,19 @@ printf "gte\n"
 ./main.native examples/control-flow/gte.rkt
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('gte: expected result to equal 1')
+    errors+=("gte: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "5" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '5'\n"
 else
     printf "    failed - '5'\n"
-    errors+=('gte: expected result to equal 0')
+    errors+=("gte: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -182,7 +182,7 @@ if [ "$res" -eq "30" ]; then
     printf "    passed - '20'\n"
 else
     printf "    failed - '20'\n"
-    errors+=('if: expected result to equal 30')
+    errors+=("if: expected result to equal 30, but received $res")
 fi
 
 res=$(echo "10" | ./output)
@@ -190,7 +190,7 @@ if [ "$res" -eq "0" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('if: expected result to equal 0')
+    errors+=("if: expected result to equal 0, but received $res")
 fi
 
 ################################################################################
@@ -201,19 +201,19 @@ printf "lt\n"
 ./main.native examples/control-flow/lt.rkt
 
 res=$(echo "5" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '5'\n"
 else
     printf "    failed - '5'\n"
-    errors+=('lt: expected result to equal 1')
+    errors+=("lt: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('lt: expected result to equal 0')
+    errors+=("lt: expected result to equal #f, but received $res")
 fi
 
 ################################################################################
@@ -224,25 +224,78 @@ printf "lte\n"
 ./main.native examples/control-flow/lte.rkt
 
 res=$(echo "10" | ./output)
-if [ "$res" -eq "1" ]; then
+if [ "$res" == "#t" ]; then
     printf "    passed - '10'\n"
 else
     printf "    failed - '10'\n"
-    errors+=('lte: expected result to equal 1')
+    errors+=("lte: expected result to equal #t, but received $res")
 fi
 
 res=$(echo "15" | ./output)
-if [ "$res" -eq "0" ]; then
+if [ "$res" == "#f" ]; then
     printf "    passed - '15'\n"
 else
     printf "    failed - '15'\n"
-    errors+=('lte: expected result to equal 0')
+    errors+=("lte: expected result to equal #f, but received $res")
 fi
 
+################################################################################
+# pos? test
+################################################################################
+
+printf "pos?\n"
+./main.native examples/control-flow/pos?.rkt
+
+res=$(./output)
+if [ "$res" == "#t" ]; then
+    printf "    passed\n"
+else
+    printf "    failed\n"
+    errors+=("pos?: expected result to equal #t, but received $res")
+fi
+
+################################################################################
+# neg? test
+################################################################################
+
+printf "neg?\n"
+./main.native examples/control-flow/neg?.rkt
+
+res=$(./output)
+if [ "$res" == "#t" ]; then
+    printf "    passed\n"
+else
+    printf "    failed\n"
+    errors+=("neg?: expected result to equal #t, but received $res")
+fi
+
+################################################################################
+# zero? test
+################################################################################
+
+printf "zero?\n"
+./main.native examples/control-flow/zero?.rkt
+
+res=$(echo '0' | ./output)
+if [ "$res" == "#t" ]; then
+    printf "    passed\n"
+else
+    printf "    failed\n"
+    errors+=("zero?: expected result to equal #t, but received $res")
+fi
+
+res=$(echo '5' | ./output)
+if [ "$res" == "#f" ]; then
+    printf "    passed\n"
+else
+    printf "    failed\n"
+    errors+=("zero?: expected result to equal #f, but received $res")
+fi
 
 # Report results
+printf '\nErrors:\n'
 if [ ${#errors[@]} -ne 0 ]; then
-    printf '\nErrors:\n%s\n\n' "${errors[@]}"
+    printf '%s\n' "${errors[@]}"
 else
-    printf '\nNo Errors\n'
+    printf 'none\n'
 fi

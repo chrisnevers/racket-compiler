@@ -57,7 +57,12 @@ let print_x86 program =
                     "\tsubq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ", %rsp\n\n" in
     let middle = print_instrs instrs in
     let ending = "\n\tmovq\t%rax, %rdi\n" ^
-                 "\tcallq\t" ^ os_label_prefix ^ "print_int\n" ^
+                 "\tcallq\t" ^ os_label_prefix ^ (
+                   match datatype with
+                   | TypeInt -> "print_int\n"
+                   | TypeBool -> "print_bool\n"
+                   | TypeUnit -> "print_unit\n"
+                  ) ^
                  "\taddq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_callee_save_registers (List.rev callee_save_registers) "popq") ^

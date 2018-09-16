@@ -1,0 +1,1 @@
+(program (neg? (- 5)))
