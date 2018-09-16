@@ -405,6 +405,7 @@ let register_of_string s : aarg =
 
 (* helper *)
 
+
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
@@ -1037,38 +1038,37 @@ let rec add_color_to_saturations saturations adjacents color =
     add_color_to_saturations saturations t color
   | [] -> ()
 
-let rec get_adjacent_colors colors adjacents =
-  match adjacents with
+let get_adjacent_colors colors adjacents =
+  List.sort compare (
+    List.map (fun e -> Hashtbl.find colors e) adjacents
+  )
+  (* match adjacents with
   | h :: t -> Hashtbl.find colors h :: (get_adjacent_colors colors t)
-  | [] -> []
+  | [] -> [] *)
 
 let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
   | 0 -> colors
   | _ ->
-      (* Pick node in graph with highest saturation *)
-      let max_saturated = get_most_saturated graph saturations in
-      (* Find its neighboring nodes *)
-      let adjacents = Hashtbl.find graph max_saturated in
-      (* Find what its neighboring nodes are already assigned *)
-      let adjacent_colors = List.sort compare (get_adjacent_colors colors adjacents) in
-      (* Find its move bias neighboring nodes *)
-      let move_adjacents = find_in_map max_saturated move in
-      (* Find whats its move bias neighbors are already assigned *)
-      let bias_colors = List.filter (fun e -> e != (-1) && not (List.mem e adjacent_colors))
-                          (List.sort compare (get_adjacent_colors colors move_adjacents)) in
-      (* Pick lowest number not in neighboring nodes *)
-      let lowest_color =
-        if List.length bias_colors = 0 then
-          get_lowest_color adjacent_colors 0
-        else hd bias_colors
-      in
-      (* Add chosen color to final color map *)
-      Hashtbl.replace colors max_saturated lowest_color;
-      add_color_to_saturations saturations adjacents lowest_color;
-      (* Remove node from processing list *)
-      Hashtbl.remove graph max_saturated;
-      get_colors graph saturations colors move
+    (* Pick node in graph with highest saturation *)
+    let max_saturated = get_most_saturated graph saturations in
+    (* Find its neighboring nodes *)
+    let adjacents = Hashtbl.find graph max_saturated in
+    (* Find what its neighboring nodes are already assigned *)
+    let adjacent_colors = List.sort compare (get_adjacent_colors colors adjacents) in
+    (* Find its move bias neighboring nodes *)
+    let move_adjacents = find_in_map max_saturated move in
+    (* Find whats its move bias neighbors are already assigned *)
+    let bias_colors = List.filter (fun e -> e != (-1) && not (List.mem e adjacent_colors))
+                      (List.sort compare (get_adjacent_colors colors move_adjacents)) in
+    (* Pick lowest number not in neighboring nodes *)
+    let lowest_color = if bias_colors = [] then get_lowest_color adjacent_colors 0 else hd bias_colors in
+    (* Add chosen color to final color map *)
+    Hashtbl.replace colors max_saturated lowest_color;
+    add_color_to_saturations saturations adjacents lowest_color;
+    (* Remove node from processing list *)
+    Hashtbl.remove graph max_saturated;
+    get_colors graph saturations colors move
 
 let color_graph graph vars move =
   (* List of numbers a variable cannot be assigned *)
@@ -1142,7 +1142,6 @@ let allocate_registers program : gprogram =
   | GProgram (vars, graph, datatype, instrs) ->
     (* Create move bias graph to doc which vars are movq'd to other vars *)
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
-    (* print_move_bias_graph move; *)
     (* Assign each var a color unique to its adjacent nodes *)
     let colors = color_graph graph vars move in
     print_color_graph colors;

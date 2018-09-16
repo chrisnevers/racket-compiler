@@ -46,10 +46,8 @@ let rec add_color_to_saturations saturations adjacents color =
     add_color_to_saturations saturations t color
   | [] -> ()
 
-let rec get_adjacent_colors colors adjacents =
-  match adjacents with
-  | h :: t -> Hashtbl.find colors h :: (get_adjacent_colors colors t)
-  | [] -> []
+let get_adjacent_colors colors adjacents =
+  List.sort compare (List.map (fun e -> Hashtbl.find colors e) adjacents)
 
 let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
@@ -60,12 +58,12 @@ let rec get_colors graph saturations colors move =
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
-    let adjacent_colors = List.sort compare (get_adjacent_colors colors adjacents) in
+    let adjacent_colors = get_adjacent_colors colors adjacents in
     (* Find its move bias neighboring nodes *)
     let move_adjacents = find_in_map max_saturated move in
     (* Find whats its move bias neighbors are already assigned *)
     let bias_colors = List.filter (fun e -> e != (-1) && not (List.mem e adjacent_colors))
-                      (List.sort compare (get_adjacent_colors colors move_adjacents)) in
+                      (get_adjacent_colors colors move_adjacents) in
     (* Pick lowest number not in neighboring nodes *)
     let lowest_color = if bias_colors = [] then get_lowest_color adjacent_colors 0 else hd bias_colors in
     (* Add chosen color to final color map *)
