@@ -360,10 +360,18 @@ let print_gprogram p =
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
 
 let print_color_graph colors =
-  print_endline "Color graph:";
+  print_endline "\nColor Graph:";
   Hashtbl.iter (fun k v ->
       print_endline ((string_of_aarg k) ^ " : " ^ (string_of_int v));
-    ) colors
+    ) colors;
+  print_endline ""
+
+let print_move_bias_graph tbl =
+  print_endline "\nMove Bias Graph:";
+  Hashtbl.iter (fun k v ->
+      print_endline ((string_of_aarg k) ^ " : " ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg e)) "" v);
+    )) tbl;
+  print_endline ""
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
 let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
@@ -400,6 +408,11 @@ let register_of_string s : aarg =
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
+let print_adjacent_aargs adjacents =
+  print_endline ("[" ^ List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ ",") "" adjacents ^ "]")
+
+let print_adjacent_colors colors =
+  print_endline ("[" ^ List.fold_left (fun acc e -> acc ^ string_of_int e ^ ",") "" colors ^ "]")
 (* registers *)
 
 
@@ -1015,8 +1028,7 @@ let rec get_lowest_color adjacent_colors cur =
       get_lowest_color t (cur + 1)
     else
       get_lowest_color t cur
-  | [] ->
-    cur
+  | [] -> cur
 
 let rec add_color_to_saturations saturations adjacents color =
   match adjacents with
@@ -1030,7 +1042,7 @@ let rec get_adjacent_colors colors adjacents =
   | h :: t -> Hashtbl.find colors h :: (get_adjacent_colors colors t)
   | [] -> []
 
-let rec get_colors graph saturations colors =
+let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
   | 0 -> colors
   | _ ->
@@ -1040,21 +1052,30 @@ let rec get_colors graph saturations colors =
       let adjacents = Hashtbl.find graph max_saturated in
       (* Find what its neighboring nodes are already assigned *)
       let adjacent_colors = List.sort compare (get_adjacent_colors colors adjacents) in
+      (* Find its move bias neighboring nodes *)
+      let move_adjacents = find_in_map max_saturated move in
+      (* Find whats its move bias neighbors are already assigned *)
+      let bias_colors = List.filter (fun e -> e != (-1) && not (List.mem e adjacent_colors))
+                          (List.sort compare (get_adjacent_colors colors move_adjacents)) in
       (* Pick lowest number not in neighboring nodes *)
-      let lowest_color = get_lowest_color adjacent_colors 0 in
+      let lowest_color =
+        if List.length bias_colors = 0 then
+          get_lowest_color adjacent_colors 0
+        else hd bias_colors
+      in
       (* Add chosen color to final color map *)
       Hashtbl.replace colors max_saturated lowest_color;
       add_color_to_saturations saturations adjacents lowest_color;
       (* Remove node from processing list *)
       Hashtbl.remove graph max_saturated;
-      get_colors graph saturations colors
+      get_colors graph saturations colors move
 
-let color_graph graph vars =
+let color_graph graph vars move =
   (* List of numbers a variable cannot be assigned *)
   let saturations = create_graph vars [] in
   (* The color (number) a variable is assigned *)
   let colors = create_graph vars (-1) in
-  get_colors (Hashtbl.copy graph) saturations colors
+  get_colors (Hashtbl.copy graph) saturations colors move
 
 (* Map the variable to a register or spill to the stack if no space *)
 let get_register a graph =
@@ -1107,10 +1128,24 @@ let rec get_new_instrs instrs graph =
           get_new_instrs thn_instr graph, [],
           get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
 
+let rec create_move_bias_graph instrs tbl =
+  match instrs with
+  | Movq (s, d) :: tl when is_var s && is_var d ->
+    append_to_value s d tbl;
+    append_to_value d s tbl;
+    create_move_bias_graph tl tbl
+  | _ :: tl -> create_move_bias_graph tl tbl
+  | [] -> tbl
+
 let allocate_registers program : gprogram =
   match program with
   | GProgram (vars, graph, datatype, instrs) ->
-    let colors = color_graph graph vars in
+    (* Create move bias graph to doc which vars are movq'd to other vars *)
+    let move = create_move_bias_graph instrs (Hashtbl.create 10) in
+    (* print_move_bias_graph move; *)
+    (* Assign each var a color unique to its adjacent nodes *)
+    let colors = color_graph graph vars move in
+    print_color_graph colors;
     (* Reiterate over instructions & replace vars with registers *)
     let new_instrs = get_new_instrs instrs colors in
     GProgram (vars, graph, datatype, new_instrs)
@@ -1232,6 +1267,7 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
+    if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
     else Movq (a, b) :: patch_instrs tl
