@@ -188,10 +188,18 @@ let print_gprogram p =
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
 
 let print_color_graph colors =
-  print_endline "Color graph:";
+  print_endline "\nColor Graph:";
   Hashtbl.iter (fun k v ->
       print_endline ((string_of_aarg k) ^ " : " ^ (string_of_int v));
-    ) colors
+    ) colors;
+  print_endline ""
+
+let print_move_bias_graph tbl =
+  print_endline "\nMove Bias Graph:";
+  Hashtbl.iter (fun k v ->
+      print_endline ((string_of_aarg k) ^ " : " ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg e)) "" v);
+    )) tbl;
+  print_endline ""
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
 let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
