@@ -1,4 +1,4 @@
-type token = 
+type token =
   | TProgram
   | TInt of int
   | TBool of bool
@@ -13,6 +13,10 @@ type token =
   | TRParen
   | TLBracket
   | TRBracket
+  | TVector
+  | TVectorSet
+  | TVectorRef
+  | TVoid
   | TEOF
 
 let string_of_token t =
@@ -31,6 +35,10 @@ let string_of_token t =
   | TRParen -> ")"
   | TLBracket -> "["
   | TRBracket -> "]"
+  | TVector -> "vector"
+  | TVectorSet -> "vector-set!"
+  | TVectorRef -> "vector-ref"
+  | TVoid -> "void"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

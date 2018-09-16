@@ -47,7 +47,7 @@ let parse_test = (fun () ->
     TVar "a"; TInt 4; TRBracket; TRParen; TLParen; TArithOp "-"; TInt 4;
     TRParen; TRParen; TRParen; TRParen; TEOF]
   in
-  let expected = RProgram (TypeUnit, RIf (RAnd (RNot (RBool false), RBool true), 
+  let expected = RProgram (TypeVoid, RIf (RAnd (RNot (RBool false), RBool true),
     RBinOp ("+", RInt 2, RInt 3), RLet ("a", RInt 4, RUnOp ("-", RInt 4)))) in
   assert_equal expected (parse tokens)
 )

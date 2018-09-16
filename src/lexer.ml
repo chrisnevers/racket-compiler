@@ -35,7 +35,7 @@ let rec next_char stream : char =
 let peek_char stream : char option = Stream.peek stream
 
 let is_valid_id c : bool =
-  is_alpha c || is_digit c || c = '_' || c = '?'
+  is_alpha c || is_digit c || c = '_' || c = '?' || c = '-' || c = '!'
 
 let is_stream_empty stream : bool =
   try Stream.empty stream; true
@@ -64,6 +64,10 @@ let rec scan_identifier stream acc : token =
     | "and"     -> TLogOp "and"
     | "not"     -> TLogOp "not"
     | "eq?"     -> TCmpOp "eq?"
+    | "void"    -> TVoid
+    | "vector"  -> TVector
+    | "vector-set!" -> TVectorSet
+    | "vector-ref"  -> TVectorRef
     | _         -> TVar acc
 
 let get_cmp_op c : token =

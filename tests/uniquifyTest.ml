@@ -4,7 +4,7 @@ open RProgram
 
 let get_var_name_test = (fun () ->
   let v = "name" in
-  let works () = 
+  let works () =
     let table = Hashtbl.create 1 in
     let _ = Hashtbl.add table v 1 in
     assert_equal "name" (get_var_name v table);
@@ -27,8 +27,8 @@ let uniquify_name_test = (fun () ->
 )
 
 let uniquify_test = (fun () ->
-  let program = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a", RUnOp ("-", RVar "a"), RVar "a"))) in
-  let expected = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a2", RUnOp ("-", RVar "a"), RVar "a2"))) in
+  let program = RProgram (TypeVoid, RLet ("a", RInt 2, RLet ("a", RUnOp ("-", RVar "a"), RVar "a"))) in
+  let expected = RProgram (TypeVoid, RLet ("a", RInt 2, RLet ("a2", RUnOp ("-", RVar "a"), RVar "a2"))) in
   assert_equal expected (uniquify program);
 )
 
