@@ -62,6 +62,7 @@ let rec scan_identifier stream acc : token =
     | "let"     -> TLet
     | "if"      -> TIf
     | "and"     -> TLogOp "and"
+    | "or"      -> TLogOp "or"
     | "not"     -> TLogOp "not"
     | "eq?"     -> TCmpOp "eq?"
     | "pos?"    -> TPos

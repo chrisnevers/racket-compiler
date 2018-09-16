@@ -44,6 +44,10 @@ let rec parse_exp tokens : rexp =
     let l = parse_exp tokens in
     let r = parse_exp tokens in
     RAnd (l, r)
+  | TLogOp "or" ->
+    let l = parse_exp tokens in
+    let r = parse_exp tokens in
+    ROr (l, r)
   | TLogOp "not" ->
     let exp = parse_exp tokens in RNot exp
   | TPos ->

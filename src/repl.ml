@@ -33,7 +33,7 @@ let rec get_input acc opened_parens =
 
 let int_of_bool (b:bool) : int =
   match b with
-  | true -> 1 
+  | true -> 1
   | false -> 0
 
 let bool_of_int (b:int) : bool =
@@ -43,7 +43,7 @@ let bool_of_int (b:int) : bool =
 
 let rec evaluate ast table =
   match ast with
-  | RVar v -> 
+  | RVar v ->
     (try
       Hashtbl.find table v
     with Not_found -> variable_not_found ("Variable: " ^ v ^ " used before declaration"))
@@ -53,6 +53,10 @@ let rec evaluate ast table =
     let lexp = evaluate l table in
     let rexp = evaluate r table in
     (int_of_bool (lexp = 1 && rexp = 1))
+  | ROr (l, r) ->
+    let lexp = evaluate l table in
+    let rexp = evaluate r table in
+    (int_of_bool (lexp = 1 || rexp = 1))
   | RNot e ->
     let exp = evaluate e table in
     (int_of_bool (not (bool_of_int exp)))
@@ -86,8 +90,8 @@ let rec evaluate ast table =
     let iexp = evaluate i table in
     Hashtbl.add table v iexp;
     evaluate b table
-  | RRead -> 
-    let input = read_line() in 
+  | RRead ->
+    let input = read_line() in
     int_of_string input
 
 let rec repl () =

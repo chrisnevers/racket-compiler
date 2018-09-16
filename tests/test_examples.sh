@@ -87,6 +87,37 @@ else
 fi
 
 ################################################################################
+# or test
+################################################################################
+
+printf "or\n"
+./main.native examples/control-flow/or.rkt
+
+res=$(echo "10" | ./output)
+if [ "$res" == "#t" ]; then
+    printf "    passed - '10'\n"
+else
+    printf "    failed - '10'\n"
+    errors+=("or: expected result to equal #t, but received $res")
+fi
+
+res=$(echo "0" | ./output)
+if [ "$res" == "#t" ]; then
+    printf "    passed - '0'\n"
+else
+    printf "    failed - '0'\n"
+    errors+=("or: expected result to equal #t, but received $res")
+fi
+
+res=$(echo "5" | ./output)
+if [ "$res" == "#f" ]; then
+    printf "    passed - '5'\n"
+else
+    printf "    failed - '5'\n"
+    errors+=("or: expected result to equal #f, but received $res")
+fi
+
+################################################################################
 # not test
 ################################################################################
 

@@ -8,8 +8,9 @@ type rexp =
   | RInt of int
   | RBool of bool
   | RAnd of rexp * rexp
+  | ROr of rexp * rexp
   | RNot of rexp
-  | RIf of rexp * rexp * rexp  
+  | RIf of rexp * rexp * rexp
   | RCmp of string * rexp * rexp
   | RUnOp of string * rexp
   | RBinOp of string * rexp * rexp
@@ -32,6 +33,7 @@ let rec string_of_rexp e : string =
   | RInt i -> "Int " ^ (string_of_int i)
   | RBool b -> "Bool " ^ (string_of_bool b)
   | RAnd (l, r) -> "And " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
+  | ROr (l, r) -> "Or " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
   | RNot e -> "Not " ^ (string_of_rexp e)
   | RIf (cnd, thn, els) -> "If " ^ (string_of_rexp cnd) ^ " then " ^ (string_of_rexp thn) ^ " else " ^ (string_of_rexp els)
   | RCmp (o, l, r) -> o ^ " " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)

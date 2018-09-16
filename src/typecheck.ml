@@ -18,6 +18,11 @@ let rec typecheck_exp exp table : datatype =
     let rtype = typecheck_exp r table in
     if ltype = TypeBool && rtype = TypeBool then TypeBool
     else typecheck_error "typecheck_exp: And expressions must operate on boolean values"
+  | ROr (l, r) ->
+    let ltype = typecheck_exp l table in
+    let rtype = typecheck_exp r table in
+    if ltype = TypeBool && rtype = TypeBool then TypeBool
+    else typecheck_error "typecheck_exp: Or expressions must operate on boolean values"
   | RNot e ->
     let etype = typecheck_exp e table in
     if etype = TypeBool then TypeBool
@@ -33,10 +38,10 @@ let rec typecheck_exp exp table : datatype =
     let ltype = typecheck_exp l table in
     let rtype = typecheck_exp r table in
     (match o with
-    | ">" | ">=" | "<" | "<=" -> 
+    | ">" | ">=" | "<" | "<=" ->
       if ltype = TypeInt && rtype = TypeInt then TypeBool
       else typecheck_error ("typecheck_exp: " ^ o ^ " operates on integers")
-    | "eq?" -> 
+    | "eq?" ->
       if ltype = rtype then TypeBool
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")

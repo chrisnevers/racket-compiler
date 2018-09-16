@@ -16,7 +16,7 @@ let uniquify_name v table : string =
   try
     let count = (Hashtbl.find table v) + 1 in
     let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
-  with Not_found -> 
+  with Not_found ->
     let _ = Hashtbl.add table v 1 in v
 
 let rec uniquify_exp ast table : rexp =
@@ -30,6 +30,7 @@ let rec uniquify_exp ast table : rexp =
   | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp l table, uniquify_exp r table)
   | RVar v -> RVar (get_var_name v table)
   | RAnd (l, r) -> RAnd (uniquify_exp l table, uniquify_exp r table)
+  | ROr (l, r) -> ROr (uniquify_exp l table, uniquify_exp r table)
   | RNot e -> RNot (uniquify_exp e table)
   | RIf (cnd, thn, els) -> RIf (uniquify_exp cnd table, uniquify_exp thn table, uniquify_exp els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp l table, uniquify_exp r table)
@@ -38,4 +39,3 @@ let rec uniquify_exp ast table : rexp =
 let uniquify ast : rprogram =
   match ast with
   | RProgram (dt, e) -> RProgram (dt, uniquify_exp e (Hashtbl.create 10))
-  
