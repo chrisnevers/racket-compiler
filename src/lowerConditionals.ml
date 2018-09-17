@@ -14,7 +14,7 @@ let rec lower_instructions instrs uniq_cnt =
   | AIf ((c, a1, a2), thn_instrs, _, els_instrs, _) :: tl ->
     let thn_label = gen_unique "thn" uniq_cnt in
     let end_label = gen_unique "end" uniq_cnt in
-    Cmpq (a2, a1) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
+    Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
     Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
     Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
