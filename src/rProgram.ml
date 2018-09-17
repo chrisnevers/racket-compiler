@@ -1,7 +1,8 @@
 type datatype =
   | TypeInt
   | TypeBool
-  | TypeUnit
+  | TypeVoid
+  | TypeVector of datatype list
 
 type rexp =
   | RVar of string
@@ -16,6 +17,10 @@ type rexp =
   | RBinOp of string * rexp * rexp
   | RLet of string * rexp * rexp
   | RRead
+  | RVector of rexp list
+  | RVectorRef of rexp * int
+  | RVectorSet of rexp * int * rexp
+  | RVoid
 
 type rprogram =
   | RProgram of datatype * rexp
@@ -24,7 +29,7 @@ let string_of_datatype dt : string =
   match dt with
   | TypeInt -> "int"
   | TypeBool -> "bool"
-  | TypeUnit -> "()"
+  | TypeVoid -> "void"
 
 let rec string_of_rexp e : string =
   "(" ^ (fun e ->

@@ -23,9 +23,9 @@ let is_valid_id_test = fun () ->
 
 let scan_all_tokens_test = fun () ->
   let program = "()[]program let if read +- > >= < <= eq? and not #t #f" in
-  assert_equal 
-    [TLParen; TRParen; TLBracket; TRBracket; TProgram; TLet; TIf; TRead; 
-    TArithOp "+"; TArithOp "-"; TCmpOp ">"; TCmpOp ">="; TCmpOp "<"; TCmpOp "<="; 
+  assert_equal
+    [TLParen; TRParen; TLBracket; TRBracket; TProgram; TLet; TIf; TRead;
+    TArithOp "+"; TArithOp "-"; TCmpOp ">"; TCmpOp ">="; TCmpOp "<"; TCmpOp "<=";
     TCmpOp "eq?"; TLogOp "and"; TLogOp "not"; TBool true; TBool false; TEOF]
     (scan_all_tokens (Stream.of_string program) [])
 
@@ -36,16 +36,23 @@ let scan_literal_test = fun () ->
   assert_equal (TInt 94) (scan_literal stream "9")
 
 let scan_id_test = fun () ->
-  let stream = Stream.of_string "b?" in 
+  let stream = Stream.of_string "b?" in
   assert_equal (TVar "ab?") (scan_identifier stream "a");
-  let stream = Stream.of_string "rogram" in 
+  let stream = Stream.of_string "rogram" in
   assert_equal TProgram (scan_identifier stream "p");
-  let stream = Stream.of_string "f(" in 
+  let stream = Stream.of_string "f(" in
   assert_equal TIf (scan_identifier stream "i");
-  let stream = Stream.of_string "" in 
+  let stream = Stream.of_string "" in
   assert_equal (TVar "a") (scan_identifier stream "a");
-  let stream = Stream.of_string "q?" in 
-  assert_equal (TCmpOp "eq?") (scan_identifier stream "e")
+  let stream = Stream.of_string "q?" in
+  assert_equal (TCmpOp "eq?") (scan_identifier stream "e");
+  let stream = Stream.of_string "ector" in
+  assert_equal TVector (scan_identifier stream "v");
+  let stream = Stream.of_string "ector-ref" in
+  assert_equal TVectorRef (scan_identifier stream "v");
+  let stream = Stream.of_string "ector-set!" in
+  assert_equal TVectorSet (scan_identifier stream "v")
+
 
 let suite =
   print_endline "Lexer";
