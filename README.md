@@ -25,9 +25,11 @@ Run:
     - Uncovers live variables
     - Builds an interference graph
     - Allocates registers
+        - Move Biasing
 3. ~~Control Flow~~
-    - Booleans and relational operators
-    - Logical `and` and `not` operators
+    - Boolean support: `#t` and `#f`
+    - Relational operators: `eq?`, `<`, `<=`, `>`, `>=`, `pos?`, `zero?`, and `neg?`
+    - Logical operators: `and`, `or`, and `not`
     - `if-else` expressions
 
 TODO:
