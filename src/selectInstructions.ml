@@ -29,19 +29,20 @@ let select_exp e v : ainstr list =
     let op = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
     let rarg = get_aarg_of_carg r in
+    (* Handle switching cmpq arg positions *)
     [Cmpq (rarg, larg); Set (op, ByteReg Al); Movzbq (ByteReg Al, v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
   | CAssign (v, e) :: t ->
     select_exp e (AVar v) @ select_stmts t
-  | CReturn a :: t -> 
+  | CReturn a :: t ->
     let arg = get_aarg_of_carg a in
     Movq (arg, Reg Rax) :: select_stmts t
   | CIf (CCmp(o, l, r), thn, els) :: t ->
     let cmp = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
-    let rarg = get_aarg_of_carg r in 
+    let rarg = get_aarg_of_carg r in
     let thninstrs = select_stmts thn in
     let elsinstrs = select_stmts els in
     AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
@@ -52,4 +53,4 @@ let rec select_stmts stmt : ainstr list =
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, stmts) ->
-    PProgram (vars, datatype, select_stmts stmts) 
+    PProgram (vars, datatype, select_stmts stmts)

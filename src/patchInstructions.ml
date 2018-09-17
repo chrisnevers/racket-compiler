@@ -4,6 +4,10 @@ let is_deref arg = match arg with
   | Deref _ -> true
   | _ -> false
 
+let is_int arg = match arg with
+  | AInt _ -> true
+  | _ -> false
+
 let rec patch_instrs instrs = match instrs with
   | [] -> []
   | Addq (a, b) :: tl ->
@@ -28,9 +32,9 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Movzbq (Reg Rax, b) :: patch_instrs tl
     else Movzbq (a, b) :: patch_instrs tl
   | Cmpq (a, b) :: tl ->
-    (match b with
-    | AInt _ -> Movq (b, Reg Rax) :: Cmpq (a, Reg Rax) :: patch_instrs tl
-    | _ -> Cmpq (a, b) :: patch_instrs tl)
+    if is_int a || (is_deref a && is_deref b) then
+      Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else Cmpq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
 let patch_instructions program = match program with
