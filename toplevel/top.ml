@@ -18,6 +18,9 @@ type token =
   | TRParen
   | TLBracket
   | TRBracket
+  | TPos
+  | TNeg
+  | TZero
   | TVector
   | TVectorSet
   | TVectorRef
@@ -40,6 +43,9 @@ let string_of_token t =
   | TRParen -> ")"
   | TLBracket -> "["
   | TRBracket -> "]"
+  | TPos -> "pos?"
+  | TNeg -> "neg?"
+  | TZero -> "zero?"
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
@@ -62,6 +68,7 @@ type rexp =
   | RInt of int
   | RBool of bool
   | RAnd of rexp * rexp
+  | ROr of rexp * rexp
   | RNot of rexp
   | RIf of rexp * rexp * rexp
   | RCmp of string * rexp * rexp
@@ -77,11 +84,18 @@ type rexp =
 type rprogram =
   | RProgram of datatype * rexp
 
-let string_of_datatype dt : string =
+let rec string_of_datatype dt : string =
   match dt with
   | TypeInt -> "int"
   | TypeBool -> "bool"
   | TypeVoid -> "void"
+  | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
+
+and string_of_datatypes dt =
+  match dt with
+  | h :: [] -> string_of_datatype h
+  | h :: t -> string_of_datatype h ^ " * " ^ string_of_datatypes t
+  | [] -> ""
 
 let rec string_of_rexp e : string =
   "(" ^ (fun e ->
@@ -90,6 +104,7 @@ let rec string_of_rexp e : string =
   | RInt i -> "Int " ^ (string_of_int i)
   | RBool b -> "Bool " ^ (string_of_bool b)
   | RAnd (l, r) -> "And " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
+  | ROr (l, r) -> "Or " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
   | RNot e -> "Not " ^ (string_of_rexp e)
   | RIf (cnd, thn, els) -> "If " ^ (string_of_rexp cnd) ^ " then " ^ (string_of_rexp thn) ^ " else " ^ (string_of_rexp els)
   | RCmp (o, l, r) -> o ^ " " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
@@ -97,8 +112,18 @@ let rec string_of_rexp e : string =
   | RBinOp (o, l, r) -> o ^ " " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
   | RLet (v, i, b) -> "Let ([Var " ^ v ^ " " ^ (string_of_rexp i) ^ "]) " ^ (string_of_rexp b)
   | RRead -> "Read"
+  | RVector e -> "Vector (" ^ string_of_rexps e ^ ")"
+  | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp e) ^ ", " ^ (string_of_int i) ^ ")"
+  | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp n) ^ ")"
+  | RVoid -> "Void"
   ) e
   ^ ")"
+
+and string_of_rexps exps =
+  match exps with
+  | h :: [] -> string_of_rexp h
+  | h :: t -> string_of_rexp h ^ ", " ^ string_of_rexps t
+  | [] -> ""
 
 let print_rprogram p =
   match p with
@@ -497,8 +522,12 @@ let rec scan_identifier stream acc : token =
     | "let"     -> TLet
     | "if"      -> TIf
     | "and"     -> TLogOp "and"
+    | "or"      -> TLogOp "or"
     | "not"     -> TLogOp "not"
     | "eq?"     -> TCmpOp "eq?"
+    | "pos?"    -> TPos
+    | "neg?"    -> TNeg
+    | "zero?"   -> TZero
     | "void"    -> TVoid
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
@@ -583,7 +612,7 @@ let rec parse_exp tokens : rexp =
   | TVar v -> RVar v
   | TBool b -> RBool b
   | TVector ->
-    let exps = parse_inner_exps tokens [] in
+    let exps = parse_inner_exps tokens in
     RVector exps
   | TVectorRef ->
     let exp = parse_exp tokens in
@@ -606,8 +635,21 @@ let rec parse_exp tokens : rexp =
     let l = parse_exp tokens in
     let r = parse_exp tokens in
     RAnd (l, r)
+  | TLogOp "or" ->
+    let l = parse_exp tokens in
+    let r = parse_exp tokens in
+    ROr (l, r)
   | TLogOp "not" ->
     let exp = parse_exp tokens in RNot exp
+  | TPos ->
+    let exp = parse_exp tokens in
+    RCmp (">", exp, RInt 0)
+  | TNeg ->
+    let exp = parse_exp tokens in
+    RCmp ("<", exp, RInt 0)
+  | TZero ->
+    let exp = parse_exp tokens in
+    RCmp ("eq?", exp, RInt 0)
   | TCmpOp o ->
     let l = parse_exp tokens in
     let r = parse_exp tokens in
@@ -628,11 +670,13 @@ let rec parse_exp tokens : rexp =
     RIf (cnd, thn, els)
   | _ -> parser_error ("Did not expect token " ^ (string_of_token token))
 
-and parse_inner_exps tokens exps =
+and parse_inner_exps tokens =
   let next = next_token tokens in
   match next with
-  | TRParen -> exps
-  | _ -> parse_inner_exps tokens (parse_exp tokens :: exps)
+  | TRParen -> []
+  | _ ->
+    let exp = parse_exp tokens in
+    exp :: parse_inner_exps tokens
 
 let parse_program tokens : rprogram =
   expect_token tokens TLParen;
@@ -665,7 +709,7 @@ let uniquify_name v table : string =
   try
     let count = (Hashtbl.find table v) + 1 in
     let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
-  with Not_found -> 
+  with Not_found ->
     let _ = Hashtbl.add table v 1 in v
 
 let rec uniquify_exp ast table : rexp =
@@ -679,6 +723,7 @@ let rec uniquify_exp ast table : rexp =
   | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp l table, uniquify_exp r table)
   | RVar v -> RVar (get_var_name v table)
   | RAnd (l, r) -> RAnd (uniquify_exp l table, uniquify_exp r table)
+  | ROr (l, r) -> ROr (uniquify_exp l table, uniquify_exp r table)
   | RNot e -> RNot (uniquify_exp e table)
   | RIf (cnd, thn, els) -> RIf (uniquify_exp cnd table, uniquify_exp thn table, uniquify_exp els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp l table, uniquify_exp r table)
@@ -687,7 +732,7 @@ let rec uniquify_exp ast table : rexp =
 let uniquify ast : rprogram =
   match ast with
   | RProgram (dt, e) -> RProgram (dt, uniquify_exp e (Hashtbl.create 10))
-  
+
 (* typecheck *)
 
 
@@ -703,12 +748,21 @@ let rec typecheck_exp exp table : datatype =
   match exp with
   | RInt i -> TypeInt
   | RBool b -> TypeBool
+  | RVoid -> TypeVoid
+  | RVector types ->
+    let datatypes = List.fold_left (fun acc t -> typecheck_exp t table :: acc)[] (List.rev types) in
+    TypeVector datatypes
   | RVar v -> get_var_type v table
   | RAnd (l, r) ->
     let ltype = typecheck_exp l table in
     let rtype = typecheck_exp r table in
     if ltype = TypeBool && rtype = TypeBool then TypeBool
     else typecheck_error "typecheck_exp: And expressions must operate on boolean values"
+  | ROr (l, r) ->
+    let ltype = typecheck_exp l table in
+    let rtype = typecheck_exp r table in
+    if ltype = TypeBool && rtype = TypeBool then TypeBool
+    else typecheck_error "typecheck_exp: Or expressions must operate on boolean values"
   | RNot e ->
     let etype = typecheck_exp e table in
     if etype = TypeBool then TypeBool
@@ -724,10 +778,10 @@ let rec typecheck_exp exp table : datatype =
     let ltype = typecheck_exp l table in
     let rtype = typecheck_exp r table in
     (match o with
-    | ">" | ">=" | "<" | "<=" -> 
+    | ">" | ">=" | "<" | "<=" ->
       if ltype = TypeInt && rtype = TypeInt then TypeBool
       else typecheck_error ("typecheck_exp: " ^ o ^ " operates on integers")
-    | "eq?" -> 
+    | "eq?" ->
       if ltype = rtype then TypeBool
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
@@ -761,12 +815,12 @@ let flatten_error s = raise (FlattenError s)
 let get_var_name v tmp_count =
   match v with
   | Some name -> name
-  | None -> 
+  | None ->
     tmp_count := !tmp_count + 1;
     "tmp" ^ (string_of_int !tmp_count)
 
 let get_carg_of_rarg a : carg =
-  match a with 
+  match a with
   | RBool b -> CBool b
   | RInt i -> CInt i
   | RVar name -> CVar name
@@ -789,7 +843,7 @@ let flatten_arg ?(v=None) a tmp_count : carg * cstmt list * string list =
 
 let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   match e with
-  | RVar _ | RInt _ | RBool _ -> 
+  | RVar _ | RInt _ | RBool _ ->
     flatten_arg e tmp_count ~v:v
   | RAnd (l, r) ->
     let (larg, lstmts, lvars) = flatten_exp l tmp_count in
@@ -806,13 +860,28 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let stmts = lstmts @ [lif] in
     let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
     (flat_arg, stmts, var_list)
+  | ROr (l, r) ->
+    let (larg, lstmts, lvars) = flatten_exp l tmp_count in
+    let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
+    let var_name = get_var_name v tmp_count in
+    let flat_arg = CVar var_name in
+    let lif_cnd = CCmp (CEq, CBool true, larg) in
+    let rif_cnd = CCmp (CEq, CBool true, rarg) in
+    (* We only execute this if first condition is false, so if this condition is true, then set var to true, otherwise false *)
+    let rif = CIf (rif_cnd, [CAssign (var_name, CArg (CBool true))], [CAssign (var_name, CArg (CBool false))]) in
+    (* Execute first condition, if true then set var to true, else see if next condition is true *)
+    let lif = CIf (lif_cnd, [CAssign (var_name, CArg (CBool true))], rstmts @ [rif]) in
+    (* Execute lstmts see if left is true *)
+    let stmts = lstmts @ [lif] in
+    let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
+    (flat_arg, stmts, var_list)
   | RNot e ->
     let (earg, estmts, evars) = flatten_exp e tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let stmts = estmts @ [CAssign (var_name, CNot earg)] in
     let var_list = if v = None then var_name :: evars else evars in
-    (flat_arg, stmts, var_list)    
+    (flat_arg, stmts, var_list)
   | RIf (cnd, thn, els) ->
     let var_name = get_var_name v tmp_count in
     let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
@@ -823,7 +892,7 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let flat_arg = CVar var_name in
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
-    (flat_arg, stmts, var_list)   
+    (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
     let (larg, lstmts, lvars) = flatten_exp l tmp_count in
     let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
@@ -832,7 +901,7 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let ccmp = get_ccmp_of_rcmp o in
     let stmts = lstmts @ rstmts @ [CAssign (var_name, CCmp (ccmp, larg, rarg))] in
     let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
-    (flat_arg, stmts, var_list)   
+    (flat_arg, stmts, var_list)
   | RUnOp (o, e) ->
     let (earg, estmts, evars) = flatten_exp e tmp_count in
     let var_name = get_var_name v tmp_count in
@@ -903,19 +972,20 @@ let select_exp e v : ainstr list =
     let op = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
     let rarg = get_aarg_of_carg r in
+    (* Handle switching cmpq arg positions *)
     [Cmpq (rarg, larg); Set (op, ByteReg Al); Movzbq (ByteReg Al, v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
   | CAssign (v, e) :: t ->
     select_exp e (AVar v) @ select_stmts t
-  | CReturn a :: t -> 
+  | CReturn a :: t ->
     let arg = get_aarg_of_carg a in
     Movq (arg, Reg Rax) :: select_stmts t
   | CIf (CCmp(o, l, r), thn, els) :: t ->
     let cmp = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
-    let rarg = get_aarg_of_carg r in 
+    let rarg = get_aarg_of_carg r in
     let thninstrs = select_stmts thn in
     let elsinstrs = select_stmts els in
     AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
@@ -926,7 +996,7 @@ let rec select_stmts stmt : ainstr list =
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, stmts) ->
-    PProgram (vars, datatype, select_stmts stmts) 
+    PProgram (vars, datatype, select_stmts stmts)
 
 (* uncoverLive *)
 
@@ -1081,12 +1151,7 @@ let rec add_color_to_saturations saturations adjacents color =
   | [] -> ()
 
 let get_adjacent_colors colors adjacents =
-  List.sort compare (
-    List.map (fun e -> Hashtbl.find colors e) adjacents
-  )
-  (* match adjacents with
-  | h :: t -> Hashtbl.find colors h :: (get_adjacent_colors colors t)
-  | [] -> [] *)
+  List.sort compare (List.map (fun e -> Hashtbl.find colors e) adjacents)
 
 let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
@@ -1097,12 +1162,12 @@ let rec get_colors graph saturations colors move =
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
-    let adjacent_colors = List.sort compare (get_adjacent_colors colors adjacents) in
+    let adjacent_colors = get_adjacent_colors colors adjacents in
     (* Find its move bias neighboring nodes *)
     let move_adjacents = find_in_map max_saturated move in
     (* Find whats its move bias neighbors are already assigned *)
     let bias_colors = List.filter (fun e -> e != (-1) && not (List.mem e adjacent_colors))
-                      (List.sort compare (get_adjacent_colors colors move_adjacents)) in
+                      (get_adjacent_colors colors move_adjacents) in
     (* Pick lowest number not in neighboring nodes *)
     let lowest_color = if bias_colors = [] then get_lowest_color adjacent_colors 0 else hd bias_colors in
     (* Add chosen color to final color map *)
@@ -1186,7 +1251,6 @@ let allocate_registers program : gprogram =
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
     (* Assign each var a color unique to its adjacent nodes *)
     let colors = color_graph graph vars move in
-    print_color_graph colors;
     (* Reiterate over instructions & replace vars with registers *)
     let new_instrs = get_new_instrs instrs colors in
     GProgram (vars, graph, datatype, new_instrs)
@@ -1208,7 +1272,7 @@ let rec lower_instructions instrs uniq_cnt =
   | AIf ((c, a1, a2), thn_instrs, _, els_instrs, _) :: tl ->
     let thn_label = gen_unique "thn" uniq_cnt in
     let end_label = gen_unique "end" uniq_cnt in
-    Cmpq (a2, a1) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
+    Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
     Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
     Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
@@ -1297,6 +1361,10 @@ let is_deref arg = match arg with
   | Deref _ -> true
   | _ -> false
 
+let is_int arg = match arg with
+  | AInt _ -> true
+  | _ -> false
+
 let rec patch_instrs instrs = match instrs with
   | [] -> []
   | Addq (a, b) :: tl ->
@@ -1317,13 +1385,13 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Xorq (Reg Rax, b) :: patch_instrs tl
     else Xorq (a, b) :: patch_instrs tl
   | Movzbq (a, b) :: tl ->
-    if is_deref a && is_deref b then
-      Movq (a, Reg Rax) :: Movzbq (Reg Rax, b) :: patch_instrs tl
+    if is_deref b then
+      Movzbq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
     else Movzbq (a, b) :: patch_instrs tl
   | Cmpq (a, b) :: tl ->
-    (match b with
-    | AInt _ -> Movq (b, Reg Rax) :: Cmpq (a, Reg Rax) :: patch_instrs tl
-    | _ -> Cmpq (a, b) :: patch_instrs tl)
+    if is_int a || (is_deref a && is_deref b) then
+      Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else Cmpq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
 let patch_instructions program = match program with
@@ -1391,7 +1459,13 @@ let print_x86 program =
                     "\tsubq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ", %rsp\n\n" in
     let middle = print_instrs instrs in
     let ending = "\n\tmovq\t%rax, %rdi\n" ^
-                 "\tcallq\t" ^ os_label_prefix ^ "print_int\n" ^
+                 "\tcallq\t" ^ os_label_prefix ^ (
+                   match datatype with
+                   | TypeInt -> "print_int\n"
+                   | TypeBool -> "print_bool\n"
+                   | TypeVoid -> "print_unit\n"
+                   | TypeVector l -> "print_vector\n"
+                  ) ^
                  "\taddq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_callee_save_registers (List.rev callee_save_registers) "popq") ^

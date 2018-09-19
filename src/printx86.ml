@@ -61,7 +61,8 @@ let print_x86 program =
                    match datatype with
                    | TypeInt -> "print_int\n"
                    | TypeBool -> "print_bool\n"
-                   | TypeUnit -> "print_unit\n"
+                   | TypeVoid -> "print_unit\n"
+                   | TypeVector l -> "print_vector\n"
                   ) ^
                  "\taddq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^

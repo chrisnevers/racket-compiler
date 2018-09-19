@@ -27,8 +27,8 @@ let uniquify_name_test = (fun () ->
 )
 
 let uniquify_test = (fun () ->
-  let program = RProgram (TypeVoid, RLet ("a", RInt 2, RLet ("a", RUnOp ("-", RVar "a"), RVar "a"))) in
-  let expected = RProgram (TypeVoid, RLet ("a", RInt 2, RLet ("a2", RUnOp ("-", RVar "a"), RVar "a2"))) in
+  let program = RProgram (TypeVoid, make_tint (RLet ("a", make_tint (RInt 2), make_tint (RLet ("a", make_tint (RUnOp ("-", make_tint (RVar "a"))), make_tint (RVar "a")))))) in
+  let expected = RProgram (TypeVoid, make_tint (RLet ("a", make_tint (RInt 2), make_tint (RLet ("a2", make_tint (RUnOp ("-", make_tint (RVar "a"))), make_tint (RVar "a2")))))) in
   assert_equal expected (uniquify program);
 )
 
