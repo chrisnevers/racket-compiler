@@ -72,7 +72,7 @@ let print_cprogram program =
   match program with
   | CProgram (vars, dt, stmts) ->
     print_endline (
-      "Program\t: " ^ (string_of_datatype dt) ^ 
+      "Program\t: " ^ (string_of_datatype dt) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
     )

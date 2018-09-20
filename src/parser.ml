@@ -71,13 +71,13 @@ let rec parse_exp tokens : rexp =
     let exp = parse_typed_exp tokens in RNot exp
   | TPos ->
     let exp = parse_typed_exp tokens in
-    RCmp (">", exp, TypeIs (TypeInt, RInt 0))
+    RCmp (">", exp, TypeIs (None, RInt 0))
   | TNeg ->
     let exp = parse_typed_exp tokens in
-    RCmp ("<", exp, TypeIs (TypeInt, RInt 0))
+    RCmp ("<", exp, TypeIs (None, RInt 0))
   | TZero ->
     let exp = parse_typed_exp tokens in
-    RCmp ("eq?", exp, TypeIs (TypeInt, RInt 0))
+    RCmp ("eq?", exp, TypeIs (None, RInt 0))
   | TCmpOp o ->
     let l = parse_typed_exp tokens in
     let r = parse_typed_exp tokens in
@@ -99,7 +99,7 @@ let rec parse_exp tokens : rexp =
   | _ -> parser_error ("Did not expect token " ^ (string_of_token token))
 
 and parse_typed_exp tokens =
-  TypeIs (TypeVoid, parse_exp tokens)
+  TypeIs (None, parse_exp tokens)
 
 and parse_inner_exps tokens =
   let next = next_token tokens in
@@ -115,7 +115,7 @@ let parse_program tokens : rprogram =
   let exp = parse_typed_exp tokens in
   expect_token tokens TRParen;
   expect_token tokens TEOF;
-  RProgram (TypeVoid, exp)
+  RProgram (None, exp)
 
 let parse tokens =
   let token_list = ref tokens in

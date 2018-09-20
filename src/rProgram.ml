@@ -5,7 +5,7 @@ type datatype =
   | TypeVector of datatype list
 
 type rexp_type =
-  | TypeIs of datatype * rexp
+  | TypeIs of datatype option * rexp
 
 and rexp =
   | RVar of string
@@ -26,22 +26,36 @@ and rexp =
   | RLet of string * rexp_type * rexp_type
 
 type rprogram =
-  | RProgram of datatype * rexp_type
+  | RProgram of datatype option * rexp_type
 
-let get_datatype et : datatype =
+let get_datatype_option et : datatype option =
   match et with
   | TypeIs (dt, _) -> dt
 
-let rec get_datatypes l : datatype list =
+let rec get_datatype_options l : datatype option list =
   match l with
-  | TypeIs (dt, _) :: tl -> dt :: get_datatypes tl
+  | TypeIs (dt, _) :: tl -> dt :: get_datatype_options tl
   | [] -> []
 
-let make_tint e = TypeIs (TypeInt, e)
-let make_tbool e = TypeIs (TypeBool, e)
-let make_tvoid e = TypeIs (TypeVoid, e)
+exception DatatypeError of string
+let datatype_error msg = raise (DatatypeError msg)
 
-let rec string_of_datatype dt : string =
+let get_datatype et : datatype =
+  match et with
+  | TypeIs (Some dt, _) -> dt
+  | _ -> datatype_error "datatype is none"
+
+let rec get_datatypes l : datatype list =
+  match l with
+  | TypeIs (Some dt, _) :: tl -> dt :: get_datatypes tl
+  | [] -> []
+  | _ -> datatype_error "datatype is none"
+
+let make_tint e = TypeIs (Some TypeInt, e)
+let make_tbool e = TypeIs (Some TypeBool, e)
+let make_tvoid e = TypeIs (Some TypeVoid, e)
+
+let rec string_of_datatype dt =
   match dt with
   | TypeInt -> "int"
   | TypeBool -> "bool"
@@ -52,6 +66,17 @@ and string_of_datatypes dt =
   match dt with
   | h :: [] -> string_of_datatype h
   | h :: t -> string_of_datatype h ^ " * " ^ string_of_datatypes t
+  | [] -> ""
+
+let rec string_of_datatype_option dt : string =
+  match dt with
+  | Some a -> string_of_datatype a
+  | None -> ""
+
+and string_of_datatype_options (dt: datatype option list) =
+  match dt with
+  | h :: [] -> string_of_datatype_option h
+  | h :: t -> string_of_datatype_option h ^ " * " ^ string_of_datatype_options t
   | [] -> ""
 
 let rec string_of_rexp e : string =
@@ -85,7 +110,7 @@ and string_of_rexps exps =
 
 and string_of_rexp_type e : string =
   match e with
-  | TypeIs (dt, e) -> string_of_rexp e ^ ": " ^ (string_of_datatype dt)
+  | TypeIs (dt, e) -> string_of_rexp e ^ ": " ^ (string_of_datatype_option dt)
 
 and string_of_rexps_type e : string =
   match e with
@@ -95,4 +120,4 @@ and string_of_rexps_type e : string =
 
 let print_rprogram p =
   match p with
-  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype dt) ^ " " ^ (string_of_rexp_type e))
+  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype_option dt) ^ " " ^ (string_of_rexp_type e))

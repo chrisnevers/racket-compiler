@@ -46,92 +46,104 @@ let bool_of_int (b:int) : bool =
   | _ -> true
 
 let rec evaluate ast table =
+
+  (* Functions to get evaluate values *)
   let rec get_int_value e =
     match e with
-    | TypeIs (TypeInt, RInt i) -> i
-    | TypeIs (TypeInt, _) -> get_int_value (evaluate e table)
-    | TypeIs (dt, _) -> unsupported_operator ("expected int but received " ^ (string_of_datatype dt))
+    | TypeIs (Some TypeInt, RInt i) -> i
+    | TypeIs (Some TypeInt, _)      -> get_int_value (evaluate e table)
+    | TypeIs (dt, _) -> unsupported_operator ("expected int but received " ^ (string_of_datatype_option dt))
   in
+
   let rec get_bool_value e =
     match e with
-    | TypeIs (TypeBool, RBool i) -> i
-    | TypeIs (TypeBool, _) -> get_bool_value (evaluate e table)
-    | TypeIs (dt, _) -> unsupported_operator ("expected bool but received " ^ (string_of_datatype dt))
+    | TypeIs (Some TypeBool, RBool i) -> i
+    | TypeIs (Some TypeBool, _)       -> get_bool_value (evaluate e table)
+    | TypeIs (dt, _) -> unsupported_operator ("expected bool but received " ^ (string_of_datatype_option dt))
   in
-  let get_vector_value e =
+
+  let rec get_vector_value e =
     match e with
     | TypeIs (_, RVector v) -> (List.map (fun i ->
         match i with
-        | TypeIs (TypeInt, _)  -> TypeIs (TypeInt, RInt (get_int_value i))
-        | TypeIs (TypeBool, _) -> TypeIs (TypeBool, RBool (get_bool_value i))
-        | TypeIs (TypeVoid, _) -> TypeIs (TypeVoid, RVoid))
+        | TypeIs (Some TypeInt, _)  -> make_tint (RInt (get_int_value i))
+        | TypeIs (Some TypeBool, _) -> make_tbool (RBool (get_bool_value i))
+        | TypeIs (Some TypeVoid, _) -> make_tvoid RVoid
+        | TypeIs (Some vec, _)      -> TypeIs (Some vec, RVector (get_vector_value i))
+        | _ -> unsupported_operator ("expected valid type"))
       v)
-    | TypeIs (dt, _) -> unsupported_operator ("expected bool but received " ^ (string_of_datatype dt))
+    | TypeIs (Some TypeVector l, _)       -> get_vector_value (evaluate e table)
+    | TypeIs (dt, _) -> unsupported_operator ("expected vector but received " ^ (string_of_datatype_option dt))
   in
+
+  let get_any_value e =
+    match get_datatype_option e with
+    | Some TypeInt      -> make_tint (RInt (get_int_value e))
+    | Some TypeBool     -> make_tbool (RBool (get_bool_value e))
+    | Some TypeVoid     -> make_tvoid RVoid
+    | Some TypeVector l -> TypeIs (Some (TypeVector l), RVector (get_vector_value e))
+    | None              -> unsupported_operator "unexpected datatype"
+  in
+
+  (* Main matching *)
   match ast with
-  | TypeIs (dt, e) ->
-  (match e with
+  | TypeIs (dt, e) -> (
+    match e with
     | RVar v -> (try Hashtbl.find table v
        with Not_found -> variable_not_found ("Variable: " ^ v ^ " used before declaration"))
-    | RInt i  -> TypeIs (dt, e)
-    | RBool b -> TypeIs (dt, e)
-    | RVoid   -> TypeIs (dt, e)
+    | RInt i    -> make_tint e
+    | RBool b   -> make_tbool e
+    | RVoid     -> make_tvoid e
     | RVector l -> TypeIs (dt, RVector (get_vector_value ast))
     | RVectorRef (v, i) ->
       let vexp = get_vector_value (evaluate v table) in List.nth vexp i
     | RVectorSet (v, i, n) ->
       (* Need to store vector for appropriate lifetime... *)
-      TypeIs (TypeVoid, RVoid)
+      make_tvoid (RVoid)
     | RAnd (l, r) ->
       let lexp = get_bool_value (evaluate l table) in
       let rexp = get_bool_value (evaluate r table) in
-      TypeIs (TypeBool, RBool (if lexp then rexp else false))
+      make_tbool (RBool (if lexp then rexp else false))
     | ROr (l, r) ->
       let lexp = get_bool_value (evaluate l table) in
       let rexp = get_bool_value (evaluate r table) in
-      TypeIs (TypeBool, RBool (if lexp then true else rexp))
+      make_tbool (RBool (if lexp then true else rexp))
     | RNot e ->
       let exp = get_bool_value (evaluate e table) in
-      TypeIs (TypeBool, RBool (not exp))
+      make_tbool (RBool (not exp))
     | RIf (cnd, thn, els) ->
       let cndexp = get_bool_value (evaluate cnd table) in
-      if cndexp then
-        evaluate thn table
+      if cndexp then evaluate thn table
       else evaluate els table
     | RCmp (o, l, r) ->
       let lexp = get_int_value (evaluate l table) in
       let rexp = get_int_value (evaluate r table) in (
       match o with
-      | "<"   -> TypeIs (TypeBool, RBool (lexp < rexp))
-      | "<="  -> TypeIs (TypeBool, RBool (lexp <= rexp))
-      | ">"   -> TypeIs (TypeBool, RBool (lexp > rexp))
-      | ">="  -> TypeIs (TypeBool, RBool (lexp >= rexp))
-      | "eq?" -> TypeIs (TypeBool, RBool (lexp = rexp))
+      | "<"   -> make_tbool (RBool (lexp < rexp))
+      | "<="  -> make_tbool (RBool (lexp <= rexp))
+      | ">"   -> make_tbool (RBool (lexp > rexp))
+      | ">="  -> make_tbool (RBool (lexp >= rexp))
+      | "eq?" -> make_tbool (RBool (lexp = rexp))
       | _ -> unsupported_operator ("Unsupported compare operator: " ^ o))
     | RUnOp (o, e) ->
       let exp = get_int_value (evaluate e table) in (
       match o with
-      | "-" -> TypeIs (TypeInt, RInt (- exp))
+      | "-" -> make_tint (RInt (- exp))
       | _ -> unsupported_operator ("Unsupported unary operator: " ^ o))
     | RBinOp (o, l, r) ->
       let lexp = get_int_value (evaluate l table) in
       let rexp = get_int_value (evaluate r table) in (
       match o with
-      | "+" -> TypeIs (TypeInt, RInt (lexp + rexp))
+      | "+" -> make_tint (RInt (lexp + rexp))
       | _ -> unsupported_operator ("Unsupported binary operator: " ^ o))
     | RLet (v, i, b) ->
       let iexp = evaluate i table in
-      let inner = match get_datatype iexp with
-        | TypeInt -> TypeIs (TypeInt, RInt (get_int_value iexp))
-        | TypeBool -> TypeIs (TypeBool, RBool (get_bool_value iexp))
-        | TypeVoid -> TypeIs (TypeVoid, RVoid)
-        | TypeVector l -> TypeIs (TypeVector l, RVector (get_vector_value iexp))
-      in
-      Hashtbl.add table v inner;
+      let value = get_any_value iexp in
+      Hashtbl.add table v value;
       evaluate b table
     | RRead ->
       let input = read_line() in
-      TypeIs (TypeInt, RInt (int_of_string input))
+      make_tint (RInt (int_of_string input))
   )
 
 let rec repl () =

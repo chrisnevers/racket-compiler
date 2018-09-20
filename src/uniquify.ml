@@ -45,4 +45,4 @@ and uniquify_exp_type ast table : rexp_type =
 
 let uniquify ast : rprogram =
   match ast with
-  | RProgram (dt, e) -> RProgram (dt, uniquify_exp_type e (Hashtbl.create 10))
+  | RProgram (_, e) -> RProgram (None, uniquify_exp_type e (Hashtbl.create 10))

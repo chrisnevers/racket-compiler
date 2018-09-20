@@ -136,8 +136,9 @@ and flatten_typed_exp ?(v=None) e tmp_count =
 
 let flatten program : cprogram =
   match program with
-  | RProgram (dt, e) ->
+  | RProgram (Some dt, e) ->
     let tmp_count = ref 0 in
     let (arg, stmts, vars) = flatten_typed_exp e tmp_count in
     let new_stmts = stmts @ [CReturn arg] in
     CProgram (vars, dt, new_stmts)
+  | _ -> flatten_error "Flatten: program does not have type"

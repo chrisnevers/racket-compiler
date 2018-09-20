@@ -63,28 +63,58 @@ type datatype =
   | TypeVoid
   | TypeVector of datatype list
 
-type rexp =
+type rexp_type =
+  | TypeIs of datatype option * rexp
+
+and rexp =
   | RVar of string
   | RInt of int
   | RBool of bool
-  | RAnd of rexp * rexp
-  | ROr of rexp * rexp
-  | RNot of rexp
-  | RIf of rexp * rexp * rexp
-  | RCmp of string * rexp * rexp
-  | RUnOp of string * rexp
-  | RBinOp of string * rexp * rexp
-  | RLet of string * rexp * rexp
-  | RRead
-  | RVector of rexp list
-  | RVectorRef of rexp * int
-  | RVectorSet of rexp * int * rexp
   | RVoid
+  | RVector of rexp_type list
+  | RVectorRef of rexp_type * int
+  | RVectorSet of rexp_type * int * rexp_type
+  | RRead
+  | RAnd of rexp_type * rexp_type
+  | ROr of rexp_type * rexp_type
+  | RNot of rexp_type
+  | RIf of rexp_type * rexp_type * rexp_type
+  | RCmp of string * rexp_type * rexp_type
+  | RUnOp of string * rexp_type
+  | RBinOp of string * rexp_type * rexp_type
+  | RLet of string * rexp_type * rexp_type
 
 type rprogram =
-  | RProgram of datatype * rexp
+  | RProgram of datatype option * rexp_type
 
-let rec string_of_datatype dt : string =
+let get_datatype_option et : datatype option =
+  match et with
+  | TypeIs (dt, _) -> dt
+
+let rec get_datatype_options l : datatype option list =
+  match l with
+  | TypeIs (dt, _) :: tl -> dt :: get_datatype_options tl
+  | [] -> []
+
+exception DatatypeError of string
+let datatype_error msg = raise (DatatypeError msg)
+
+let get_datatype et : datatype =
+  match et with
+  | TypeIs (Some dt, _) -> dt
+  | _ -> datatype_error "datatype is none"
+
+let rec get_datatypes l : datatype list =
+  match l with
+  | TypeIs (Some dt, _) :: tl -> dt :: get_datatypes tl
+  | [] -> []
+  | _ -> datatype_error "datatype is none"
+
+let make_tint e = TypeIs (Some TypeInt, e)
+let make_tbool e = TypeIs (Some TypeBool, e)
+let make_tvoid e = TypeIs (Some TypeVoid, e)
+
+let rec string_of_datatype dt =
   match dt with
   | TypeInt -> "int"
   | TypeBool -> "bool"
@@ -97,27 +127,39 @@ and string_of_datatypes dt =
   | h :: t -> string_of_datatype h ^ " * " ^ string_of_datatypes t
   | [] -> ""
 
+let rec string_of_datatype_option dt : string =
+  match dt with
+  | Some a -> string_of_datatype a
+  | None -> ""
+
+and string_of_datatype_options (dt: datatype option list) =
+  match dt with
+  | h :: [] -> string_of_datatype_option h
+  | h :: t -> string_of_datatype_option h ^ " * " ^ string_of_datatype_options t
+  | [] -> ""
+
 let rec string_of_rexp e : string =
-  "(" ^ (fun e ->
+  (* "(" ^ *)
+  (fun e ->
   match e with
   | RVar v -> "Var " ^ v
-  | RInt i -> "Int " ^ (string_of_int i)
-  | RBool b -> "Bool " ^ (string_of_bool b)
-  | RAnd (l, r) -> "And " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
-  | ROr (l, r) -> "Or " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
-  | RNot e -> "Not " ^ (string_of_rexp e)
-  | RIf (cnd, thn, els) -> "If " ^ (string_of_rexp cnd) ^ " then " ^ (string_of_rexp thn) ^ " else " ^ (string_of_rexp els)
-  | RCmp (o, l, r) -> o ^ " " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
-  | RUnOp (o, e) -> o ^ " " ^ (string_of_rexp e)
-  | RBinOp (o, l, r) -> o ^ " " ^ (string_of_rexp l) ^ " " ^ (string_of_rexp r)
-  | RLet (v, i, b) -> "Let ([Var " ^ v ^ " " ^ (string_of_rexp i) ^ "]) " ^ (string_of_rexp b)
+  | RInt i -> string_of_int i
+  | RBool b -> if b then "#t" else "#f"
+  | RVoid -> "void"
+  | RAnd (l, r) -> "And " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
+  | ROr (l, r) -> "Or " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
+  | RNot e -> "Not " ^ (string_of_rexp_type e)
+  | RIf (cnd, thn, els) -> "If " ^ (string_of_rexp_type cnd) ^ " then " ^ (string_of_rexp_type thn) ^ " else " ^ (string_of_rexp_type els)
+  | RCmp (o, l, r) -> o ^ " " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
+  | RUnOp (o, e) -> o ^ " " ^ (string_of_rexp_type e)
+  | RBinOp (o, l, r) -> o ^ " " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
+  | RLet (v, i, b) -> "Let ([Var " ^ v ^ " " ^ (string_of_rexp_type i) ^ "]) " ^ (string_of_rexp_type b)
   | RRead -> "Read"
-  | RVector e -> "Vector (" ^ string_of_rexps e ^ ")"
-  | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp e) ^ ", " ^ (string_of_int i) ^ ")"
-  | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp n) ^ ")"
-  | RVoid -> "Void"
+  | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
+  | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
+  | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
   ) e
-  ^ ")"
+  (* ^ ")" *)
 
 and string_of_rexps exps =
   match exps with
@@ -125,9 +167,19 @@ and string_of_rexps exps =
   | h :: t -> string_of_rexp h ^ ", " ^ string_of_rexps t
   | [] -> ""
 
+and string_of_rexp_type e : string =
+  match e with
+  | TypeIs (dt, e) -> string_of_rexp e ^ ": " ^ (string_of_datatype_option dt)
+
+and string_of_rexps_type e : string =
+  match e with
+  | h :: [] -> string_of_rexp_type h
+  | h :: t -> string_of_rexp_type h ^ ", " ^ string_of_rexps_type t
+  | [] -> ""
+
 let print_rprogram p =
   match p with
-  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype dt) ^ " " ^ (string_of_rexp e))
+  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype_option dt) ^ " " ^ (string_of_rexp_type e))
 
 (* cProgram *)
 
@@ -204,7 +256,7 @@ let print_cprogram program =
   match program with
   | CProgram (vars, dt, stmts) ->
     print_endline (
-      "Program\t: " ^ (string_of_datatype dt) ^ 
+      "Program\t: " ^ (string_of_datatype dt) ^
       "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
       "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
     )
@@ -615,76 +667,79 @@ let rec parse_exp tokens : rexp =
     let exps = parse_inner_exps tokens in
     RVector exps
   | TVectorRef ->
-    let exp = parse_exp tokens in
+    let exp = parse_typed_exp tokens in
     let index = parse_int tokens in
     RVectorRef(exp, index)
   | TVectorSet ->
-    let e1 = parse_exp tokens in
+    let e1 = parse_typed_exp tokens in
     let index = parse_int tokens in
-    let e2 = parse_exp tokens in
+    let e2 = parse_typed_exp tokens in
     RVectorSet(e1, index, e2)
   | TRead -> RRead
   | TArithOp o ->
-    let exp = parse_exp tokens in
+    let exp = parse_typed_exp tokens in
     (match next_token tokens with
     | TRParen -> RUnOp (o, exp)
     | _ ->
-      let exp2 = parse_exp tokens in
+      let exp2 = parse_typed_exp tokens in
       RBinOp(o, exp, exp2))
   | TLogOp "and" ->
-    let l = parse_exp tokens in
-    let r = parse_exp tokens in
+    let l = parse_typed_exp tokens in
+    let r = parse_typed_exp tokens in
     RAnd (l, r)
   | TLogOp "or" ->
-    let l = parse_exp tokens in
-    let r = parse_exp tokens in
+    let l = parse_typed_exp tokens in
+    let r = parse_typed_exp tokens in
     ROr (l, r)
   | TLogOp "not" ->
-    let exp = parse_exp tokens in RNot exp
+    let exp = parse_typed_exp tokens in RNot exp
   | TPos ->
-    let exp = parse_exp tokens in
-    RCmp (">", exp, RInt 0)
+    let exp = parse_typed_exp tokens in
+    RCmp (">", exp, TypeIs (None, RInt 0))
   | TNeg ->
-    let exp = parse_exp tokens in
-    RCmp ("<", exp, RInt 0)
+    let exp = parse_typed_exp tokens in
+    RCmp ("<", exp, TypeIs (None, RInt 0))
   | TZero ->
-    let exp = parse_exp tokens in
-    RCmp ("eq?", exp, RInt 0)
+    let exp = parse_typed_exp tokens in
+    RCmp ("eq?", exp, TypeIs (None, RInt 0))
   | TCmpOp o ->
-    let l = parse_exp tokens in
-    let r = parse_exp tokens in
+    let l = parse_typed_exp tokens in
+    let r = parse_typed_exp tokens in
     RCmp (o, l, r)
   | TLet ->
     expect_token tokens TLParen;
     expect_token tokens TLBracket;
     let v = parse_var tokens in
-    let i = parse_exp tokens in
+    let i = parse_typed_exp tokens in
     expect_token tokens TRBracket;
     expect_token tokens TRParen;
-    let b = parse_exp tokens in
+    let b = parse_typed_exp tokens in
     RLet (v, i, b)
   | TIf ->
-    let cnd = parse_exp tokens in
-    let thn = parse_exp tokens in
-    let els = parse_exp tokens in
+    let cnd = parse_typed_exp tokens in
+    let thn = parse_typed_exp tokens in
+    let els = parse_typed_exp tokens in
     RIf (cnd, thn, els)
   | _ -> parser_error ("Did not expect token " ^ (string_of_token token))
+
+and parse_typed_exp tokens =
+  TypeIs (None, parse_exp tokens)
 
 and parse_inner_exps tokens =
   let next = next_token tokens in
   match next with
   | TRParen -> []
   | _ ->
-    let exp = parse_exp tokens in
+    let exp = parse_typed_exp tokens in
     exp :: parse_inner_exps tokens
 
 let parse_program tokens : rprogram =
   expect_token tokens TLParen;
   expect_token tokens TProgram;
-  let exp = parse_exp tokens in
+  let exp = parse_typed_exp tokens in
   expect_token tokens TRParen;
   expect_token tokens TEOF;
-  RProgram (TypeVoid, exp)
+  RProgram (None, exp)
 
 let parse tokens =
   let token_list = ref tokens in
@@ -715,23 +770,30 @@ let uniquify_name v table : string =
 let rec uniquify_exp ast table : rexp =
   match ast with
   | RLet (v, i, b) ->
-    let iexp = uniquify_exp i table in
+    let iexp = uniquify_exp_type i table in
     let uniq_var = uniquify_name v table in
-    let bexp = uniquify_exp b table in
+    let bexp = uniquify_exp_type b table in
     RLet (uniq_var, iexp, bexp)
-  | RUnOp (o, e) -> RUnOp (o, uniquify_exp e table)
-  | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp l table, uniquify_exp r table)
+  | RUnOp (o, e) -> RUnOp (o, uniquify_exp_type e table)
+  | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp_type l table, uniquify_exp_type r table)
   | RVar v -> RVar (get_var_name v table)
-  | RAnd (l, r) -> RAnd (uniquify_exp l table, uniquify_exp r table)
-  | ROr (l, r) -> ROr (uniquify_exp l table, uniquify_exp r table)
-  | RNot e -> RNot (uniquify_exp e table)
-  | RIf (cnd, thn, els) -> RIf (uniquify_exp cnd table, uniquify_exp thn table, uniquify_exp els table)
-  | RCmp (o, l, r) -> RCmp (o, uniquify_exp l table, uniquify_exp r table)
+  | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table) es)
+  | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table, i)
+  | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table, i, uniquify_exp_type e table)
+  | RAnd (l, r) -> RAnd (uniquify_exp_type l table, uniquify_exp_type r table)
+  | ROr (l, r) -> ROr (uniquify_exp_type l table, uniquify_exp_type r table)
+  | RNot e -> RNot (uniquify_exp_type e table)
+  | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table, uniquify_exp_type thn table, uniquify_exp_type els table)
+  | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table, uniquify_exp_type r table)
   | _ -> ast
+
+and uniquify_exp_type ast table : rexp_type =
+  match ast with
+  | TypeIs (dt, e) -> TypeIs (dt, uniquify_exp e table)
 
 let uniquify ast : rprogram =
   match ast with
-  | RProgram (dt, e) -> RProgram (dt, uniquify_exp e (Hashtbl.create 10))
+  | RProgram (_, e) -> RProgram (None, uniquify_exp_type e (Hashtbl.create 10))
 
 (* typecheck *)
 
@@ -744,66 +806,115 @@ let get_var_type v table =
   try Hashtbl.find table v
   with Not_found -> typecheck_error "get_var_type: Undeclared variable"
 
-let rec typecheck_exp exp table : datatype =
+let rec typecheck_exp exp table =
   match exp with
-  | RInt i -> TypeInt
-  | RBool b -> TypeBool
-  | RVoid -> TypeVoid
-  | RVector types ->
-    let datatypes = List.fold_left (fun acc t -> typecheck_exp t table :: acc)[] (List.rev types) in
-    TypeVector datatypes
-  | RVar v -> get_var_type v table
+  | RInt i  -> make_tint (RInt i)
+  | RBool b -> make_tbool (RBool b)
+  | RVoid   -> make_tvoid RVoid
+  | RVector exps ->
+    let typed_exps = List.map (fun t -> typecheck_exp_type t table) exps in
+    let datatypes = get_datatypes typed_exps in
+    TypeIs (Some (TypeVector datatypes), RVector typed_exps)
+  | RVectorRef (v, i) ->
+    let nv = typecheck_exp_type v table in
+    let dt = get_datatype nv in (
+    match dt with
+    | TypeVector datatypes -> (try
+          let ref_type = List.nth datatypes i in
+          TypeIs (Some ref_type, RVectorRef (nv, i))
+      with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
+    | _ -> typecheck_error ("typecheck_exp: Vector-ref must operate on vector. Received: " ^ (string_of_datatype dt)))
+  | RVectorSet (v, i, e) ->
+    let nv = typecheck_exp_type v table in
+    let dt = get_datatype nv in (
+    match dt with
+    | TypeVector datatypes -> (try
+      let tk = List.nth datatypes i in
+      let ne = typecheck_exp_type e table in
+      let edt = get_datatype ne in
+      if tk = edt then
+        make_tvoid (RVectorSet (nv, i, ne))
+      else typecheck_error ("typecheck_exp: vector-set! must operate on same type. Expected " ^ (string_of_datatype tk) ^ " but received " ^ (string_of_datatype edt))
+      with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
+    | _ -> typecheck_error ("typecheck_exp: Vector-set! must operate on vector. Received: " ^ (string_of_datatype dt)))
+  | RVar v -> TypeIs (get_var_type v table, RVar v)
   | RAnd (l, r) ->
-    let ltype = typecheck_exp l table in
-    let rtype = typecheck_exp r table in
-    if ltype = TypeBool && rtype = TypeBool then TypeBool
+    let nl = typecheck_exp_type l table in
+    let ldt = get_datatype_option nl in
+    let nr = typecheck_exp_type r table in
+    let rdt = get_datatype_option nr in
+    if ldt = Some TypeBool && rdt = Some TypeBool then
+      make_tbool (RAnd (nl, nr))
     else typecheck_error "typecheck_exp: And expressions must operate on boolean values"
   | ROr (l, r) ->
-    let ltype = typecheck_exp l table in
-    let rtype = typecheck_exp r table in
-    if ltype = TypeBool && rtype = TypeBool then TypeBool
+    let nl = typecheck_exp_type l table in
+    let ldt = get_datatype_option nl in
+    let nr = typecheck_exp_type r table in
+    let rdt = get_datatype_option nr in
+    if ldt = Some TypeBool && rdt = Some TypeBool then
+      make_tbool (ROr (nl, nr))
     else typecheck_error "typecheck_exp: Or expressions must operate on boolean values"
   | RNot e ->
-    let etype = typecheck_exp e table in
-    if etype = TypeBool then TypeBool
+    let ne = typecheck_exp_type e table in
+    let edt = get_datatype_option ne in
+    if edt = Some TypeBool then
+      TypeIs (edt, RNot ne)
     else typecheck_error "typecheck_exp: Not expressions must operate on boolean values"
   | RIf (cnd, thn, els) ->
-    let ctype = typecheck_exp cnd table in
-    let ttype = typecheck_exp thn table in
-    let etype = typecheck_exp els table in
-    if ctype != TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
-    else if ttype = etype then etype
+    let ncnd = typecheck_exp_type cnd table in
+    let cndt = get_datatype_option ncnd in
+    let nthn = typecheck_exp_type thn table in
+    let thdt = get_datatype_option nthn in
+    let nels = typecheck_exp_type els table in
+    let eldt = get_datatype_option nels in
+    if cndt != Some TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
+    else if thdt = eldt then
+      TypeIs (thdt, RIf (ncnd, nthn, nels))
     else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"
   | RCmp (o, l, r) ->
-    let ltype = typecheck_exp l table in
-    let rtype = typecheck_exp r table in
+    let nl = typecheck_exp_type l table in
+    let ldt = get_datatype_option nl in
+    let nr = typecheck_exp_type r table in
+    let rdt = get_datatype_option nr in
     (match o with
     | ">" | ">=" | "<" | "<=" ->
-      if ltype = TypeInt && rtype = TypeInt then TypeBool
+      if ldt = Some TypeInt && ldt = Some TypeInt then make_tbool (RCmp (o, nl, nr))
       else typecheck_error ("typecheck_exp: " ^ o ^ " operates on integers")
     | "eq?" ->
-      if ltype = rtype then TypeBool
+      if ldt = rdt then make_tbool (RCmp (o, nl, nr))
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
   | RUnOp (o, e) ->
-    let etype = typecheck_exp e table in
-    if etype = TypeInt then TypeInt
+    let ne = typecheck_exp_type e table in
+    let edt = get_datatype_option ne in
+    if edt = Some TypeInt then make_tint (RUnOp (o, ne))
     else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integer")
   | RBinOp (o, l, r) ->
-    let ltype = typecheck_exp l table in
-    let rtype = typecheck_exp r table in
-    if ltype = TypeInt && rtype = TypeInt then TypeInt
+    let nl = typecheck_exp_type l table in
+    let ldt = get_datatype_option nl in
+    let nr = typecheck_exp_type r table in
+    let rdt = get_datatype_option nr in
+    if ldt = Some TypeInt && rdt = Some TypeInt then make_tint (RBinOp (o, nl, nr))
     else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integers")
   | RLet (v, i, b) ->
-    let itype = typecheck_exp i table in
-    let _ = Hashtbl.add table v itype in
-    let btype = typecheck_exp b table in
-    btype
-  | RRead -> TypeInt
+    let ni = typecheck_exp_type i table in
+    let idt = get_datatype_option ni in
+    let _ = Hashtbl.add table v idt in
+    let nb = typecheck_exp_type b table in
+    let bdt = get_datatype_option nb in
+    TypeIs (bdt, RLet (v, ni, nb))
+  | RRead -> make_tint (RRead)
+
+and typecheck_exp_type exp table =
+  match exp with
+  | TypeIs (_, e) -> typecheck_exp e table
 
 let typecheck program : rprogram =
   match program with
-  | RProgram (_, e) -> RProgram (typecheck_exp e (Hashtbl.create 10), e)
+  | RProgram (_, e) ->
+    let ne = typecheck_exp_type e (Hashtbl.create 10) in
+    match ne with
+    | TypeIs (dt, _) -> RProgram (dt, ne)
 
 (* flatten *)
 
@@ -846,8 +957,8 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   | RVar _ | RInt _ | RBool _ ->
     flatten_arg e tmp_count ~v:v
   | RAnd (l, r) ->
-    let (larg, lstmts, lvars) = flatten_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
+    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
+    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let lif_cnd = CCmp (CEq, CBool true, larg) in
@@ -861,8 +972,8 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
     (flat_arg, stmts, var_list)
   | ROr (l, r) ->
-    let (larg, lstmts, lvars) = flatten_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
+    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
+    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let lif_cnd = CCmp (CEq, CBool true, larg) in
@@ -876,7 +987,7 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
     (flat_arg, stmts, var_list)
   | RNot e ->
-    let (earg, estmts, evars) = flatten_exp e tmp_count in
+    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let stmts = estmts @ [CAssign (var_name, CNot earg)] in
@@ -884,18 +995,18 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     (flat_arg, stmts, var_list)
   | RIf (cnd, thn, els) ->
     let var_name = get_var_name v tmp_count in
-    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_exp cnd tmp_count in
+    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd tmp_count in
     (* Assign result of then and else conditions to lhs variable / or newly created tmp *)
-    let (thn_arg, thn_stmts, thn_vars) = flatten_exp thn tmp_count ~v:(Some var_name) in
-    let (els_arg, els_stmts, els_vars) = flatten_exp els tmp_count ~v:(Some var_name) in
+    let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
+    let (els_arg, els_stmts, els_vars) = flatten_typed_exp els tmp_count ~v:(Some var_name) in
     let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let flat_arg = CVar var_name in
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
     (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
-    let (larg, lstmts, lvars) = flatten_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
+    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
+    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let ccmp = get_ccmp_of_rcmp o in
@@ -903,15 +1014,15 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
     (flat_arg, stmts, var_list)
   | RUnOp (o, e) ->
-    let (earg, estmts, evars) = flatten_exp e tmp_count in
+    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let stmts = estmts @ [CAssign (var_name, CUnOp (o, earg))] in
     let var_list = if v = None then var_name :: evars else evars in
     (flat_arg, stmts, var_list)
   | RBinOp (o, l, r) ->
-    let (larg, lstmts, lvars) = flatten_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_exp r tmp_count in
+    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
+    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
     let var_name = get_var_name v tmp_count in
     let flat_arg = CVar var_name in
     let stmts = lstmts @ rstmts @ [CAssign (var_name, CBinOp (o, larg, rarg))] in
@@ -919,9 +1030,9 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     (flat_arg, stmts, var_list)
   | RLet (name, i, b) ->
     (* Assign result of inner expression to the variable being declared *)
-    let (iarg, istmts, ivars) = flatten_exp i tmp_count ~v:(Some name) in
+    let (iarg, istmts, ivars) = flatten_typed_exp i tmp_count ~v:(Some name) in
     (* Assign result of body function to whatever variable this expression is a child of *)
-    let (barg, bstmts, bvars) = flatten_exp b tmp_count ~v:v in
+    let (barg, bstmts, bvars) = flatten_typed_exp b tmp_count ~v:v in
     let flat_arg = barg in
     let stmts = istmts @ bstmts in
     let var_list = name :: ivars @ bvars in
@@ -932,14 +1043,23 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let stmts = [CAssign (var_name, CRead)] in
     let var_list = if v = None then [var_name] else [] in
     (flat_arg, stmts, var_list)
+  | RVoid -> flatten_error "void not implemented"
+  | RVector _ -> flatten_error "vector not implemented"
+  | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
+  | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
+
+and flatten_typed_exp ?(v=None) e tmp_count =
+  match e with
+  | TypeIs (dt, x) -> flatten_exp ~v x tmp_count
 
 let flatten program : cprogram =
   match program with
-  | RProgram (dt, e) ->
+  | RProgram (Some dt, e) ->
     let tmp_count = ref 0 in
-    let (arg, stmts, vars) = flatten_exp e tmp_count in
+    let (arg, stmts, vars) = flatten_typed_exp e tmp_count in
     let new_stmts = stmts @ [CReturn arg] in
     CProgram (vars, dt, new_stmts)
+  | _ -> flatten_error "Flatten: program does not have type"
 
 (* selectInstructions *)
 
