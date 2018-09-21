@@ -54,6 +54,7 @@ let rec get_datatypes l : datatype list =
 let make_tint e = TypeIs (Some TypeInt, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
+let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =
   match dt with

@@ -25,6 +25,7 @@ doc:
 	ocamldoc -html src/*mli -d docs
 
 test:
+	ocamlbuild ${BUILD_FLAGS} ${TEST_FLAGS} ${DEBUG_FLAGS} tests/test.d.byte
 	ocamlbuild ${TEST_FLAGS} tests/test.native --
 	ocamlbuild ${TEST_FLAGS} tests/exampleTests.native --
 

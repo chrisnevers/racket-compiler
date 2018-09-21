@@ -70,7 +70,8 @@ let rec typecheck_exp exp table =
     let thdt = get_datatype_option nthn in
     let nels = typecheck_exp_type els table in
     let eldt = get_datatype_option nels in
-    if cndt != Some TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
+    if cndt <> Some TypeBool then
+      typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
     else if thdt = eldt then
       TypeIs (thdt, RIf (ncnd, nthn, nels))
     else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"

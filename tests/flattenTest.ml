@@ -17,7 +17,7 @@ let flatten_arg_test = (fun () ->
 )
 
 let flatten_and_test = (fun () ->
-  let e = RAnd (TypeIs (TypeBool, RBool true), TypeIs (TypeBool, RCmp ("eq?", TypeIs (TypeInt, RInt 1), TypeIs (TypeInt, RInt 5)))) in
+  let e = RAnd (make_tbool (RBool true), make_tbool (RCmp ("eq?", make_tint (RInt 1), make_tint (RInt 5)))) in
   let tmp_count = ref 0 in
   let expected_stmts =
     [CIf (CCmp (CEq, CBool true, CBool true),
@@ -32,38 +32,38 @@ let flatten_and_test = (fun () ->
 
 let flatten_not_test = (fun () ->
   let tmp_count = ref 0 in
-  let e = RNot (TypeIs (TypeBool, RBool false)) in
+  let e = RNot (make_tbool (RBool false)) in
   assert_equal (CVar "name", [CAssign ("name", CNot (CBool false));], []) (flatten_exp e tmp_count ~v:(Some "name"));
   assert_equal (CVar "tmp1", [CAssign ("tmp1", CNot (CBool false));], ["tmp1"]) (flatten_exp e tmp_count)
 )
 
 let flatten_if_test = (fun () ->
-  let e = RIf (TypeIs (TypeBool, RBool true), TypeIs (TypeInt, RInt 4), TypeIs (TypeInt, RInt 5)) in
+  let e = RIf (make_tbool (RBool true), make_tint (RInt 4), make_tint (RInt 5)) in
   let tmp_count = ref 0 in
   assert_equal (CVar "tmp1", [CIf (CCmp (CEq, CBool true, CBool true), [CAssign ("tmp1", CArg (CInt 4))],
   [CAssign ("tmp1", CArg (CInt 5))])], ["tmp1"]) (flatten_exp e tmp_count)
 )
 
 let flatten_cmp_test = (fun () ->
-  let e = RCmp ("<", TypeIs (TypeInt, RInt 4), TypeIs (TypeInt, RInt 5)) in
+  let e = RCmp ("<", make_tint (RInt 4), make_tint (RInt 5)) in
   let tmp_count = ref 0 in
   assert_equal (CVar "tmp1", [CAssign ("tmp1", CCmp (CL, CInt 4, CInt 5))], ["tmp1"]) (flatten_exp e tmp_count)
 )
 
 let flatten_unop_test = (fun () ->
-  let e = RUnOp ("-", TypeIs (TypeInt, RInt 4)) in
+  let e = RUnOp ("-", make_tint (RInt 4)) in
   let tmp_count = ref 0 in
   assert_equal (CVar "tmp1", [CAssign ("tmp1", CUnOp("-", CInt 4))], ["tmp1"]) (flatten_exp e tmp_count)
 )
 
 let flatten_binop_test = (fun () ->
-  let e = RBinOp ("+", TypeIs (TypeInt, RInt 4), TypeIs (TypeInt, RInt 5)) in
+  let e = RBinOp ("+", make_tint (RInt 4), make_tint (RInt 5)) in
   let tmp_count = ref 0 in
   assert_equal (CVar "tmp1", [CAssign ("tmp1", CBinOp("+", CInt 4, CInt 5))], ["tmp1"]) (flatten_exp e tmp_count)
 )
 
 let flatten_let_test = (fun () ->
-  let e = RLet ("v", TypeIs (TypeInt, RInt 4), TypeIs (TypeInt, RVar "v")) in
+  let e = RLet ("v", make_tint (RInt 4), make_tint (RVar "v")) in
   let tmp_count = ref 0 in
   assert_equal (CVar "v", [CAssign ("v", CArg (CInt 4))], ["v"]) (flatten_exp e tmp_count)
 )
