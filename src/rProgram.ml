@@ -27,6 +27,7 @@ and rexp =
   | RBegin of rexp_type list
   | RWhen of rexp_type * rexp_type list
   | RUnless of rexp_type * rexp_type list
+  | RPrint of rexp_type
 
 type rprogram =
   | RProgram of datatype option * rexp_type
@@ -106,6 +107,7 @@ let rec string_of_rexp e : string =
   | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
   | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
+  | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   ) e
   (* ^ ")" *)
 

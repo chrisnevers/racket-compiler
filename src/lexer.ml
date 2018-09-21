@@ -75,6 +75,7 @@ let rec scan_identifier stream acc : token =
     | "begin"   -> TBegin
     | "when"    -> TWhen
     | "unless"    -> TUnless
+    | "print"    -> TPrint
     | _         -> TVar acc
 
 let get_cmp_op c : token =

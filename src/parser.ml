@@ -63,6 +63,9 @@ let rec parse_exp tokens : rexp =
     let e2 = parse_typed_exp tokens in
     RVectorSet(e1, index, e2)
   | TRead -> RRead
+  | TPrint ->
+    let exp = parse_typed_exp tokens in
+    RPrint exp
   | TArithOp o ->
     let exp = parse_typed_exp tokens in
     (match next_token tokens with

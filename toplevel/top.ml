@@ -28,6 +28,7 @@ type token =
   | TBegin
   | TWhen
   | TUnless
+  | TPrint
   | TEOF
 
 let string_of_token t =
@@ -56,6 +57,7 @@ let string_of_token t =
   | TBegin -> "begin"
   | TWhen -> "when"
   | TUnless -> "unless"
+  | TPrint -> "print"
   | TEOF -> "EOF"
 
 let print_tokens tokens =
@@ -92,6 +94,7 @@ and rexp =
   | RBegin of rexp_type list
   | RWhen of rexp_type * rexp_type list
   | RUnless of rexp_type * rexp_type list
+  | RPrint of rexp_type
 
 type rprogram =
   | RProgram of datatype option * rexp_type
@@ -171,6 +174,7 @@ let rec string_of_rexp e : string =
   | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
   | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
+  | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   ) e
   (* ^ ")" *)
 
@@ -204,10 +208,12 @@ type carg =
   | CInt of int
   | CVar of string
   | CBool of bool
+  | CVoid
 
 type cexp =
   | CArg of carg
   | CRead
+  | CPrint of datatype * carg
   | CUnOp of string * carg
   | CBinOp of string * carg * carg
   | CNot of carg
@@ -235,6 +241,7 @@ let string_of_carg a : string =
   | CInt i -> "Int " ^ (string_of_int i)
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
+  | CVoid -> "Void"
   ) a
   ^ ")"
 
@@ -243,6 +250,7 @@ let string_of_cexp e : string =
   match e with
   | CArg a -> "Arg " ^ (string_of_carg a)
   | CRead -> "Read"
+  | CPrint (dt, a) -> "Print" ^ (string_of_carg a)
   | CUnOp (o, a) -> "UnOp " ^ o ^ " " ^ (string_of_carg a)
   | CBinOp (o, l, r) -> "BinOp " ^ o ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CNot a -> "Not " ^ (string_of_carg a)
@@ -296,6 +304,7 @@ type acmp =
   | AGE
 
 type aarg =
+  | AVoid
   | AInt of int
   | AVar of string
   | Reg of aregister
@@ -336,6 +345,7 @@ type gprogram =
 
 let get_aarg_of_carg c : aarg =
   match c with
+  | CVoid -> AVoid
   | CVar v -> AVar v
   | CInt i -> AInt i
   | CBool true -> AInt 1
@@ -380,6 +390,7 @@ let string_of_register r : string =
 let string_of_aarg a : string =
   "(" ^ (fun e ->
   match a with
+  | AVoid -> "Void"
   | AInt i -> "Int " ^ (string_of_int i)
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)
@@ -512,6 +523,13 @@ let register_of_string s : aarg =
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
+exception SomeError of string
+
+let get_some dt =
+  match dt with
+  | Some s -> s
+  | None -> raise (SomeError "expected optional value to contain Some _")
+
 let print_adjacent_aargs adjacents =
   print_endline ("[" ^ List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ ",") "" adjacents ^ "]")
 
@@ -600,6 +618,7 @@ let rec scan_identifier stream acc : token =
     | "begin"   -> TBegin
     | "when"    -> TWhen
     | "unless"    -> TUnless
+    | "print"    -> TPrint
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -703,6 +722,9 @@ let rec parse_exp tokens : rexp =
     let e2 = parse_typed_exp tokens in
     RVectorSet(e1, index, e2)
   | TRead -> RRead
+  | TPrint ->
+    let exp = parse_typed_exp tokens in
+    RPrint exp
   | TArithOp o ->
     let exp = parse_typed_exp tokens in
     (match next_token tokens with
@@ -790,6 +812,7 @@ and expand_exp exp :rexp =
   | RWhen (cnd, es) -> RIf (expand_exp_type cnd, expand_exp_type (make_tnone (RBegin es)), make_tnone RVoid)
   | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
   (* Expand inner expressions *)
+  | RPrint e -> RPrint (expand_exp_type e)
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)
@@ -850,6 +873,7 @@ let rec uniquify_exp ast table : rexp =
   | RNot e -> RNot (uniquify_exp_type e table)
   | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table, uniquify_exp_type thn table, uniquify_exp_type els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table, uniquify_exp_type r table)
+  | RPrint e -> RPrint (uniquify_exp_type e table)
   | _ -> ast
 
 and uniquify_exp_type ast table : rexp_type =
@@ -970,6 +994,9 @@ let rec typecheck_exp exp table =
     let bdt = get_datatype_option nb in
     TypeIs (bdt, RLet (v, ni, nb))
   | RRead -> make_tint (RRead)
+  | RPrint e ->
+    let ne = typecheck_exp_type e table in
+    make_tvoid (RPrint ne)
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
@@ -1004,6 +1031,7 @@ let get_carg_of_rarg a : carg =
   | RBool b -> CBool b
   | RInt i -> CInt i
   | RVar name -> CVar name
+  | RVoid -> CVoid
   | _ -> flatten_error ("get_carg_of_rarg: Expected to receive CArg but received " ^ (string_of_rexp a))
 
 let get_ccmp_of_rcmp o : ccmp =
@@ -1023,7 +1051,7 @@ let flatten_arg ?(v=None) a tmp_count : carg * cstmt list * string list =
 
 let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   match e with
-  | RVar _ | RInt _ | RBool _ ->
+  | RVar _ | RInt _ | RBool _ | RVoid ->
     flatten_arg e tmp_count ~v:v
   | RAnd (l, r) ->
     let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
@@ -1112,7 +1140,14 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let stmts = [CAssign (var_name, CRead)] in
     let var_list = if v = None then [var_name] else [] in
     (flat_arg, stmts, var_list)
-  | RVoid -> flatten_error "void not implemented"
+  | RPrint e ->
+    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
+    let dt = get_datatype e in
+    let var_name = get_var_name v tmp_count in
+    let flat_arg = CVar var_name in
+    let stmts = estmts @ [CAssign (var_name, CPrint (dt, earg))] in
+    let var_list = if v = None then var_name :: evars else evars in
+    (flat_arg, stmts, var_list)
   | RVector _ -> flatten_error "vector not implemented"
   | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
   | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
@@ -1144,6 +1179,15 @@ let select_exp e v : ainstr list =
   | CArg a ->
     let arg = get_aarg_of_carg a in
     [Movq (arg, v)]
+  | CPrint (dt, a) ->
+    let arg = get_aarg_of_carg a in
+    let prinstr = (match dt with
+      | TypeInt -> "print_int"
+      | TypeBool -> "print_bool"
+      | TypeVoid -> "print_unit"
+      | TypeVector l -> "print_vector"
+    ) in
+    [Movq (arg, Reg Rdi); Callq prinstr; Movq (Reg Rax, v)]
   | CRead ->
     [Callq "read_int"; Movq (Reg Rax, v)]
   | CUnOp (o, a) ->
@@ -1553,6 +1597,10 @@ let is_deref arg = match arg with
   | Deref _ -> true
   | _ -> false
 
+let is_void arg = match arg with
+  | AVoid -> true
+  | _ -> false
+
 let is_int arg = match arg with
   | AInt _ -> true
   | _ -> false
@@ -1568,6 +1616,7 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
+    if is_void a || is_void b then patch_instrs tl else
     if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
@@ -1611,6 +1660,7 @@ let arg_to_x86 arg =
   | Deref (r, i) ->
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
+  | AVoid -> invalid_instruction ("Cannot print void")
 
 let cmp_to_x86 cmp =
   match cmp with

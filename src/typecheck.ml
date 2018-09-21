@@ -108,6 +108,9 @@ let rec typecheck_exp exp table =
     let bdt = get_datatype_option nb in
     TypeIs (bdt, RLet (v, ni, nb))
   | RRead -> make_tint (RRead)
+  | RPrint e ->
+    let ne = typecheck_exp_type e table in
+    make_tvoid (RPrint ne)
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"

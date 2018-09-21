@@ -9,6 +9,15 @@ let select_exp e v : ainstr list =
   | CArg a ->
     let arg = get_aarg_of_carg a in
     [Movq (arg, v)]
+  | CPrint (dt, a) ->
+    let arg = get_aarg_of_carg a in
+    let prinstr = (match dt with
+      | TypeInt -> "print_int"
+      | TypeBool -> "print_bool"
+      | TypeVoid -> "print_unit"
+      | TypeVector l -> "print_vector"
+    ) in
+    [Movq (arg, Reg Rdi); Callq prinstr; Movq (Reg Rax, v)]
   | CRead ->
     [Callq "read_int"; Movq (Reg Rax, v)]
   | CUnOp (o, a) ->

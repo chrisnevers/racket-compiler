@@ -1,5 +1,6 @@
 open CProgram
 open RProgram
+open Helper
 
 exception FlattenError of string
 
@@ -17,6 +18,7 @@ let get_carg_of_rarg a : carg =
   | RBool b -> CBool b
   | RInt i -> CInt i
   | RVar name -> CVar name
+  | RVoid -> CVoid
   | _ -> flatten_error ("get_carg_of_rarg: Expected to receive CArg but received " ^ (string_of_rexp a))
 
 let get_ccmp_of_rcmp o : ccmp =
@@ -36,7 +38,7 @@ let flatten_arg ?(v=None) a tmp_count : carg * cstmt list * string list =
 
 let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   match e with
-  | RVar _ | RInt _ | RBool _ ->
+  | RVar _ | RInt _ | RBool _ | RVoid ->
     flatten_arg e tmp_count ~v:v
   | RAnd (l, r) ->
     let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
@@ -125,7 +127,14 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let stmts = [CAssign (var_name, CRead)] in
     let var_list = if v = None then [var_name] else [] in
     (flat_arg, stmts, var_list)
-  | RVoid -> flatten_error "void not implemented"
+  | RPrint e ->
+    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
+    let dt = get_datatype e in
+    let var_name = get_var_name v tmp_count in
+    let flat_arg = CVar var_name in
+    let stmts = estmts @ [CAssign (var_name, CPrint (dt, earg))] in
+    let var_list = if v = None then var_name :: evars else evars in
+    (flat_arg, stmts, var_list)
   | RVector _ -> flatten_error "vector not implemented"
   | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
   | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"

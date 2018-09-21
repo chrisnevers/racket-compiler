@@ -23,6 +23,7 @@ type token =
   | TBegin
   | TWhen
   | TUnless
+  | TPrint
   | TEOF
 
 let string_of_token t =
@@ -51,6 +52,7 @@ let string_of_token t =
   | TBegin -> "begin"
   | TWhen -> "when"
   | TUnless -> "unless"
+  | TPrint -> "print"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

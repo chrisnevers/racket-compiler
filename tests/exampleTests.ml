@@ -61,3 +61,7 @@ let () =
   test "control-flow" "neg?" "#t" None;
   test "control-flow" "zero?" "#t" (Some "0");
   test "control-flow" "zero?" "#f" (Some "5");
+  test "control-flow" "begin" "2" (Some "5");
+  test "heap" "print_int" "50" None;
+  test "heap" "print_bool" "#t" None;
+  test "heap" "print_void" "" None;

@@ -14,9 +14,8 @@ void print_bool(int i)
     }
 }
 
-void print_unit(int i)
-{
-    printf("()\n");
+void print_unit(int i) {
+    printf("\n");
 }
 
 int read_int()

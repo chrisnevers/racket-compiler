@@ -21,6 +21,7 @@ type acmp =
   | AGE
 
 type aarg =
+  | AVoid
   | AInt of int
   | AVar of string
   | Reg of aregister
@@ -61,6 +62,7 @@ type gprogram =
 
 let get_aarg_of_carg c : aarg =
   match c with
+  | CVoid -> AVoid
   | CVar v -> AVar v
   | CInt i -> AInt i
   | CBool true -> AInt 1
@@ -105,6 +107,7 @@ let string_of_register r : string =
 let string_of_aarg a : string =
   "(" ^ (fun e ->
   match a with
+  | AVoid -> "Void"
   | AInt i -> "Int " ^ (string_of_int i)
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)

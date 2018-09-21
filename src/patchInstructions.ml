@@ -4,6 +4,10 @@ let is_deref arg = match arg with
   | Deref _ -> true
   | _ -> false
 
+let is_void arg = match arg with
+  | AVoid -> true
+  | _ -> false
+
 let is_int arg = match arg with
   | AInt _ -> true
   | _ -> false
@@ -19,6 +23,7 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
+    if is_void a || is_void b then patch_instrs tl else
     if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl

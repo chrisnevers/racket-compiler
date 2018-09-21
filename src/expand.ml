@@ -16,6 +16,7 @@ and expand_exp exp :rexp =
   | RWhen (cnd, es) -> RIf (expand_exp_type cnd, expand_exp_type (make_tnone (RBegin es)), make_tnone RVoid)
   | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
   (* Expand inner expressions *)
+  | RPrint e -> RPrint (expand_exp_type e)
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)

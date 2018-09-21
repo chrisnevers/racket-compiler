@@ -17,6 +17,7 @@ let arg_to_x86 arg =
   | Deref (r, i) ->
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
+  | AVoid -> invalid_instruction ("Cannot print void")
 
 let cmp_to_x86 cmp =
   match cmp with

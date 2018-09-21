@@ -7,10 +7,12 @@ type carg =
   | CInt of int
   | CVar of string
   | CBool of bool
+  | CVoid
 
 type cexp =
   | CArg of carg
   | CRead
+  | CPrint of datatype * carg
   | CUnOp of string * carg
   | CBinOp of string * carg * carg
   | CNot of carg
@@ -38,6 +40,7 @@ let string_of_carg a : string =
   | CInt i -> "Int " ^ (string_of_int i)
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
+  | CVoid -> "Void"
   ) a
   ^ ")"
 
@@ -46,6 +49,7 @@ let string_of_cexp e : string =
   match e with
   | CArg a -> "Arg " ^ (string_of_carg a)
   | CRead -> "Read"
+  | CPrint (dt, a) -> "Print" ^ (string_of_carg a)
   | CUnOp (o, a) -> "UnOp " ^ o ^ " " ^ (string_of_carg a)
   | CBinOp (o, l, r) -> "BinOp " ^ o ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CNot a -> "Not " ^ (string_of_carg a)
