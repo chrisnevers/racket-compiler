@@ -55,7 +55,7 @@ let rec get_instrs instrs homes offset =
     JmpIf (c, l):: (get_instrs tail homes offset)
   | Label l :: tail ->
     Label l :: (get_instrs tail homes offset)
-  | AWhile ((c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
+  | AWhile (cnd_instrs, _, (c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
   | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail -> assign_error "if should not be in assign homes"
     (* AIf (
       (c, get_arg_home a homes offset, get_arg_home b homes offset),

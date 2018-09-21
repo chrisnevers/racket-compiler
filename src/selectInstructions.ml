@@ -57,13 +57,14 @@ let rec select_stmts stmt : ainstr list =
     AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
   | CIf (_, thn, els) :: t ->
     select_instruction_error "select_stmt: If statement must use compare to true in condition"
-  | CWhile (CCmp(o, l, r), thn) :: t ->
+  | CWhile (cnd, CCmp(o, l, r), thn) :: t ->
     let cmp = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
     let rarg = get_aarg_of_carg r in
+    let cndinstrs = select_stmts cnd in
     let thninstrs = select_stmts thn in
-    AWhile ((cmp, larg, rarg), thninstrs, []) :: select_stmts t
-  | CWhile (_, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
+    AWhile (cndinstrs, [], (cmp, larg, rarg), thninstrs, []) :: select_stmts t
+  | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | [] -> []
 
 let select_instructions program : pprogram =

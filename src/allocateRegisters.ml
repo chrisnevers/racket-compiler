@@ -130,9 +130,10 @@ let rec get_new_instrs instrs graph =
     AIf ((c, get_register a graph, get_register b graph),
           get_new_instrs thn_instr graph, [],
           get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
-  | AWhile ((c, a, b), thn_instr, _):: tl ->
-    AWhile ((c, get_register a graph, get_register b graph),
-        get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
+  | AWhile (cnd_instr, _, (c, a, b), thn_instr, _):: tl ->
+    AWhile (get_new_instrs cnd_instr graph, [],
+      (c, get_register a graph, get_register b graph),
+      get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
 
 let rec create_move_bias_graph instrs tbl =
   match instrs with

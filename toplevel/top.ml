@@ -227,7 +227,7 @@ type cstmt =
   | CAssign of string * cexp
   | CReturn of carg
   | CIf of cexp * cstmt list * cstmt list
-  | CWhile of cexp * cstmt list
+  | CWhile of cstmt list * cexp * cstmt list
 
 type cprogram =
   | CProgram of string list * datatype * cstmt list
@@ -272,7 +272,7 @@ and string_of_cstmt a : string =
   | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
   | CReturn a -> "Return " ^ (string_of_carg a)
   | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
-  | CWhile (cnd, thn) -> "While " ^ string_of_cexp cnd ^ "\n\t\t" ^ string_of_cstmts thn
+  | CWhile (cnds, cnda, thn) -> "While " ^ string_of_cstmts cnds ^ "\n\t\t" ^ string_of_cexp cnda ^ "\n\t\t" ^ string_of_cstmts thn
   ) a
   ^ ")"
 
@@ -334,7 +334,7 @@ type ainstr =
   | JmpIf of acmp * string
   | Label of string
   | AIf of (acmp * aarg * aarg) * ainstr list * aarg list list * ainstr list * aarg list list
-  | AWhile of (acmp * aarg * aarg) * ainstr list * aarg list list
+  | AWhile of ainstr list * aarg list list * (acmp * aarg * aarg) * ainstr list * aarg list list
 
 type aprogram =
   AProgram of int * datatype * ainstr list
@@ -435,7 +435,8 @@ and string_of_ainstr a : string =
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n[\n\t"
     ^ (string_of_ainstrs els) ^ "]\nElse Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" els_live_afters) ^ "]"
-  | AWhile ((cmp, l, r), thn, thn_live_afters) ->
+  | AWhile (cnd, cnd_live_afters, (cmp, l, r), thn, thn_live_afters) ->
+    (string_of_ainstrs cnd) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" cnd_live_afters) ^ "]\n" ^ "\n\t[\n\t" ^
     "While " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n"
 
@@ -533,6 +534,9 @@ let register_of_string s : aarg =
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
+exception OutOfBoundsException of string
+let out_of_bounds_error msg = raise (OutOfBoundsException msg)
+
 exception SomeError of string
 
 let get_some dt =
@@ -548,7 +552,7 @@ let print_adjacent_colors colors =
 (* registers *)
 
 
-let registers = [Rbx; Rcx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
+let registers = [Rax; Rbx; Rcx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
 let num_of_registers = List.length registers
 
 (* lexer *)
@@ -1129,8 +1133,7 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
     let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let flat_arg = CVar var_name in
-    (* after thn stmts, evaluate condition again so its ready for check when looping *)
-    let stmts = cnd_stmts @ [CWhile (while_cnd, thn_stmts @ cnd_stmts)] in
+    let stmts = [CWhile (cnd_stmts, while_cnd, thn_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
     (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
@@ -1259,13 +1262,14 @@ let rec select_stmts stmt : ainstr list =
     AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
   | CIf (_, thn, els) :: t ->
     select_instruction_error "select_stmt: If statement must use compare to true in condition"
-  | CWhile (CCmp(o, l, r), thn) :: t ->
+  | CWhile (cnd, CCmp(o, l, r), thn) :: t ->
     let cmp = get_acmp_of_ccmp o in
     let larg = get_aarg_of_carg l in
     let rarg = get_aarg_of_carg r in
+    let cndinstrs = select_stmts cnd in
     let thninstrs = select_stmts thn in
-    AWhile ((cmp, larg, rarg), thninstrs, []) :: select_stmts t
-  | CWhile (_, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
+    AWhile (cndinstrs, [], (cmp, larg, rarg), thninstrs, []) :: select_stmts t
+  | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | [] -> []
 
 let select_instructions program : pprogram =
@@ -1303,10 +1307,11 @@ let rec uncover stmts live_after : (ainstr * aarg list) list =
     let (els_stmts, els_live_after) = List.split (List.rev (uncover (List.rev els) live_after)) in
     let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ List.concat(els_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r) in
     (AIf ((o, l, r), thn_stmts, thn_live_after, els_stmts, els_live_after), live_now) :: uncover t live_now
-  | AWhile ((o, l, r), thn, _) :: t ->
+  | AWhile (cnd, _, (o, l, r), thn, _) :: t ->
+    let (cnd_stmts, cnd_live_after) = List.split (List.rev (uncover (List.rev cnd) live_after)) in
     let (thn_stmts, thn_live_after) = List.split (List.rev (uncover (List.rev thn) live_after)) in
-    let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r) in
-    (AWhile ((o, l, r), thn_stmts, thn_live_after), live_now) :: uncover t live_now
+    let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ List.concat(cnd_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r) in
+    (AWhile (cnd_stmts, cnd_live_after, (o, l, r), thn_stmts, thn_live_after), live_now) :: uncover t live_now
   | s :: t ->
     let written = get_written_vars s in
     let read = get_read_vars s in
@@ -1363,18 +1368,19 @@ let rec build_graph stmts live_afters map : interference =
     add_edges (fun v -> v <> d) d live_vars map;
     build_graph t (tl live_afters) map
 
-  (* TODO: Ask Jay
+  (* TODO: Ask Jay *)
   | Callq label :: t ->
     let live_vars = hd (live_afters) in
-    add an edge (r, v) for every caller-save register r and every variable v of Lafter(k).
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
     add_edges_from_nodes caller_save_aregisters live_vars map;
-    build_graph t (tl live_afters) map *)
+    build_graph t (tl live_afters) map
 
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
     build_graph t (tl live_afters) map
-  | AWhile ((c, s, d), thn_instrs, thn_lafter) :: t ->
+  | AWhile (cnd_instrs, cnd_lafter, (c, s, d), thn_instrs, thn_lafter) :: t ->
+    let _ = build_graph cnd_instrs cnd_lafter map in
     let _ = build_graph thn_instrs thn_lafter map in
     build_graph t (tl live_afters) map
   | h :: t -> build_graph t (tl live_afters) map
@@ -1388,6 +1394,9 @@ let build_interference program : gprogram =
 
 (* allocateRegisters *)
 
+
+exception AllocateRegistersException of string
+let allocate_exception msg = raise (AllocateRegistersException msg)
 
 let is_var a = match a with AVar _ -> true | _ -> false
 
@@ -1432,8 +1441,20 @@ let rec add_color_to_saturations saturations adjacents color =
     add_color_to_saturations saturations t color
   | [] -> ()
 
+let get_index e l =
+  let rec do_work e l i =
+    match l with
+    | h :: t -> if e = h then i else do_work e t (i + 1)
+    | [] -> out_of_bounds_error "element is not in array"
+  in do_work e l 0
+
 let get_adjacent_colors colors adjacents =
-  List.sort compare (List.map (fun e -> Hashtbl.find colors e) adjacents)
+  List.sort compare (List.map (fun e ->
+    match e with
+    | AVar v -> Hashtbl.find colors e
+    | Reg r -> get_index r registers
+    | _ -> allocate_exception "allocate registers: expected var or register"
+  ) adjacents)
 
 let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
@@ -1473,7 +1494,7 @@ let get_register a graph =
     let index = Hashtbl.find graph a in
     if index >= num_of_registers then a
     else if index = -1 then Reg Rbx
-    else Reg (List.nth registers index)
+    else Reg (List.nth (tl registers) index)
   | _ -> a
 
 let rec get_new_instrs instrs graph =
@@ -1516,8 +1537,9 @@ let rec get_new_instrs instrs graph =
     AIf ((c, get_register a graph, get_register b graph),
           get_new_instrs thn_instr graph, [],
           get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
-  | AWhile ((c, a, b), thn_instr, _):: tl ->
-    AWhile ((c, get_register a graph, get_register b graph),
+  | AWhile (cnd_instr, _, (c, a, b), thn_instr, _):: tl ->
+    AWhile (get_new_instrs cnd_instr graph, [],
+        (c, get_register a graph, get_register b graph),
         get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
 
 let rec create_move_bias_graph instrs tbl =
@@ -1560,11 +1582,11 @@ let rec lower_instructions instrs uniq_cnt =
     Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
     Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
     Label end_label :: lower_instructions tl uniq_cnt
-  | AWhile ((c, a1, a2), thn_instrs, _) :: tl ->
+  | AWhile (cnd_instrs, _, (c, a1, a2), thn_instrs, _) :: tl ->
     let while_label = gen_unique "while" uniq_cnt in
     let thn_label = gen_unique "thn" uniq_cnt in
     let end_label = gen_unique "end" uniq_cnt in
-    Label while_label :: Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
+    Label while_label :: lower_instructions cnd_instrs uniq_cnt @  Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
     :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
     :: Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
@@ -1634,7 +1656,7 @@ let rec get_instrs instrs homes offset =
     JmpIf (c, l):: (get_instrs tail homes offset)
   | Label l :: tail ->
     Label l :: (get_instrs tail homes offset)
-  | AWhile ((c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
+  | AWhile (cnd_instrs, _, (c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
   | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail -> assign_error "if should not be in assign homes"
     (* AIf (
       (c, get_arg_home a homes offset, get_arg_home b homes offset),
@@ -1735,20 +1757,20 @@ let cmp_to_x86 cmp =
 let rec print_instrs instrs =
   match instrs with
   | [] -> ""
-  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
   | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
   | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl)
   | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
   | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
   | Retq :: tl -> print_instrs tl
-  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
   | Set (cmp, a) :: tl -> "\tset" ^ cmp_to_x86 cmp ^ "\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ",\t" ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Jmp a :: tl -> "\tjmp\t" ^ a ^ "\n" ^ (print_instrs tl)
-  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t" ^ a ^ "\n" ^ (print_instrs tl)
+  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
+  | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl)
+  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl)
   | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl)
   | _ -> invalid_instruction "invalid instruction"
 

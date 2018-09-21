@@ -22,7 +22,7 @@ type cstmt =
   | CAssign of string * cexp
   | CReturn of carg
   | CIf of cexp * cstmt list * cstmt list
-  | CWhile of cexp * cstmt list
+  | CWhile of cstmt list * cexp * cstmt list
 
 type cprogram =
   | CProgram of string list * datatype * cstmt list
@@ -67,7 +67,7 @@ and string_of_cstmt a : string =
   | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
   | CReturn a -> "Return " ^ (string_of_carg a)
   | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
-  | CWhile (cnd, thn) -> "While " ^ string_of_cexp cnd ^ "\n\t\t" ^ string_of_cstmts thn
+  | CWhile (cnds, cnda, thn) -> "While " ^ string_of_cstmts cnds ^ "\n\t\t" ^ string_of_cexp cnda ^ "\n\t\t" ^ string_of_cstmts thn
   ) a
   ^ ")"
 

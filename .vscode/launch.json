@@ -6,7 +6,15 @@
     "configurations": [
 
         {
-            "name": "OCaml",
+            "name": "Main",
+            "type": "ocamldebug",
+            "request": "launch",
+            "program": "${workspaceRoot}/main.d.byte",
+            "console": "internalConsole",
+            "stopOnEntry": false
+        },
+        {
+            "name": "Test",
             "type": "ocamldebug",
             "request": "launch",
             "program": "${workspaceRoot}/test.d.byte",
