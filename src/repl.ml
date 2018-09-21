@@ -149,7 +149,7 @@ let rec evaluate ast table =
       let input = read_line() in
       make_tint (RInt (int_of_string input))
     | RWhile (c, e) ->
-      let return = ref TypeIs (None, RVoid);
+      let return = ref (TypeIs (None, RVoid)) in
       while get_bool_value (evaluate c table) = true do
         return := evaluate e table
       done;
