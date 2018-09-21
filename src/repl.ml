@@ -4,6 +4,7 @@ open Parser
 open RProgram
 open Uniquify
 open Typecheck
+open Expand
 
 exception UnsupportedOperator of string
 let unsupported_operator s = raise (UnsupportedOperator s)
@@ -13,6 +14,9 @@ let variable_not_found s = raise (VariableNotFound s)
 
 exception IndexOutOfBounds of string
 let index_out_of_bounds s = raise (IndexOutOfBounds s)
+
+exception ReplError of string
+let repl_error s = raise (ReplError s)
 
 let rec count_char c str count =
   match str with
@@ -144,6 +148,9 @@ let rec evaluate ast table =
     | RRead ->
       let input = read_line() in
       make_tint (RInt (int_of_string input))
+    | RBegin _ -> repl_error "begin should not be in repl eval"
+    | RWhen (_, _) -> repl_error "when should not be in repl eval"
+    | RUnless (_, _) -> repl_error "unless should not be in repl eval"
   )
 
 let rec repl () =
@@ -154,7 +161,8 @@ let rec repl () =
     let tokens = scan_all_tokens stream [] in
     let token_list = ref tokens in
     let ast = parse_typed_exp token_list in
-    let typed = typecheck_exp_type ast (Hashtbl.create 5) in
+    let expand = expand_exp_type ast in
+    let typed = typecheck_exp_type expand (Hashtbl.create 5) in
     let result = evaluate typed (Hashtbl.create 5) in
     let _ = match result with
       | TypeIs (_, a) -> print_endline (string_of_rexp a)

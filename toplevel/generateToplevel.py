@@ -1,5 +1,5 @@
 modules = ['List', 'Stream']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'registers', 'lexer', 'parser', 'uniquify', 'typecheck', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'lowerConditionals', 'assignHomes', 'patchInstructions', 'printx86']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'lowerConditionals', 'assignHomes', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -22,9 +22,12 @@ let run_lex program =
 let run_parse program =
     let tokens = run_lex program in
     parse tokens\n\n
-let run_uniquify program =
+let run_expand program =
     let ast = run_parse program in
-    uniquify ast\n\n
+    expand ast\n\n
+let run_uniquify program =
+    let expand = run_expand program in
+    uniquify expand\n\n
 let run_typecheck program =
     let uniq = run_uniquify program in
     typecheck uniq\n\n

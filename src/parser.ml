@@ -39,6 +39,17 @@ let rec parse_exp tokens : rexp =
   | TInt i -> RInt i
   | TVar v -> RVar v
   | TBool b -> RBool b
+  | TBegin ->
+    let exps = parse_inner_exps tokens in
+    RBegin exps
+    | TWhen ->
+    let cnd = parse_typed_exp tokens in
+    let exps = parse_inner_exps tokens in
+    RWhen (cnd, exps)
+  | TUnless ->
+    let cnd = parse_typed_exp tokens in
+    let exps = parse_inner_exps tokens in
+    RUnless (cnd, exps)
   | TVector ->
     let exps = parse_inner_exps tokens in
     RVector exps

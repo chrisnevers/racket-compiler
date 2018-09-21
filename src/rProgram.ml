@@ -24,6 +24,9 @@ and rexp =
   | RUnOp of string * rexp_type
   | RBinOp of string * rexp_type * rexp_type
   | RLet of string * rexp_type * rexp_type
+  | RBegin of rexp_type list
+  | RWhen of rexp_type * rexp_type list
+  | RUnless of rexp_type * rexp_type list
 
 type rprogram =
   | RProgram of datatype option * rexp_type
@@ -100,6 +103,9 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
+  | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
+  | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   ) e
   (* ^ ")" *)
 

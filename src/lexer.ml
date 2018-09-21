@@ -72,6 +72,9 @@ let rec scan_identifier stream acc : token =
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
+    | "begin"   -> TBegin
+    | "when"    -> TWhen
+    | "unless"    -> TUnless
     | _         -> TVar acc
 
 let get_cmp_op c : token =

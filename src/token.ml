@@ -20,6 +20,9 @@ type token =
   | TVectorSet
   | TVectorRef
   | TVoid
+  | TBegin
+  | TWhen
+  | TUnless
   | TEOF
 
 let string_of_token t =
@@ -45,6 +48,9 @@ let string_of_token t =
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
   | TVoid -> "void"
+  | TBegin -> "begin"
+  | TWhen -> "when"
+  | TUnless -> "unless"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

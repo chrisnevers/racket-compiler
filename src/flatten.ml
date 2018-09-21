@@ -129,6 +129,9 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   | RVector _ -> flatten_error "vector not implemented"
   | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
   | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
+  | RBegin _ -> flatten_error "should not have begin in flatten"
+  | RWhen (_, _) -> flatten_error "should not have when in flatten"
+  | RUnless (_, _) -> flatten_error "should not have unless in flatten"
 
 and flatten_typed_exp ?(v=None) e tmp_count =
   match e with

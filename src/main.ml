@@ -2,6 +2,7 @@ open Lexer
 open Token
 open Parser
 open RProgram
+open Expand
 open Uniquify
 open Typecheck
 open Flatten
@@ -34,9 +35,10 @@ let () =
     (* print_endline "Scan"; *)
     (* print_tokens tokens; *)
     let ast = parse tokens in
+    let expanded = expand ast in
     (* print_endline "\nParse"; *)
     (* print_rprogram ast; *)
-    let uniq = uniquify ast in
+    let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
     let typed = typecheck uniq in

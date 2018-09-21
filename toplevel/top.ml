@@ -25,6 +25,9 @@ type token =
   | TVectorSet
   | TVectorRef
   | TVoid
+  | TBegin
+  | TWhen
+  | TUnless
   | TEOF
 
 let string_of_token t =
@@ -50,6 +53,9 @@ let string_of_token t =
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
   | TVoid -> "void"
+  | TBegin -> "begin"
+  | TWhen -> "when"
+  | TUnless -> "unless"
   | TEOF -> "EOF"
 
 let print_tokens tokens =
@@ -83,6 +89,9 @@ and rexp =
   | RUnOp of string * rexp_type
   | RBinOp of string * rexp_type * rexp_type
   | RLet of string * rexp_type * rexp_type
+  | RBegin of rexp_type list
+  | RWhen of rexp_type * rexp_type list
+  | RUnless of rexp_type * rexp_type list
 
 type rprogram =
   | RProgram of datatype option * rexp_type
@@ -113,6 +122,7 @@ let rec get_datatypes l : datatype list =
 let make_tint e = TypeIs (Some TypeInt, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
+let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =
   match dt with
@@ -158,6 +168,9 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
+  | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
+  | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   ) e
   (* ^ ")" *)
 
@@ -584,6 +597,9 @@ let rec scan_identifier stream acc : token =
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
+    | "begin"   -> TBegin
+    | "when"    -> TWhen
+    | "unless"    -> TUnless
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -663,6 +679,17 @@ let rec parse_exp tokens : rexp =
   | TInt i -> RInt i
   | TVar v -> RVar v
   | TBool b -> RBool b
+  | TBegin ->
+    let exps = parse_inner_exps tokens in
+    RBegin exps
+    | TWhen ->
+    let cnd = parse_typed_exp tokens in
+    let exps = parse_inner_exps tokens in
+    RWhen (cnd, exps)
+  | TUnless ->
+    let cnd = parse_typed_exp tokens in
+    let exps = parse_inner_exps tokens in
+    RUnless (cnd, exps)
   | TVector ->
     let exps = parse_inner_exps tokens in
     RVector exps
@@ -744,6 +771,44 @@ let parse_program tokens : rprogram =
 let parse tokens =
   let token_list = ref tokens in
   parse_program token_list
+
+(* expand *)
+
+
+let rec begin_to_let es =
+  match es with
+  | h :: [] -> h
+  | h :: tl -> make_tnone (RLet ("_", h, begin_to_let tl))
+  | [] -> make_tnone RVoid
+
+and expand_exp exp :rexp =
+  match exp with
+  (* Expand sugars *)
+  | RAnd (l, r) -> RIf (expand_exp_type l, expand_exp_type r, make_tbool (RBool false))
+  | ROr (l, r) -> RIf (expand_exp_type l, make_tbool (RBool true), expand_exp_type r)
+  | RBegin es -> expand_exp (RLet ("_", hd es, begin_to_let (tl es)))
+  | RWhen (cnd, es) -> RIf (expand_exp_type cnd, expand_exp_type (make_tnone (RBegin es)), make_tnone RVoid)
+  | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
+  (* Expand inner expressions *)
+  | RVector es -> RVector (List.map expand_exp_type es)
+  | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
+  | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)
+  | RNot e -> RNot (expand_exp_type e)
+  | RIf (c, t, e) -> RIf (expand_exp_type c, expand_exp_type t, expand_exp_type e)
+  | RCmp (o, l, r) -> RCmp (o, expand_exp_type l, expand_exp_type r)
+  | RUnOp (o, e) -> RUnOp (o, expand_exp_type e)
+  | RBinOp (o, l, r) -> RBinOp (o, expand_exp_type l, expand_exp_type r)
+  | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
+  | _ -> exp
+
+and expand_exp_type exp :rexp_type =
+  match exp with
+  | TypeIs (dt, e) -> TypeIs (dt, expand_exp e)
+
+let expand program =
+  match program with
+  | RProgram (dt, e) ->
+    RProgram (dt, expand_exp_type e)
 
 (* uniquify *)
 
@@ -867,7 +932,8 @@ let rec typecheck_exp exp table =
     let thdt = get_datatype_option nthn in
     let nels = typecheck_exp_type els table in
     let eldt = get_datatype_option nels in
-    if cndt != Some TypeBool then typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
+    if cndt <> Some TypeBool then
+      typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
     else if thdt = eldt then
       TypeIs (thdt, RIf (ncnd, nthn, nels))
     else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"
@@ -904,6 +970,9 @@ let rec typecheck_exp exp table =
     let bdt = get_datatype_option nb in
     TypeIs (bdt, RLet (v, ni, nb))
   | RRead -> make_tint (RRead)
+  | RBegin _ -> typecheck_error "should not have begin in typecheck"
+  | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
+  | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
 
 and typecheck_exp_type exp table =
   match exp with
@@ -1047,6 +1116,9 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
   | RVector _ -> flatten_error "vector not implemented"
   | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
   | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
+  | RBegin _ -> flatten_error "should not have begin in flatten"
+  | RWhen (_, _) -> flatten_error "should not have when in flatten"
+  | RUnless (_, _) -> flatten_error "should not have unless in flatten"
 
 and flatten_typed_exp ?(v=None) e tmp_count =
   match e with
@@ -1605,9 +1677,14 @@ let run_parse program =
     parse tokens
 
 
-let run_uniquify program =
+let run_expand program =
     let ast = run_parse program in
-    uniquify ast
+    expand ast
+
+
+let run_uniquify program =
+    let expand = run_expand program in
+    uniquify expand
 
 
 let run_typecheck program =
