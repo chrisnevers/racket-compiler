@@ -29,6 +29,7 @@ type token =
   | TWhen
   | TUnless
   | TPrint
+  | TWhile
   | TEOF
 
 let string_of_token t =
@@ -58,6 +59,7 @@ let string_of_token t =
   | TWhen -> "when"
   | TUnless -> "unless"
   | TPrint -> "print"
+  | TWhile -> "while"
   | TEOF -> "EOF"
 
 let print_tokens tokens =
@@ -95,6 +97,7 @@ and rexp =
   | RWhen of rexp_type * rexp_type list
   | RUnless of rexp_type * rexp_type list
   | RPrint of rexp_type
+  | RWhile of rexp_type * rexp_type
 
 type rprogram =
   | RProgram of datatype option * rexp_type
@@ -175,6 +178,7 @@ let rec string_of_rexp e : string =
   | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
+  | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
   ) e
   (* ^ ")" *)
 
@@ -223,6 +227,7 @@ type cstmt =
   | CAssign of string * cexp
   | CReturn of carg
   | CIf of cexp * cstmt list * cstmt list
+  | CWhile of cexp * cstmt list
 
 type cprogram =
   | CProgram of string list * datatype * cstmt list
@@ -267,6 +272,7 @@ and string_of_cstmt a : string =
   | CAssign (v, e) -> "Assign " ^ v ^ " " ^ (string_of_cexp e)
   | CReturn a -> "Return " ^ (string_of_carg a)
   | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
+  | CWhile (cnd, thn) -> "While " ^ string_of_cexp cnd ^ "\n\t\t" ^ string_of_cstmts thn
   ) a
   ^ ")"
 
@@ -328,6 +334,7 @@ type ainstr =
   | JmpIf of acmp * string
   | Label of string
   | AIf of (acmp * aarg * aarg) * ainstr list * aarg list list * ainstr list * aarg list list
+  | AWhile of (acmp * aarg * aarg) * ainstr list * aarg list list
 
 type aprogram =
   AProgram of int * datatype * ainstr list
@@ -428,6 +435,9 @@ and string_of_ainstr a : string =
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n[\n\t"
     ^ (string_of_ainstrs els) ^ "]\nElse Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" els_live_afters) ^ "]"
+  | AWhile ((cmp, l, r), thn, thn_live_afters) ->
+    "While " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
+    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n"
 
 let print_pprogram p =
   match p with
@@ -617,8 +627,9 @@ let rec scan_identifier stream acc : token =
     | "vector-ref"  -> TVectorRef
     | "begin"   -> TBegin
     | "when"    -> TWhen
-    | "unless"    -> TUnless
-    | "print"    -> TPrint
+    | "unless"  -> TUnless
+    | "print"   -> TPrint
+    | "while"   -> TWhile
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -725,6 +736,10 @@ let rec parse_exp tokens : rexp =
   | TPrint ->
     let exp = parse_typed_exp tokens in
     RPrint exp
+  | TWhile ->
+    let cnd = parse_typed_exp tokens in
+    let exp = parse_typed_exp tokens in
+    RWhile (cnd, exp)
   | TArithOp o ->
     let exp = parse_typed_exp tokens in
     (match next_token tokens with
@@ -822,6 +837,7 @@ and expand_exp exp :rexp =
   | RUnOp (o, e) -> RUnOp (o, expand_exp_type e)
   | RBinOp (o, l, r) -> RBinOp (o, expand_exp_type l, expand_exp_type r)
   | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
+  | RWhile (c, e) -> RWhile (expand_exp_type c, expand_exp_type e)
   | _ -> exp
 
 and expand_exp_type exp :rexp_type =
@@ -874,6 +890,7 @@ let rec uniquify_exp ast table : rexp =
   | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table, uniquify_exp_type thn table, uniquify_exp_type els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table, uniquify_exp_type r table)
   | RPrint e -> RPrint (uniquify_exp_type e table)
+  | RWhile (c, e) -> RWhile (uniquify_exp_type c table, uniquify_exp_type e table)
   | _ -> ast
 
 and uniquify_exp_type ast table : rexp_type =
@@ -997,6 +1014,11 @@ let rec typecheck_exp exp table =
   | RPrint e ->
     let ne = typecheck_exp_type e table in
     make_tvoid (RPrint ne)
+  | RWhile (c, e) ->
+    let nc = typecheck_exp_type c table in
+    let ne = typecheck_exp_type e table in
+    let dt = get_datatype_option ne in
+    TypeIs (dt, RWhile (nc, ne))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
@@ -1100,6 +1122,16 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let flat_arg = CVar var_name in
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
+    (flat_arg, stmts, var_list)
+  | RWhile (cnd, thn) ->
+    let var_name = get_var_name v tmp_count in
+    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd tmp_count in
+    let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
+    let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
+    let flat_arg = CVar var_name in
+    (* after thn stmts, evaluate condition again so its ready for check when looping *)
+    let stmts = cnd_stmts @ [CWhile (while_cnd, thn_stmts @ cnd_stmts)] in
+    let var_list = if v = None then var_name :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
     (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
     let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
@@ -1227,6 +1259,13 @@ let rec select_stmts stmt : ainstr list =
     AIf ((cmp, larg, rarg), thninstrs, [], elsinstrs, []) :: select_stmts t
   | CIf (_, thn, els) :: t ->
     select_instruction_error "select_stmt: If statement must use compare to true in condition"
+  | CWhile (CCmp(o, l, r), thn) :: t ->
+    let cmp = get_acmp_of_ccmp o in
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    let thninstrs = select_stmts thn in
+    AWhile ((cmp, larg, rarg), thninstrs, []) :: select_stmts t
+  | CWhile (_, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | [] -> []
 
 let select_instructions program : pprogram =
@@ -1264,6 +1303,10 @@ let rec uncover stmts live_after : (ainstr * aarg list) list =
     let (els_stmts, els_live_after) = List.split (List.rev (uncover (List.rev els) live_after)) in
     let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ List.concat(els_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r) in
     (AIf ((o, l, r), thn_stmts, thn_live_after, els_stmts, els_live_after), live_now) :: uncover t live_now
+  | AWhile ((o, l, r), thn, _) :: t ->
+    let (thn_stmts, thn_live_after) = List.split (List.rev (uncover (List.rev thn) live_after)) in
+    let live_now = List.sort_uniq compare (List.concat(thn_live_after) @ get_var_list_or_empty l @ get_var_list_or_empty r) in
+    (AWhile ((o, l, r), thn_stmts, thn_live_after), live_now) :: uncover t live_now
   | s :: t ->
     let written = get_written_vars s in
     let read = get_read_vars s in
@@ -1330,6 +1373,9 @@ let rec build_graph stmts live_afters map : interference =
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
+    build_graph t (tl live_afters) map
+  | AWhile ((c, s, d), thn_instrs, thn_lafter) :: t ->
+    let _ = build_graph thn_instrs thn_lafter map in
     build_graph t (tl live_afters) map
   | h :: t -> build_graph t (tl live_afters) map
   | [] -> map
@@ -1467,9 +1513,12 @@ let rec get_new_instrs instrs graph =
   | Retq :: tl ->
     Retq :: get_new_instrs tl graph
   | AIf ((c, a, b), thn_instr, _, els_instr, _):: tl ->
-    AIf ( (c, get_register a graph, get_register b graph),
+    AIf ((c, get_register a graph, get_register b graph),
           get_new_instrs thn_instr graph, [],
           get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
+  | AWhile ((c, a, b), thn_instr, _):: tl ->
+    AWhile ((c, get_register a graph, get_register b graph),
+        get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
 
 let rec create_move_bias_graph instrs tbl =
   match instrs with
@@ -1511,6 +1560,13 @@ let rec lower_instructions instrs uniq_cnt =
     Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
     Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
     Label end_label :: lower_instructions tl uniq_cnt
+  | AWhile ((c, a1, a2), thn_instrs, _) :: tl ->
+    let while_label = gen_unique "while" uniq_cnt in
+    let thn_label = gen_unique "thn" uniq_cnt in
+    let end_label = gen_unique "end" uniq_cnt in
+    Label while_label :: Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
+    :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
+    :: Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
 
 let lower_conditionals program =
@@ -1522,6 +1578,9 @@ let lower_conditionals program =
 
 (* assignHomes *)
 
+
+exception AssignHomesError of string
+let assign_error msg = raise (AssignHomesError msg)
 
 let make_multiple_of_16 i =
   let remainder = i mod 16 in
@@ -1575,11 +1634,12 @@ let rec get_instrs instrs homes offset =
     JmpIf (c, l):: (get_instrs tail homes offset)
   | Label l :: tail ->
     Label l :: (get_instrs tail homes offset)
-  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail ->
-    AIf (
+  | AWhile ((c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
+  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail -> assign_error "if should not be in assign homes"
+    (* AIf (
       (c, get_arg_home a homes offset, get_arg_home b homes offset),
       (get_instrs thn_instrs homes offset), [],
-      (get_instrs els_instrs homes offset), []) :: (get_instrs tail homes offset)
+      (get_instrs els_instrs homes offset), []) :: (get_instrs tail homes offset) *)
 
 let assign_homes program =
   match program with
@@ -1632,6 +1692,8 @@ let rec patch_instrs instrs = match instrs with
   | Cmpq (a, b) :: tl ->
     if is_int a || (is_deref a && is_deref b) then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else if is_int b then
+      Movq (b, Reg Rax) :: Cmpq (Reg Rax, a) :: patch_instrs tl
     else Cmpq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
@@ -1647,9 +1709,9 @@ exception InvalidInstructionException of string
 
 let invalid_instruction msg = raise (InvalidInstructionException msg)
 
-let rec add_callee_save_registers registers op =
+let rec add_save_registers registers op =
   match registers with
-  | reg :: t -> "\t" ^ op ^ "\t%" ^ reg ^ "\n" ^ (add_callee_save_registers t op)
+  | reg :: t -> "\t" ^ op ^ "\t%" ^ reg ^ "\n" ^ (add_save_registers t op)
   | [] -> ""
 
 let arg_to_x86 arg =
@@ -1697,7 +1759,7 @@ let print_x86 program =
                     os_label_prefix ^ "main:\n" ^
                     "\tpushq\t%rbp\n" ^
                     "\tmovq\t%rsp, %rbp\n" ^
-                    (add_callee_save_registers callee_save_registers "pushq") ^
+                    (add_save_registers callee_save_registers "pushq") ^
                     "\tsubq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ", %rsp\n\n" in
     let middle = print_instrs instrs in
     let ending = "\n\tmovq\t%rax, %rdi\n" ^
@@ -1710,7 +1772,7 @@ let print_x86 program =
                   ) ^
                  "\taddq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
-                 (add_callee_save_registers (List.rev callee_save_registers) "popq") ^
+                 (add_save_registers (List.rev callee_save_registers) "popq") ^
                  "\tpopq\t%rbp\n" ^
                  "\tretq\n" in
     (beginning ^ middle ^ ending)

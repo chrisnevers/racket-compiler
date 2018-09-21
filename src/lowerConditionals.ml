@@ -23,7 +23,7 @@ let rec lower_instructions instrs uniq_cnt =
     let end_label = gen_unique "end" uniq_cnt in
     Label while_label :: Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
     :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
-    :: Label end_label :: []
+    :: Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
 
 let lower_conditionals program =

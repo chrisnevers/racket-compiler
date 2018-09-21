@@ -148,6 +148,12 @@ let rec evaluate ast table =
     | RRead ->
       let input = read_line() in
       make_tint (RInt (int_of_string input))
+    | RWhile (c, e) ->
+      let return = ref TypeIs (None, RVoid);
+      while get_bool_value (evaluate c table) = true do
+        return := evaluate e table
+      done;
+      !return
     | RBegin _ -> repl_error "begin should not be in repl eval"
     | RWhen (_, _) -> repl_error "when should not be in repl eval"
     | RUnless (_, _) -> repl_error "unless should not be in repl eval"
