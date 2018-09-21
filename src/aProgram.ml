@@ -45,6 +45,7 @@ type ainstr =
   | JmpIf of acmp * string
   | Label of string
   | AIf of (acmp * aarg * aarg) * ainstr list * aarg list list * ainstr list * aarg list list
+  | AWhile of (acmp * aarg * aarg) * ainstr list * aarg list list
 
 type aprogram =
   AProgram of int * datatype * ainstr list
@@ -145,6 +146,9 @@ and string_of_ainstr a : string =
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n[\n\t"
     ^ (string_of_ainstrs els) ^ "]\nElse Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" els_live_afters) ^ "]"
+  | AWhile ((cmp, l, r), thn, thn_live_afters) ->
+    "While " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
+    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n"
 
 let print_pprogram p =
   match p with

@@ -66,6 +66,10 @@ let rec parse_exp tokens : rexp =
   | TPrint ->
     let exp = parse_typed_exp tokens in
     RPrint exp
+  | TWhile ->
+    let cnd = parse_typed_exp tokens in
+    let exp = parse_typed_exp tokens in
+    RWhile (cnd, exp)
   | TArithOp o ->
     let exp = parse_typed_exp tokens in
     (match next_token tokens with

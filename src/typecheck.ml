@@ -111,6 +111,11 @@ let rec typecheck_exp exp table =
   | RPrint e ->
     let ne = typecheck_exp_type e table in
     make_tvoid (RPrint ne)
+  | RWhile (c, e) ->
+    let nc = typecheck_exp_type c table in
+    let ne = typecheck_exp_type e table in
+    let dt = get_datatype_option ne in
+    TypeIs (dt, RWhile (nc, ne))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"

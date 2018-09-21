@@ -38,6 +38,7 @@ let rec uniquify_exp ast table : rexp =
   | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table, uniquify_exp_type thn table, uniquify_exp_type els table)
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table, uniquify_exp_type r table)
   | RPrint e -> RPrint (uniquify_exp_type e table)
+  | RWhile (c, e) -> RWhile (uniquify_exp_type c table, uniquify_exp_type e table)
   | _ -> ast
 
 and uniquify_exp_type ast table : rexp_type =

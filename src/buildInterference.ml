@@ -52,6 +52,9 @@ let rec build_graph stmts live_afters map : interference =
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
     build_graph t (tl live_afters) map
+  | AWhile ((c, s, d), thn_instrs, thn_lafter) :: t ->
+    let _ = build_graph thn_instrs thn_lafter map in
+    build_graph t (tl live_afters) map
   | h :: t -> build_graph t (tl live_afters) map
   | [] -> map
 

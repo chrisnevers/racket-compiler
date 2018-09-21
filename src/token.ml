@@ -24,6 +24,7 @@ type token =
   | TWhen
   | TUnless
   | TPrint
+  | TWhile
   | TEOF
 
 let string_of_token t =
@@ -53,6 +54,7 @@ let string_of_token t =
   | TWhen -> "when"
   | TUnless -> "unless"
   | TPrint -> "print"
+  | TWhile -> "while"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

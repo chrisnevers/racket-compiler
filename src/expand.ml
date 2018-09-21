@@ -26,6 +26,7 @@ and expand_exp exp :rexp =
   | RUnOp (o, e) -> RUnOp (o, expand_exp_type e)
   | RBinOp (o, l, r) -> RBinOp (o, expand_exp_type l, expand_exp_type r)
   | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
+  | RWhile (c, e) -> RWhile (expand_exp_type c, expand_exp_type e)
   | _ -> exp
 
 and expand_exp_type exp :rexp_type =

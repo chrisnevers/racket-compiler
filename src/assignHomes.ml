@@ -1,5 +1,8 @@
 open AProgram
 
+exception AssignHomesError of string
+let assign_error msg = raise (AssignHomesError msg)
+
 let make_multiple_of_16 i =
   let remainder = i mod 16 in
   if remainder = 0 then i
@@ -52,11 +55,12 @@ let rec get_instrs instrs homes offset =
     JmpIf (c, l):: (get_instrs tail homes offset)
   | Label l :: tail ->
     Label l :: (get_instrs tail homes offset)
-  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail ->
-    AIf (
+  | AWhile ((c, a, b), thn_instrs, _) :: tail -> assign_error "while should not be in assign homes"
+  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tail -> assign_error "if should not be in assign homes"
+    (* AIf (
       (c, get_arg_home a homes offset, get_arg_home b homes offset),
       (get_instrs thn_instrs homes offset), [],
-      (get_instrs els_instrs homes offset), []) :: (get_instrs tail homes offset)
+      (get_instrs els_instrs homes offset), []) :: (get_instrs tail homes offset) *)
 
 let assign_homes program =
   match program with

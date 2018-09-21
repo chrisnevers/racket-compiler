@@ -88,6 +88,16 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
     (flat_arg, stmts, var_list)
+  | RWhile (cnd, thn) ->
+    let var_name = get_var_name v tmp_count in
+    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd tmp_count in
+    let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
+    let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
+    let flat_arg = CVar var_name in
+    (* after thn stmts, evaluate condition again so its ready for check when looping *)
+    let stmts = cnd_stmts @ [CWhile (while_cnd, thn_stmts @ cnd_stmts)] in
+    let var_list = if v = None then var_name :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
+    (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
     let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
     let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
