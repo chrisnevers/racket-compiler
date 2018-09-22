@@ -71,12 +71,57 @@ let rec get_colors graph saturations colors move =
     Hashtbl.remove graph max_saturated;
     get_colors graph saturations colors move
 
+(* Add register colors to the saturation list of any variable live during a callq *)
+let add_register_saturations sat graph =
+  (* Get index of given register in the set of all assignable registers *)
+  let rec get_index e l cnt =
+    match l with
+    | h :: t -> if h = e then cnt else get_index e t (cnt + 1)
+    | [] -> -1
+  in
+  (* Gets the equivalent color of a register *)
+  let get_register_colors k graph : int list =
+    try
+      let values = Hashtbl.find graph k in
+      List.rev (List.fold_left (fun acc e ->
+        match e with
+        | Reg r ->
+          let index = get_index r registers 0 in
+          if index != -1 then index :: acc else acc
+        | _ -> acc
+      ) [] values)
+    with Not_found -> []
+  in
+  (* Any variable that interfers with registers, add those register colors to its saturation list *)
+  Hashtbl.iter (fun k v -> Hashtbl.replace sat k (get_register_colors k graph)) sat;
+  sat
+
+let print_saturation_graph saturations =
+  Hashtbl.iter (fun k v ->
+    print_string ((string_of_aarg k) ^ ": [");
+    print_string (List.fold_left (fun acc e -> acc ^ (string_of_int e) ^ " ") "" v);
+    print_endline "]";
+  ) saturations
+
+(* Removes registers (added during callq - build interference) from working set *)
+let remove_registers map =
+  Hashtbl.filter_map_inplace (fun k v ->
+    (* Remove anything thats not a variable from the interference graph value *)
+    Some (List.filter (fun e ->
+      match e with
+      | AVar _ -> true
+      | _ -> false
+    ) v)
+  ) map;
+  map
+
 let color_graph graph vars move =
   (* List of numbers a variable cannot be assigned *)
-  let saturations = create_graph vars [] in
+  let saturations = add_register_saturations (create_graph vars []) graph in
+  (* print_saturation_graph saturations; *)
   (* The color (number) a variable is assigned *)
   let colors = create_graph vars (-1) in
-  get_colors (Hashtbl.copy graph) saturations colors move
+  get_colors (remove_registers (Hashtbl.copy graph)) saturations colors move
 
 (* Map the variable to a register or spill to the stack if no space *)
 let get_register a graph =

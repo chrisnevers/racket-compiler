@@ -64,6 +64,8 @@ let () =
   test "control-flow" "begin" "2" (Some "5");
   test "control-flow" "while" "" (Some "5");
   test "control-flow" "while" "0" (Some "0");
+  test "control-flow" "while2" "0" (Some "0");
+  test "control-flow" "while2" "5" (Some "5\n0");
   test "heap" "print_int" "50" None;
   test "heap" "print_bool" "#t" None;
   test "heap" "print_void" "" None;

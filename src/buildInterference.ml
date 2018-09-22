@@ -24,7 +24,7 @@ let rec add_edges cnd (d: aarg) (targets: aarg list) map =
 let rec add_edges_from_nodes nodes targets map =
   match nodes with
   | h :: t ->
-    add_edges (fun v -> true) h targets map;
+    List.iter (fun e -> append_to_value h e map) targets;
     add_edges_from_nodes t targets map
   | [] -> ()
 
@@ -40,14 +40,11 @@ let rec build_graph stmts live_afters map : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_edges (fun v -> v <> d) d live_vars map;
     build_graph t (tl live_afters) map
-
-  (* TODO: Ask Jay
   | Callq label :: t ->
     let live_vars = hd (live_afters) in
-    add an edge (r, v) for every caller-save register r and every variable v of Lafter(k).
-    add_edges_from_nodes caller_save_aregisters live_vars map;
-    build_graph t (tl live_afters) map *)
-
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
+    add_edges_from_nodes live_vars (tl caller_save_aregisters) map;
+    build_graph t (tl live_afters) map
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
