@@ -3,8 +3,6 @@ open Registers
 open Helper
 open List
 
-let is_var a = match a with AVar _ -> true | _ -> false
-
 let find_in_map key map =
   try Hashtbl.find map key
   with Not_found -> []

@@ -19,10 +19,9 @@ let rec lower_instructions instrs uniq_cnt =
     Label end_label :: lower_instructions tl uniq_cnt
   | AWhile (cnd_instrs, _, (c, a1, a2), thn_instrs, _) :: tl ->
     let while_label = gen_unique "while" uniq_cnt in
-    let thn_label = gen_unique "thn" uniq_cnt in
     let end_label = gen_unique "end" uniq_cnt in
-    Label while_label :: lower_instructions cnd_instrs uniq_cnt @  Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
-    :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
+    Label while_label :: lower_instructions cnd_instrs uniq_cnt @ Cmpq (a1, a2) :: JmpIf (get_opposite_cmp c, end_label)
+    :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
     :: Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
 

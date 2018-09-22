@@ -15,6 +15,7 @@ type aregister =
 
 type acmp =
   | AE
+  | ANE
   | AL
   | ALE
   | AG
@@ -77,9 +78,19 @@ let get_acmp_of_ccmp c : acmp =
   | CG -> AG
   | CGE -> AGE
 
+let get_opposite_cmp c =
+  match c with
+  | AE -> ANE
+  | ANE -> AE
+  | AL -> AGE
+  | ALE -> AG
+  | AG -> ALE
+  | AGE -> AL
+
 let string_of_acmp c : string =
   match c with
   | AE -> "eq?"
+  | ANE -> "neq?"
   | AL -> "<"
   | ALE -> "<="
   | AG -> ">"
@@ -238,3 +249,5 @@ let register_of_string s : aarg =
     | "r15" -> Reg R15
     | "al" -> Reg Al
     | _ -> raise (RegisterException "register does not exist")
+
+let is_var a = match a with AVar _ -> true | _ -> false

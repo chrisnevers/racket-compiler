@@ -30,7 +30,7 @@ Run:
     - Boolean support: `#t` and `#f`
     - Relational operators: `eq?`, `<`, `<=`, `>`, `>=`, `pos?`, `zero?`, and `neg?`
     - Logical operators: `and`, `or`, and `not`
-    - `if-else` expressions
+    - `if-else`, `when`, `unless`, and `begin` expressions
 
 TODO:
 * Vectors

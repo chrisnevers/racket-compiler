@@ -23,7 +23,8 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
-    if is_void a || is_void b then patch_instrs tl else
+    if is_void b then patch_instrs tl else
+    if is_void a then Movq (AInt 0, b) :: patch_instrs tl else
     if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl

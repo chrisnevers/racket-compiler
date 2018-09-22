@@ -26,6 +26,7 @@ let cmp_to_x86 cmp =
   | ALE -> "le"
   | AG -> "g"
   | AGE -> "ge"
+  | ANE -> "ne"
 
 let rec print_instrs instrs =
   match instrs with
