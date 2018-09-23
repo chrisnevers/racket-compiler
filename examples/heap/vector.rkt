@@ -1,2 +1,2 @@
 (program
-    (vector 1 #f 4))
+    (vector 1 2 3))

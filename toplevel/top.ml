@@ -84,6 +84,9 @@ and rexp =
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
+  | RCollect of int
+  | RAllocate of int * datatype
+  | RGlobalValue of string
   | RRead
   | RAnd of rexp_type * rexp_type
   | ROr of rexp_type * rexp_type
@@ -128,6 +131,7 @@ let rec get_datatypes l : datatype list =
 let make_tint e = TypeIs (Some TypeInt, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
+let make_tvec dt e = TypeIs (Some (TypeVector dt), e)
 let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =
@@ -155,7 +159,7 @@ and string_of_datatype_options (dt: datatype option list) =
   | [] -> ""
 
 let rec string_of_rexp e : string =
-  (* "(" ^ *)
+  "(" ^
   (fun e ->
   match e with
   | RVar v -> "Var " ^ v
@@ -174,13 +178,16 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RCollect i -> "Collect (" ^ string_of_int i ^ ")"
+  | RAllocate (i, dt) -> "Allocate (" ^ string_of_int i ^ ", " ^ string_of_datatype dt ^ ")"
+  | RGlobalValue s -> "Global-Value (" ^ s ^ ")"
   | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
   | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
   ) e
-  (* ^ ")" *)
+  ^ ")\n"
 
 and string_of_rexps exps =
   match exps with
@@ -190,7 +197,8 @@ and string_of_rexps exps =
 
 and string_of_rexp_type e : string =
   match e with
-  | TypeIs (dt, e) -> string_of_rexp e ^ ": " ^ (string_of_datatype_option dt)
+  | TypeIs (dt, e) -> string_of_rexp e
+  (* ^ ": " ^ (string_of_datatype_option dt) *)
 
 and string_of_rexps_type e : string =
   match e with
@@ -304,6 +312,7 @@ type aregister =
 
 type acmp =
   | AE
+  | ANE
   | AL
   | ALE
   | AG
@@ -366,9 +375,19 @@ let get_acmp_of_ccmp c : acmp =
   | CG -> AG
   | CGE -> AGE
 
+let get_opposite_cmp c =
+  match c with
+  | AE -> ANE
+  | ANE -> AE
+  | AL -> AGE
+  | ALE -> AG
+  | AG -> ALE
+  | AGE -> AL
+
 let string_of_acmp c : string =
   match c with
   | AE -> "eq?"
+  | ANE -> "neq?"
   | AL -> "<"
   | ALE -> "<="
   | AG -> ">"
@@ -528,6 +547,8 @@ let register_of_string s : aarg =
     | "al" -> Reg Al
     | _ -> raise (RegisterException "register does not exist")
 
+let is_var a = match a with AVar _ -> true | _ -> false
+
 (* helper *)
 
 
@@ -549,10 +570,29 @@ let print_adjacent_aargs adjacents =
 
 let print_adjacent_colors colors =
   print_endline ("[" ^ List.fold_left (fun acc e -> acc ^ string_of_int e ^ ",") "" colors ^ "]")
+(* gensym *)
+
+module Gensym =
+  struct
+    let cnt = ref 0
+
+    let gen_int () =
+      let c = !cnt in
+      cnt := !cnt + 1;
+      c
+
+    let gen_str str =
+      let c = !cnt in
+      cnt := !cnt + 1;
+      str ^ (string_of_int c)
+
+    let reset () =
+      cnt := 0
+end
 (* registers *)
 
 
-let registers = [Rax; Rbx; Rcx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
+let registers = [Rbx; Rcx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
 let num_of_registers = List.length registers
 
 (* lexer *)
@@ -863,17 +903,13 @@ let uniquify_error s = raise (UniquifyError s)
 let get_var_name v table : string =
   try
     let count = Hashtbl.find table v in
-    match count with
-    | 1 -> v
-    | _ -> v ^ (string_of_int count)
+    v ^ (string_of_int count)
   with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
-  try
-    let count = (Hashtbl.find table v) + 1 in
-    let _ = Hashtbl.replace table v count in v ^ (string_of_int count)
-  with Not_found ->
-    let _ = Hashtbl.add table v 1 in v
+  let cnt = Gensym.gen_int () in
+  let _ = Hashtbl.replace table v cnt in
+  v ^ (string_of_int cnt)
 
 let rec uniquify_exp ast table : rexp =
   match ast with
@@ -1038,6 +1074,85 @@ let typecheck program : rprogram =
     match ne with
     | TypeIs (dt, _) -> RProgram (dt, ne)
 
+(* exposeAllocation *)
+
+
+(*
+Generates:
+(let ([_ (vector-set! v 0 x0)]) ... (let ([_ (vector-set! v n-1 xn-1)])
+  v) ... ))))
+*)
+let rec gen_vec_sets v vdt xdts xs =
+  match xs with
+  | [] -> TypeIs (vdt, RVar v)
+  | (index, x) :: t ->
+    let xdt = Some (hd xdts) in
+    TypeIs (vdt, RLet ("_",
+          make_tvoid (RVectorSet (TypeIs (vdt, RVar v), index, TypeIs (xdt, RVar x))),
+          gen_vec_sets v vdt (tl xdts) t))
+
+(*
+Generates:
+(let ([_ (if (< (+ (global-value free_ptr) bytes)
+             (global-value fromspace_end))
+         (void)
+         (collect bytes))])
+(let ([v (allocate len type)])
+*)
+let gen_if_expr vecsets dt vec_name =
+  let len = List.length dt in
+  let bytes = 8 + (len * 8) in
+  let if_expr = make_tvoid (
+    RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue "freeptr"), make_tint (RInt bytes))), make_tint (RGlobalValue "fromspace_end"))),
+    make_tvoid RVoid, make_tvoid (RCollect bytes)))
+  in
+  let allocate_expr = make_tvec dt (
+    RLet (vec_name, make_tvec dt (RAllocate (len, TypeVector dt)), vecsets))
+  in
+  make_tvec dt (RLet ("_", if_expr, allocate_expr))
+
+(*
+Generates:
+(let([x0 e0])...(let([xn-1 en-1])
+*)
+let rec gen_exp_sets xs2es ifexp dt =
+  match xs2es with
+  | [] -> ifexp
+  | ((i, x), e) :: t ->
+    make_tvec dt (RLet (x, e, gen_exp_sets t ifexp dt))
+
+let rec expose_exp_type e =
+  match e with
+  | TypeIs (Some TypeVector dt, RVector es) ->
+    let xs = List.mapi (fun index e -> (index, Gensym.gen_str "x")) es in
+    let xs2es = List.combine xs es in
+    let vec_name = Gensym.gen_str "v" in
+    let vector_sets = gen_vec_sets vec_name (Some (TypeVector dt)) dt xs in
+    let if_expr = gen_if_expr vector_sets dt vec_name in
+    let exp_sets = gen_exp_sets xs2es if_expr dt in
+    exp_sets
+  | TypeIs (dt, e) -> TypeIs (dt, expose_exp e)
+
+and expose_exp e =
+  match e with
+  | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
+  | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
+  | RAnd (l, r) -> RAnd (expose_exp_type l, expose_exp_type r)
+  | ROr (l, r) -> ROr (expose_exp_type l, expose_exp_type r)
+  | RNot e -> RNot (expose_exp_type e)
+  | RIf (c, t, f) -> RIf (expose_exp_type c, expose_exp_type t, expose_exp_type f)
+  | RCmp (o, l, r) -> RCmp (o, expose_exp_type l, expose_exp_type r)
+  | RUnOp (o, e) -> RUnOp (o, expose_exp_type e)
+  | RBinOp (o, l, r) -> RBinOp (o, expose_exp_type l, expose_exp_type r)
+  | RLet (v, i, b) -> RLet (v, expose_exp_type i, expose_exp_type b)
+  | RPrint e -> RPrint (expose_exp_type e)
+  | RWhile (c, e) -> RWhile (expose_exp_type c, expose_exp_type e)
+  | _ -> e
+
+let expose_allocation program =
+  match program with
+  | RProgram (dt, e) -> RProgram (dt, expose_exp_type e)
+
 (* flatten *)
 
 
@@ -1133,7 +1248,7 @@ let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
     let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
     let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
     let flat_arg = CVar var_name in
-    let stmts = [CWhile (cnd_stmts, while_cnd, thn_stmts)] in
+    let stmts = [CAssign (var_name, CArg (CVoid)); CWhile (cnd_stmts, while_cnd, thn_stmts)] in
     let var_list = if v = None then var_name :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
     (flat_arg, stmts, var_list)
   | RCmp (o, l, r) ->
@@ -1351,7 +1466,7 @@ let rec add_edges cnd (d: aarg) (targets: aarg list) map =
 let rec add_edges_from_nodes nodes targets map =
   match nodes with
   | h :: t ->
-    add_edges (fun v -> true) h targets map;
+    List.iter (fun e -> append_to_value h e map) targets;
     add_edges_from_nodes t targets map
   | [] -> ()
 
@@ -1367,14 +1482,11 @@ let rec build_graph stmts live_afters map : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_edges (fun v -> v <> d) d live_vars map;
     build_graph t (tl live_afters) map
-
-  (* TODO: Ask Jay *)
   | Callq label :: t ->
     let live_vars = hd (live_afters) in
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_edges_from_nodes caller_save_aregisters live_vars map;
+    add_edges_from_nodes live_vars (tl caller_save_aregisters) map;
     build_graph t (tl live_afters) map
-
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map in
     let _ = build_graph els_instrs els_lafter map in
@@ -1394,11 +1506,6 @@ let build_interference program : gprogram =
 
 (* allocateRegisters *)
 
-
-exception AllocateRegistersException of string
-let allocate_exception msg = raise (AllocateRegistersException msg)
-
-let is_var a = match a with AVar _ -> true | _ -> false
 
 let find_in_map key map =
   try Hashtbl.find map key
@@ -1441,20 +1548,8 @@ let rec add_color_to_saturations saturations adjacents color =
     add_color_to_saturations saturations t color
   | [] -> ()
 
-let get_index e l =
-  let rec do_work e l i =
-    match l with
-    | h :: t -> if e = h then i else do_work e t (i + 1)
-    | [] -> out_of_bounds_error "element is not in array"
-  in do_work e l 0
-
 let get_adjacent_colors colors adjacents =
-  List.sort compare (List.map (fun e ->
-    match e with
-    | AVar v -> Hashtbl.find colors e
-    | Reg r -> get_index r registers
-    | _ -> allocate_exception "allocate registers: expected var or register"
-  ) adjacents)
+  List.sort compare (List.map (fun e -> Hashtbl.find colors e) adjacents)
 
 let rec get_colors graph saturations colors move =
   match Hashtbl.length graph with
@@ -1480,12 +1575,57 @@ let rec get_colors graph saturations colors move =
     Hashtbl.remove graph max_saturated;
     get_colors graph saturations colors move
 
+(* Add register colors to the saturation list of any variable live during a callq *)
+let add_register_saturations sat graph =
+  (* Get index of given register in the set of all assignable registers *)
+  let rec get_index e l cnt =
+    match l with
+    | h :: t -> if h = e then cnt else get_index e t (cnt + 1)
+    | [] -> -1
+  in
+  (* Gets the equivalent color of a register *)
+  let get_register_colors k graph : int list =
+    try
+      let values = Hashtbl.find graph k in
+      List.rev (List.fold_left (fun acc e ->
+        match e with
+        | Reg r ->
+          let index = get_index r registers 0 in
+          if index != -1 then index :: acc else acc
+        | _ -> acc
+      ) [] values)
+    with Not_found -> []
+  in
+  (* Any variable that interfers with registers, add those register colors to its saturation list *)
+  Hashtbl.iter (fun k v -> Hashtbl.replace sat k (get_register_colors k graph)) sat;
+  sat
+
+let print_saturation_graph saturations =
+  Hashtbl.iter (fun k v ->
+    print_string ((string_of_aarg k) ^ ": [");
+    print_string (List.fold_left (fun acc e -> acc ^ (string_of_int e) ^ " ") "" v);
+    print_endline "]";
+  ) saturations
+
+(* Removes registers (added during callq - build interference) from working set *)
+let remove_registers map =
+  Hashtbl.filter_map_inplace (fun k v ->
+    (* Remove anything thats not a variable from the interference graph value *)
+    Some (List.filter (fun e ->
+      match e with
+      | AVar _ -> true
+      | _ -> false
+    ) v)
+  ) map;
+  map
+
 let color_graph graph vars move =
   (* List of numbers a variable cannot be assigned *)
-  let saturations = create_graph vars [] in
+  let saturations = add_register_saturations (create_graph vars []) graph in
+  (* print_saturation_graph saturations; *)
   (* The color (number) a variable is assigned *)
   let colors = create_graph vars (-1) in
-  get_colors (Hashtbl.copy graph) saturations colors move
+  get_colors (remove_registers (Hashtbl.copy graph)) saturations colors move
 
 (* Map the variable to a register or spill to the stack if no space *)
 let get_register a graph =
@@ -1494,7 +1634,7 @@ let get_register a graph =
     let index = Hashtbl.find graph a in
     if index >= num_of_registers then a
     else if index = -1 then Reg Rbx
-    else Reg (List.nth (tl registers) index)
+    else Reg (List.nth registers index)
   | _ -> a
 
 let rec get_new_instrs instrs graph =
@@ -1539,8 +1679,8 @@ let rec get_new_instrs instrs graph =
           get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
   | AWhile (cnd_instr, _, (c, a, b), thn_instr, _):: tl ->
     AWhile (get_new_instrs cnd_instr graph, [],
-        (c, get_register a graph, get_register b graph),
-        get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
+      (c, get_register a graph, get_register b graph),
+      get_new_instrs thn_instr graph, []) :: get_new_instrs tl graph
 
 let rec create_move_bias_graph instrs tbl =
   match instrs with
@@ -1584,10 +1724,9 @@ let rec lower_instructions instrs uniq_cnt =
     Label end_label :: lower_instructions tl uniq_cnt
   | AWhile (cnd_instrs, _, (c, a1, a2), thn_instrs, _) :: tl ->
     let while_label = gen_unique "while" uniq_cnt in
-    let thn_label = gen_unique "thn" uniq_cnt in
     let end_label = gen_unique "end" uniq_cnt in
-    Label while_label :: lower_instructions cnd_instrs uniq_cnt @  Cmpq (a1, a2) :: JmpIf (c, thn_label) :: Jmp end_label
-    :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
+    Label while_label :: lower_instructions cnd_instrs uniq_cnt @ Cmpq (a1, a2) :: JmpIf (get_opposite_cmp c, end_label)
+    :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
     :: Label end_label :: lower_instructions tl uniq_cnt
   | h :: tl -> h :: lower_instructions tl uniq_cnt
 
@@ -1698,7 +1837,8 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
-    if is_void a || is_void b then patch_instrs tl else
+    if is_void b then patch_instrs tl else
+    if is_void a then Movq (AInt 0, b) :: patch_instrs tl else
     if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
@@ -1753,6 +1893,7 @@ let cmp_to_x86 cmp =
   | ALE -> "le"
   | AG -> "g"
   | AGE -> "ge"
+  | ANE -> "ne"
 
 let rec print_instrs instrs =
   match instrs with

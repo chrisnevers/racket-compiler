@@ -15,6 +15,9 @@ and rexp =
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
+  | RCollect of int
+  | RAllocate of int * datatype
+  | RGlobalValue of string
   | RRead
   | RAnd of rexp_type * rexp_type
   | ROr of rexp_type * rexp_type
@@ -59,6 +62,7 @@ let rec get_datatypes l : datatype list =
 let make_tint e = TypeIs (Some TypeInt, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
+let make_tvec dt e = TypeIs (Some (TypeVector dt), e)
 let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =
@@ -86,7 +90,7 @@ and string_of_datatype_options (dt: datatype option list) =
   | [] -> ""
 
 let rec string_of_rexp e : string =
-  (* "(" ^ *)
+  "(" ^
   (fun e ->
   match e with
   | RVar v -> "Var " ^ v
@@ -105,13 +109,16 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RCollect i -> "Collect (" ^ string_of_int i ^ ")"
+  | RAllocate (i, dt) -> "Allocate (" ^ string_of_int i ^ ", " ^ string_of_datatype dt ^ ")"
+  | RGlobalValue s -> "Global-Value (" ^ s ^ ")"
   | RBegin es -> "Begin (" ^ string_of_rexps_type es ^ ")"
   | RWhen (cnd, es) -> "When (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
   ) e
-  (* ^ ")" *)
+  ^ ")\n"
 
 and string_of_rexps exps =
   match exps with
@@ -121,7 +128,8 @@ and string_of_rexps exps =
 
 and string_of_rexp_type e : string =
   match e with
-  | TypeIs (dt, e) -> string_of_rexp e ^ ": " ^ (string_of_datatype_option dt)
+  | TypeIs (dt, e) -> string_of_rexp e
+  (* ^ ": " ^ (string_of_datatype_option dt) *)
 
 and string_of_rexps_type e : string =
   match e with

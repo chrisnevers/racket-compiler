@@ -5,6 +5,7 @@ open RProgram
 open Expand
 open Uniquify
 open Typecheck
+open ExposeAllocation
 open Flatten
 open CProgram
 open SelectInstructions
@@ -16,6 +17,7 @@ open LowerConditionals
 open AssignHomes
 open PatchInstructions
 open Printx86
+open Gensym
 
 let write_to_file file str =
   let channel = open_out file in
@@ -29,8 +31,8 @@ let compile filename =
 
 let () =
   try
-    let program = Sys.argv.(1) in
-    (* let program = "examples/control-flow/neg?.rkt" in *)
+    (* let program = Sys.argv.(1) in *)
+    let program = "examples/heap/vector.rkt" in
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -45,7 +47,10 @@ let () =
     let typed = typecheck uniq in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
-    let flat = flatten typed in
+    let exposed = expose_allocation typed in
+    (* print_endline "\nExpose"; *)
+    (* print_rprogram exposed; *)
+    let flat = flatten exposed in
     (* print_endline "\nFlatten"; *)
     (* print_cprogram flat; *)
     let selinstr = select_instructions flat in
