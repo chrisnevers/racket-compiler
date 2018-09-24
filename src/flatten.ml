@@ -157,13 +157,19 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = [CVectorSet (varg, i, earg)] in
       let var_list = vvars @ evars in
       (flat_arg, stmts, var_list)
-    | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
+    | RVectorRef (ve, i) ->
+      let var_name = get_var_name v "vref" in
+      let (varg, vstmts, vvars) = flatten_typed_exp ve in
+      let flat_arg = CVar var_name in
+      let stmts = vstmts @ [CAssign (var_name, CVectorRef (varg, i))] in
+      let var_list = if v = None then (var_name, dt) :: vvars else vvars in
+      (flat_arg, stmts, var_list)
     | RCollect i -> (CVoid, [CCollect i], [])
     | RAllocate (i, ty) ->
       let var_name = get_var_name v "alloc" in
       let flat_arg = CVar var_name in
       let stmts = [CAssign (var_name, CAlloc (i, ty))] in
-      let var_list = [(var_name, dt)] in
+      let var_list = if v = None then [(var_name, dt)] else [] in
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
     | RVector _ -> flatten_error "should not have vector in flatten"

@@ -12,7 +12,7 @@ let rec gen_vec_sets v vdt xdts xs =
   | [] -> TypeIs (vdt, RVar v)
   | (index, x) :: t ->
     let xdt = Some (hd xdts) in
-    TypeIs (vdt, RLet ("_",
+    TypeIs (vdt, RLet (Gensym.gen_str "_",
           make_tvoid (RVectorSet (TypeIs (vdt, RVar v), index, TypeIs (xdt, RVar x))),
           gen_vec_sets v vdt (tl xdts) t))
 
@@ -34,7 +34,7 @@ let gen_if_expr vecsets dt vec_name =
   let allocate_expr = make_tvec dt (
     RLet (vec_name, make_tvec dt (RAllocate (len, TypeVector dt)), vecsets))
   in
-  make_tvec dt (RLet ("_", if_expr, allocate_expr))
+  make_tvec dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
 
 (*
 Generates:

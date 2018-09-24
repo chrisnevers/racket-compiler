@@ -243,7 +243,7 @@ type cstmt =
   | CVectorSet of carg * int * carg
 
 type cprogram =
-  | CProgram of string list * datatype * cstmt list
+  | CProgram of (string * datatype) list * datatype * cstmt list
 
 let string_of_ccmp o : string =
   match o with
@@ -260,8 +260,17 @@ let string_of_carg a : string =
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
   | CVoid -> "Void"
+  | CGlobalValue s -> "GlobalValue " ^ s
   ) a
   ^ ")"
+
+let string_of_carg_type a : string =
+  match a with
+  | CInt _ -> "int"
+  | CVar _ -> "var"
+  | CBool _ -> "bool"
+  | CVoid -> "void"
+  | CGlobalValue _ -> "glbl"
 
 let string_of_cexp e : string =
   "(" ^ (fun e ->
@@ -273,6 +282,8 @@ let string_of_cexp e : string =
   | CBinOp (o, l, r) -> "BinOp " ^ o ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CNot a -> "Not " ^ (string_of_carg a)
   | CCmp (cmp, l, r) -> "Cmp " ^ (string_of_ccmp cmp) ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
+  | CAlloc (i, dt) -> "Allocate " ^ (string_of_int i) ^ " " ^ (string_of_datatype dt)
+  | CVectorRef (v, i) -> "VectorRef " ^ string_of_carg v ^ " " ^ string_of_int i
   ) e
   ^ ")"
 
@@ -286,18 +297,24 @@ and string_of_cstmt a : string =
   | CReturn a -> "Return " ^ (string_of_carg a)
   | CIf (cnd, thn, els) -> "If " ^ (string_of_cexp cnd) ^ "\n\t\t" ^ (string_of_cstmts thn) ^ "\t" ^ (string_of_cstmts els)
   | CWhile (cnds, cnda, thn) -> "While " ^ string_of_cstmts cnds ^ "\n\t\t" ^ string_of_cexp cnda ^ "\n\t\t" ^ string_of_cstmts thn
+  | CCollect i -> "Collect " ^ string_of_int i
+  | CVectorSet (v, i, e) -> "VectorSet " ^ string_of_carg v ^ " " ^ string_of_int i ^ " " ^ string_of_carg e
   ) a
   ^ ")"
 
 let string_of_string_list l : string =
-  List.fold_left (fun acc s -> acc ^ s ^ " ") "" l
+    List.fold_left (fun acc s -> acc ^ s ^ " ") "" l
+
+let string_of_vars_list l : string =
+  List.fold_left (fun acc s -> match s with
+  | (name, dt) -> acc ^ "(" ^ name ^ ": " ^ string_of_datatype dt ^ ")") "" l
 
 let print_cprogram program =
   match program with
   | CProgram (vars, dt, stmts) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype dt) ^
-      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^
       "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
     )
 
@@ -1093,7 +1110,7 @@ let rec gen_vec_sets v vdt xdts xs =
   | [] -> TypeIs (vdt, RVar v)
   | (index, x) :: t ->
     let xdt = Some (hd xdts) in
-    TypeIs (vdt, RLet ("_",
+    TypeIs (vdt, RLet (Gensym.gen_str "_",
           make_tvoid (RVectorSet (TypeIs (vdt, RVar v), index, TypeIs (xdt, RVar x))),
           gen_vec_sets v vdt (tl xdts) t))
 
@@ -1115,7 +1132,7 @@ let gen_if_expr vecsets dt vec_name =
   let allocate_expr = make_tvec dt (
     RLet (vec_name, make_tvec dt (RAllocate (len, TypeVector dt)), vecsets))
   in
-  make_tvec dt (RLet ("_", if_expr, allocate_expr))
+  make_tvec dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
 
 (*
 Generates:
@@ -1166,12 +1183,10 @@ exception FlattenError of string
 
 let flatten_error s = raise (FlattenError s)
 
-let get_var_name v tmp_count =
+let get_var_name v name =
   match v with
   | Some name -> name
-  | None ->
-    tmp_count := !tmp_count + 1;
-    "tmp" ^ (string_of_int !tmp_count)
+  | None -> Gensym.gen_str name
 
 let get_carg_of_rarg a : carg =
   match a with
@@ -1179,6 +1194,7 @@ let get_carg_of_rarg a : carg =
   | RInt i -> CInt i
   | RVar name -> CVar name
   | RVoid -> CVoid
+  | RGlobalValue label -> CGlobalValue label
   | _ -> flatten_error ("get_carg_of_rarg: Expected to receive CArg but received " ^ (string_of_rexp a))
 
 let get_ccmp_of_rcmp o : ccmp =
@@ -1190,136 +1206,158 @@ let get_ccmp_of_rcmp o : ccmp =
   | ">=" -> CGE
   | _ -> flatten_error ("get_ccmp_of_rcmp: Expected compare operator but received " ^ o)
 
-let flatten_arg ?(v=None) a tmp_count : carg * cstmt list * string list =
+let flatten_arg ?(v=None) a : carg * cstmt list * (string * datatype) list =
   let flat_arg = get_carg_of_rarg a in
-  let stmts = if v = None then [] else [CAssign (get_var_name v tmp_count, CArg flat_arg)] in
+  let stmts = if v = None then [] else [CAssign (get_var_name v (string_of_carg_type flat_arg), CArg flat_arg)] in
   let var_list = [] in
   (flat_arg, stmts, var_list)
 
-let rec flatten_exp ?(v=None) e tmp_count : carg * cstmt list * string list =
-  match e with
-  | RVar _ | RInt _ | RBool _ | RVoid ->
-    flatten_arg e tmp_count ~v:v
-  | RAnd (l, r) ->
-    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let lif_cnd = CCmp (CEq, CBool true, larg) in
-    let rif_cnd = CCmp (CEq, CBool true, rarg) in
-    (* We only execute this if first condition is true, so if this condition is true, then set var to true, otherwise false *)
-    let rif = CIf (rif_cnd, [CAssign (var_name, CArg (CBool true))], [CAssign (var_name, CArg (CBool false))]) in
-    (* Execute first condition, if true continue to next condition (execute its stmts then call if to see if true), otherwise short circuit to false *)
-    let lif = CIf (lif_cnd, rstmts @ [rif], [CAssign (var_name, CArg (CBool false))]) in
-    (* Execute lstmts see if left is true *)
-    let stmts = lstmts @ [lif] in
-    let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
-    (flat_arg, stmts, var_list)
-  | ROr (l, r) ->
-    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let lif_cnd = CCmp (CEq, CBool true, larg) in
-    let rif_cnd = CCmp (CEq, CBool true, rarg) in
-    (* We only execute this if first condition is false, so if this condition is true, then set var to true, otherwise false *)
-    let rif = CIf (rif_cnd, [CAssign (var_name, CArg (CBool true))], [CAssign (var_name, CArg (CBool false))]) in
-    (* Execute first condition, if true then set var to true, else see if next condition is true *)
-    let lif = CIf (lif_cnd, [CAssign (var_name, CArg (CBool true))], rstmts @ [rif]) in
-    (* Execute lstmts see if left is true *)
-    let stmts = lstmts @ [lif] in
-    let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
-    (flat_arg, stmts, var_list)
-  | RNot e ->
-    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let stmts = estmts @ [CAssign (var_name, CNot earg)] in
-    let var_list = if v = None then var_name :: evars else evars in
-    (flat_arg, stmts, var_list)
-  | RIf (cnd, thn, els) ->
-    let var_name = get_var_name v tmp_count in
-    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd tmp_count in
-    (* Assign result of then and else conditions to lhs variable / or newly created tmp *)
-    let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
-    let (els_arg, els_stmts, els_vars) = flatten_typed_exp els tmp_count ~v:(Some var_name) in
-    let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
-    let flat_arg = CVar var_name in
-    let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
-    let var_list = if v = None then var_name :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
-    (flat_arg, stmts, var_list)
-  | RWhile (cnd, thn) ->
-    let var_name = get_var_name v tmp_count in
-    let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd tmp_count in
-    let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn tmp_count ~v:(Some var_name) in
-    let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
-    let flat_arg = CVar var_name in
-    let stmts = [CAssign (var_name, CArg (CVoid)); CWhile (cnd_stmts, while_cnd, thn_stmts)] in
-    let var_list = if v = None then var_name :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
-    (flat_arg, stmts, var_list)
-  | RCmp (o, l, r) ->
-    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let ccmp = get_ccmp_of_rcmp o in
-    let stmts = lstmts @ rstmts @ [CAssign (var_name, CCmp (ccmp, larg, rarg))] in
-    let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
-    (flat_arg, stmts, var_list)
-  | RUnOp (o, e) ->
-    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let stmts = estmts @ [CAssign (var_name, CUnOp (o, earg))] in
-    let var_list = if v = None then var_name :: evars else evars in
-    (flat_arg, stmts, var_list)
-  | RBinOp (o, l, r) ->
-    let (larg, lstmts, lvars) = flatten_typed_exp l tmp_count in
-    let (rarg, rstmts, rvars) = flatten_typed_exp r tmp_count in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let stmts = lstmts @ rstmts @ [CAssign (var_name, CBinOp (o, larg, rarg))] in
-    let var_list = if v = None then var_name :: lvars @ rvars else lvars @ rvars in
-    (flat_arg, stmts, var_list)
-  | RLet (name, i, b) ->
-    (* Assign result of inner expression to the variable being declared *)
-    let (iarg, istmts, ivars) = flatten_typed_exp i tmp_count ~v:(Some name) in
-    (* Assign result of body function to whatever variable this expression is a child of *)
-    let (barg, bstmts, bvars) = flatten_typed_exp b tmp_count ~v:v in
-    let flat_arg = barg in
-    let stmts = istmts @ bstmts in
-    let var_list = name :: ivars @ bvars in
-    (flat_arg, stmts, var_list)
-  | RRead ->
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let stmts = [CAssign (var_name, CRead)] in
-    let var_list = if v = None then [var_name] else [] in
-    (flat_arg, stmts, var_list)
-  | RPrint e ->
-    let (earg, estmts, evars) = flatten_typed_exp e tmp_count in
-    let dt = get_datatype e in
-    let var_name = get_var_name v tmp_count in
-    let flat_arg = CVar var_name in
-    let stmts = estmts @ [CAssign (var_name, CPrint (dt, earg))] in
-    let var_list = if v = None then var_name :: evars else evars in
-    (flat_arg, stmts, var_list)
-  | RVector _ -> flatten_error "vector not implemented"
-  | RVectorSet (_, _, _) -> flatten_error "vector-set! implemented"
-  | RVectorRef (_, _) -> flatten_error "vector-ref not implemented"
-  | RBegin _ -> flatten_error "should not have begin in flatten"
-  | RWhen (_, _) -> flatten_error "should not have when in flatten"
-  | RUnless (_, _) -> flatten_error "should not have unless in flatten"
+(* let rec flatten_exp ?(v=None) e : carg * cstmt list * (string * datatype) list = *)
 
-and flatten_typed_exp ?(v=None) e tmp_count =
-  match e with
-  | TypeIs (dt, x) -> flatten_exp ~v x tmp_count
+let rec flatten_typed_exp ?(v=None) exp =
+  match exp with
+  | TypeIs (None, ue) -> flatten_error ("flatten: expression is untyped: " ^ (string_of_rexp ue))
+  | TypeIs (Some dt, e) -> (
+    match e with
+    | RVar _ | RInt _ | RBool _ | RVoid | RGlobalValue _ ->
+      flatten_arg e ~v:v
+    | RAnd (l, r) ->
+      let (larg, lstmts, lvars) = flatten_typed_exp l in
+      let (rarg, rstmts, rvars) = flatten_typed_exp r in
+      let var_name = get_var_name v "and" in
+      let flat_arg = CVar var_name in
+      let lif_cnd = CCmp (CEq, CBool true, larg) in
+      let rif_cnd = CCmp (CEq, CBool true, rarg) in
+      (* We only execute this if first condition is true, so if this condition is true, then set var to true, otherwise false *)
+      let rif = CIf (rif_cnd, [CAssign (var_name, CArg (CBool true))], [CAssign (var_name, CArg (CBool false))]) in
+      (* Execute first condition, if true continue to next condition (execute its stmts then call if to see if true), otherwise short circuit to false *)
+      let lif = CIf (lif_cnd, rstmts @ [rif], [CAssign (var_name, CArg (CBool false))]) in
+      (* Execute lstmts see if left is true *)
+      let stmts = lstmts @ [lif] in
+      let var_list = if v = None then (var_name, dt) :: lvars @ rvars else lvars @ rvars in
+      (flat_arg, stmts, var_list)
+    | ROr (l, r) ->
+      let (larg, lstmts, lvars) = flatten_typed_exp l in
+      let (rarg, rstmts, rvars) = flatten_typed_exp r in
+      let var_name = get_var_name v "or" in
+      let flat_arg = CVar var_name in
+      let lif_cnd = CCmp (CEq, CBool true, larg) in
+      let rif_cnd = CCmp (CEq, CBool true, rarg) in
+      (* We only execute this if first condition is false, so if this condition is true, then set var to true, otherwise false *)
+      let rif = CIf (rif_cnd, [CAssign (var_name, CArg (CBool true))], [CAssign (var_name, CArg (CBool false))]) in
+      (* Execute first condition, if true then set var to true, else see if next condition is true *)
+      let lif = CIf (lif_cnd, [CAssign (var_name, CArg (CBool true))], rstmts @ [rif]) in
+      (* Execute lstmts see if left is true *)
+      let stmts = lstmts @ [lif] in
+      let var_list = if v = None then (var_name, dt) :: lvars @ rvars else lvars @ rvars in
+      (flat_arg, stmts, var_list)
+    | RNot e ->
+      let (earg, estmts, evars) = flatten_typed_exp e in
+      let var_name = get_var_name v "not" in
+      let flat_arg = CVar var_name in
+      let stmts = estmts @ [CAssign (var_name, CNot earg)] in
+      let var_list = if v = None then (var_name, dt) :: evars else evars in
+      (flat_arg, stmts, var_list)
+    | RIf (cnd, thn, els) ->
+      let var_name = get_var_name v "if" in
+      let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd in
+      (* Assign result of then and else conditions to lhs variable / or newly created tmp *)
+      let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn ~v:(Some var_name) in
+      let (els_arg, els_stmts, els_vars) = flatten_typed_exp els ~v:(Some var_name) in
+      let if_cnd = CCmp (CEq, CBool true, cnd_arg) in
+      let flat_arg = CVar var_name in
+      let stmts = cnd_stmts @ [CIf (if_cnd, thn_stmts, els_stmts)] in
+      let var_list = if v = None then (var_name, dt) :: cnd_vars @ thn_vars @ els_vars else cnd_vars @ thn_vars @ els_vars in
+      (flat_arg, stmts, var_list)
+    | RWhile (cnd, thn) ->
+      let var_name = get_var_name v "while" in
+      let (cnd_arg, cnd_stmts, cnd_vars) = flatten_typed_exp cnd in
+      let (thn_arg, thn_stmts, thn_vars) = flatten_typed_exp thn ~v:(Some var_name) in
+      let while_cnd = CCmp (CEq, CBool true, cnd_arg) in
+      let flat_arg = CVar var_name in
+      let stmts = [CAssign (var_name, CArg (CVoid)); CWhile (cnd_stmts, while_cnd, thn_stmts)] in
+      let var_list = if v = None then (var_name, dt) :: cnd_vars @ thn_vars else cnd_vars @ thn_vars in
+      (flat_arg, stmts, var_list)
+    | RCmp (o, l, r) ->
+      let (larg, lstmts, lvars) = flatten_typed_exp l in
+      let (rarg, rstmts, rvars) = flatten_typed_exp r in
+      let var_name = get_var_name v "cmp" in
+      let flat_arg = CVar var_name in
+      let ccmp = get_ccmp_of_rcmp o in
+      let stmts = lstmts @ rstmts @ [CAssign (var_name, CCmp (ccmp, larg, rarg))] in
+      let var_list = if v = None then (var_name, dt) :: lvars @ rvars else lvars @ rvars in
+      (flat_arg, stmts, var_list)
+    | RUnOp (o, e) ->
+      let (earg, estmts, evars) = flatten_typed_exp e in
+      let var_name = get_var_name v "unop" in
+      let flat_arg = CVar var_name in
+      let stmts = estmts @ [CAssign (var_name, CUnOp (o, earg))] in
+      let var_list = if v = None then (var_name, dt) :: evars else evars in
+      (flat_arg, stmts, var_list)
+    | RBinOp (o, l, r) ->
+      let (larg, lstmts, lvars) = flatten_typed_exp l in
+      let (rarg, rstmts, rvars) = flatten_typed_exp r in
+      let var_name = get_var_name v "binop" in
+      let flat_arg = CVar var_name in
+      let stmts = lstmts @ rstmts @ [CAssign (var_name, CBinOp (o, larg, rarg))] in
+      let var_list = if v = None then (var_name, dt) :: lvars @ rvars else lvars @ rvars in
+      (flat_arg, stmts, var_list)
+    | RLet (name, i, b) ->
+      (* Assign result of inner expression to the variable being declared *)
+      let (iarg, istmts, ivars) = flatten_typed_exp i ~v:(Some name) in
+      (* Assign result of body function to whatever variable this expression is a child of *)
+      let (barg, bstmts, bvars) = flatten_typed_exp b ~v:v in
+      let flat_arg = barg in
+      let stmts = istmts @ bstmts in
+      let var_list = (name, dt) :: ivars @ bvars in
+      (flat_arg, stmts, var_list)
+    | RRead ->
+      let var_name = get_var_name v "read" in
+      let flat_arg = CVar var_name in
+      let stmts = [CAssign (var_name, CRead)] in
+      let var_list = if v = None then [(var_name, dt)] else [] in
+      (flat_arg, stmts, var_list)
+    | RPrint e ->
+      let (earg, estmts, evars) = flatten_typed_exp e in
+      let edt = get_datatype e in
+      let var_name = get_var_name v "print" in
+      let flat_arg = CVar var_name in
+      (* Revisit assign to void? *)
+      let stmts = estmts @ [CAssign (var_name, CPrint (edt, earg))] in
+      let var_list = if v = None then (var_name, dt) :: evars else evars in
+      (flat_arg, stmts, var_list)
+    | RVectorSet (vec, i, e) ->
+      let (varg, vstmts, vvars) = flatten_typed_exp vec in
+      let (earg, estmts, evars) = flatten_typed_exp e in
+      let flat_arg = CVoid in
+      let stmts = [CVectorSet (varg, i, earg)] in
+      let var_list = vvars @ evars in
+      (flat_arg, stmts, var_list)
+    | RVectorRef (ve, i) ->
+      let var_name = get_var_name v "vref" in
+      let (varg, vstmts, vvars) = flatten_typed_exp ve in
+      let flat_arg = CVar var_name in
+      let stmts = vstmts @ [CAssign (var_name, CVectorRef (varg, i))] in
+      let var_list = if v = None then (var_name, dt) :: vvars else vvars in
+      (flat_arg, stmts, var_list)
+    | RCollect i -> (CVoid, [CCollect i], [])
+    | RAllocate (i, ty) ->
+      let var_name = get_var_name v "alloc" in
+      let flat_arg = CVar var_name in
+      let stmts = [CAssign (var_name, CAlloc (i, ty))] in
+      let var_list = if v = None then [(var_name, dt)] else [] in
+      (flat_arg, stmts, var_list)
+    (* Invalid expressions *)
+    | RVector _ -> flatten_error "should not have vector in flatten"
+    | RBegin _ -> flatten_error "should not have begin in flatten"
+    | RWhen (_, _) -> flatten_error "should not have when in flatten"
+    | RUnless (_, _) -> flatten_error "should not have unless in flatten"
+  )
 
 let flatten program : cprogram =
   match program with
   | RProgram (Some dt, e) ->
-    let tmp_count = ref 0 in
-    let (arg, stmts, vars) = flatten_typed_exp e tmp_count in
+    let (arg, stmts, vars) = flatten_typed_exp e in
     let new_stmts = stmts @ [CReturn arg] in
     CProgram (vars, dt, new_stmts)
   | _ -> flatten_error "Flatten: program does not have type"
@@ -1396,7 +1434,9 @@ let rec select_stmts stmt : ainstr list =
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, stmts) ->
-    PProgram (vars, datatype, select_stmts stmts)
+    (* just make it compile right now, and throw away types *)
+    let nvars, ndts = List.split vars in
+    PProgram (nvars, datatype, select_stmts stmts)
 
 (* uncoverLive *)
 
