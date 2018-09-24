@@ -31,9 +31,12 @@ let run_uniquify program =
 let run_typecheck program =
     let uniq = run_uniquify program in
     typecheck uniq\n\n
-let run_flatten program =
+let run_expose program =
     let typed = run_typecheck program in
-    flatten typed\n\n
+    expose_allocation typed\n\n
+let run_flatten program =
+    let exposed = run_expose program in
+    flatten exposed\n\n
 let run_select_instrs program =
     let flat = run_flatten program in
     select_instructions flat\n\n

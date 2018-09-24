@@ -1,5 +1,6 @@
 open AProgram
 open CProgram
+open List
 
 exception SelectInstructionError of string
 let select_instruction_error s = raise (SelectInstructionError s)
@@ -70,4 +71,6 @@ let rec select_stmts stmt : ainstr list =
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, stmts) ->
-    PProgram (vars, datatype, select_stmts stmts)
+    (* just make it compile right now, and throw away types *)
+    let nvars, ndts = List.split vars in
+    PProgram (nvars, datatype, select_stmts stmts)

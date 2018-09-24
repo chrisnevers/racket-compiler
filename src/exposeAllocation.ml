@@ -44,9 +44,9 @@ let rec gen_exp_sets xs2es ifexp dt =
   match xs2es with
   | [] -> ifexp
   | ((i, x), e) :: t ->
-    make_tvec dt (RLet (x, e, gen_exp_sets t ifexp dt))
+    make_tvec dt (RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
 
-let rec expose_exp_type e =
+and expose_exp_type e =
   match e with
   | TypeIs (Some TypeVector dt, RVector es) ->
     let xs = List.mapi (fun index e -> (index, Gensym.gen_str "x")) es in

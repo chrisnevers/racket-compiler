@@ -220,7 +220,8 @@ type carg =
   | CInt of int
   | CVar of string
   | CBool of bool
-  | CVoid
+  | CVoid (* can be 1, so evaluates to true *)
+  | CGlobalValue of string
 
 type cexp =
   | CArg of carg
@@ -230,12 +231,16 @@ type cexp =
   | CBinOp of string * carg * carg
   | CNot of carg
   | CCmp of ccmp * carg * carg
+  | CAlloc of int * datatype
+  | CVectorRef of carg * int
 
 type cstmt =
   | CAssign of string * cexp
   | CReturn of carg
   | CIf of cexp * cstmt list * cstmt list
   | CWhile of cstmt list * cexp * cstmt list
+  | CCollect of int
+  | CVectorSet of carg * int * carg
 
 type cprogram =
   | CProgram of string list * datatype * cstmt list
@@ -589,6 +594,7 @@ module Gensym =
     let reset () =
       cnt := 0
 end
+
 (* registers *)
 
 
@@ -1119,9 +1125,9 @@ let rec gen_exp_sets xs2es ifexp dt =
   match xs2es with
   | [] -> ifexp
   | ((i, x), e) :: t ->
-    make_tvec dt (RLet (x, e, gen_exp_sets t ifexp dt))
+    make_tvec dt (RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
 
-let rec expose_exp_type e =
+and expose_exp_type e =
   match e with
   | TypeIs (Some TypeVector dt, RVector es) ->
     let xs = List.mapi (fun index e -> (index, Gensym.gen_str "x")) es in
@@ -1967,9 +1973,14 @@ let run_typecheck program =
     typecheck uniq
 
 
-let run_flatten program =
+let run_expose program =
     let typed = run_typecheck program in
-    flatten typed
+    expose_allocation typed
+
+
+let run_flatten program =
+    let exposed = run_expose program in
+    flatten exposed
 
 
 let run_select_instrs program =
