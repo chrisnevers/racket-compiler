@@ -154,9 +154,17 @@ let rec evaluate ast table =
         return := evaluate e table
       done;
       !return
+    | RPrint e ->
+      let result = evaluate e table in
+      let _ = match result with
+      | TypeIs (_, a) -> print_endline (string_of_rexp a)
+      in make_tvoid RVoid
     | RBegin _ -> repl_error "begin should not be in repl eval"
     | RWhen (_, _) -> repl_error "when should not be in repl eval"
     | RUnless (_, _) -> repl_error "unless should not be in repl eval"
+    | RCollect _ -> repl_error "collect should not be in repl eval"
+    | RAllocate (_, _) -> repl_error "allocate should not be in repl eval"
+    | RGlobalValue _ -> repl_error "globalvalue should not be in repl eval"
   )
 
 let rec repl () =
