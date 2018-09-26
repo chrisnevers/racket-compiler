@@ -1,6 +1,7 @@
 open OUnit
 open UncoverLive
 open AProgram
+open Registers
 open Helper
 open List
 
@@ -17,6 +18,7 @@ let get_written_vars_test = (fun () ->
   assert_equal [AVar "v"] (get_written_vars (Xorq (AVar "x", AVar "v")));
   assert_equal [AVar "v"] (get_written_vars (Set (AE, AVar "v")));
   assert_equal [AVar "v"] (get_written_vars (Negq (AVar "v")));
+  assert_equal [AVar "y"] (get_written_vars (ACallq ("label", [AVar "x"], AVar "y")));
 )
 
 
@@ -27,7 +29,7 @@ let get_read_vars_test = (fun () ->
   assert_equal [AVar "x"; AVar "v"] (get_read_vars (Xorq (AVar "x", AVar "v")));
   assert_equal [AVar "x"] (get_read_vars (Movq (AVar "x", AVar "v")));
   assert_equal [AVar "x"] (get_read_vars (Movzbq (AVar "x", AVar "v")));
-  (* assert_equal caller_save_aregisters (get_read_vars (Callq "label")); *)
+  assert_equal [AVar "x"] (get_read_vars (ACallq ("label", [AVar "x"], AVar "y")));
 )
 
 let uncover_stmt_test = (fun () ->
