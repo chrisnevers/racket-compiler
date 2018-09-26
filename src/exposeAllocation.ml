@@ -1,4 +1,5 @@
 open RProgram
+open Registers
 open Gensym
 open List
 
@@ -28,7 +29,7 @@ let gen_if_expr vecsets dt vec_name =
   let len = List.length dt in
   let bytes = 8 + (len * 8) in
   let if_expr = make_tvoid (
-    RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue "freeptr"), make_tint (RInt bytes))), make_tint (RGlobalValue "fromspace_end"))),
+    RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue free_ptr), make_tint (RInt bytes))), make_tint (RGlobalValue fromspace_end))),
     make_tvoid RVoid, make_tvoid (RCollect bytes)))
   in
   let allocate_expr = make_tvec dt (

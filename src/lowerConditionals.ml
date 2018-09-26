@@ -27,7 +27,7 @@ let rec lower_instructions instrs uniq_cnt =
 
 let lower_conditionals program =
   match program with
-  | GProgram (vars, interference, datatype, instrs) ->
+  | GCProgram (vars, live_afters, colors, datatype, instrs) ->
     let uniq_count = ref 0 in
     let new_instrs = lower_instructions instrs uniq_count in
-    GProgram (vars, interference, datatype, new_instrs)
+    GCProgram (vars, live_afters, colors, datatype, new_instrs)

@@ -183,5 +183,6 @@ let flatten program : cprogram =
   | RProgram (Some dt, e) ->
     let (arg, stmts, vars) = flatten_typed_exp e in
     let new_stmts = stmts @ [CReturn arg] in
-    CProgram (vars, dt, new_stmts)
+    let var2dt = make_hashtable vars in
+    CProgram (var2dt, dt, new_stmts)
   | _ -> flatten_error "Flatten: program does not have type"

@@ -119,6 +119,9 @@ let rec typecheck_exp exp table =
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
+  | RCollect _ -> typecheck_error "should not have collect in typecheck"
+  | RAllocate (_, _) -> typecheck_error "should not have allocate in typecheck"
+  | RGlobalValue _ -> typecheck_error "should not have globalvalue in typecheck"
 
 and typecheck_exp_type exp table =
   match exp with

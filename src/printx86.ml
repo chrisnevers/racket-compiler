@@ -1,4 +1,5 @@
 open AProgram
+open Registers
 
 exception InvalidInstructionException of string
 
@@ -56,7 +57,7 @@ let print_x86 program =
                     "\tpushq\t%rbp\n" ^
                     "\tmovq\t%rsp, %rbp\n" ^
                     (add_save_registers callee_save_registers "pushq") ^
-                    "\tsubq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ", %rsp\n\n" in
+                    "\tsubq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ", %rsp\n\n" in
     let middle = print_instrs instrs in
     let ending = "\n\tmovq\t%rax, %rdi\n" ^
                  "\tcallq\t" ^ os_label_prefix ^ (
@@ -66,7 +67,7 @@ let print_x86 program =
                    | TypeVoid -> "print_unit\n"
                    | TypeVector l -> "print_vector\n"
                   ) ^
-                 "\taddq\t$" ^ (string_of_int (space + callee_save_stack_size)) ^ ",\t%rsp\n" ^
+                 "\taddq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^
                  "\tpopq\t%rbp\n" ^
