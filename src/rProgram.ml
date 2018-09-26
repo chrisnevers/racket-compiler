@@ -81,7 +81,7 @@ and string_of_datatypes dt =
 let rec string_of_datatype_option dt : string =
   match dt with
   | Some a -> string_of_datatype a
-  | None -> ""
+  | None -> "None"
 
 and string_of_datatype_options (dt: datatype option list) =
   match dt with
@@ -94,7 +94,7 @@ let rec string_of_rexp e : string =
   (fun e ->
   match e with
   | RVar v -> "Var " ^ v
-  | RInt i -> string_of_int i
+  | RInt i -> "Int " ^ string_of_int i
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RAnd (l, r) -> "And " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
@@ -139,4 +139,4 @@ and string_of_rexps_type e : string =
 
 let print_rprogram p =
   match p with
-  | RProgram (dt, e) -> print_endline ("Program : " ^ (string_of_datatype_option dt) ^ " " ^ (string_of_rexp_type e))
+  | RProgram (dt, e) -> print_endline ("Program :\nDatatype: " ^ (string_of_datatype_option dt) ^ "\nExp:" ^ (string_of_rexp_type e))
