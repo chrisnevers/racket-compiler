@@ -29,8 +29,10 @@ type cstmt =
   | CCollect of int
   | CVectorSet of carg * int * carg
 
+type var_type = ((string, datatype) Hashtbl.t)
+
 type cprogram =
-  | CProgram of (string * datatype) list * datatype * cstmt list
+  | CProgram of var_type * datatype * cstmt list
 
 let string_of_ccmp o : string =
   match o with
@@ -101,6 +103,6 @@ let print_cprogram program =
   | CProgram (vars, dt, stmts) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype dt) ^
-      "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^
+      (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
       "\nStmts\t: \n\t[\n\t" ^ (string_of_cstmts stmts) ^ "]"
     )
