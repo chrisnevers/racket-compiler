@@ -37,12 +37,29 @@ let uncover_stmt_test = (fun () ->
 )
 
 let uncover_if_test = (fun () ->
-  let if_instrs = [Movq (AInt 3, AVar "1"); Addq (AInt 4, AVar "1")] in
-  let els_instrs = [Movq (AInt 4, AVar "2"); Addq (AInt 4, AVar "2")] in
+  let if_instrs = [Addq (AInt 4, AVar "1")] in
+  let els_instrs = [Movq (AInt 4, AVar "y"); Addq (AInt 4, AVar "y"); Addq (AInt 5, AVar "z")] in
   let instr = AIf ((AE, AInt 1, AInt 2), if_instrs, [], els_instrs, []) in
-  let expected = AIf ((AE, AInt 1, AInt 2), if_instrs, [[]; [AVar "1"]], els_instrs, [[]; [AVar "2"]]) in
-  let actual = (uncover [instr] []) in
-  assert_equal [(expected, [AVar "1"; AVar "2"])] actual
+  let expected = AIf ((AE, AInt 1, AInt 2), if_instrs, [[AVar "1"]], els_instrs, [[AVar "z"]; [AVar "y"; AVar "z"]; [AVar "z"]]) in
+  let actual = uncover [instr] [] in
+  assert_equal [(expected, [AVar "1"; AVar "z"])] actual
+)
+
+let uncover_while_test = (fun () ->
+  let instrs = [Movq (AVoid, AVar "x0");
+                AWhile ([ACallq ("read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
+                        Set (AG, ByteReg Al); Movzbq (ByteReg Al, AVar "cmp2")],
+                        [], (AE, AInt 1, AVar "cmp2"), [Movq (AInt 5, AVar "x0")], []);
+                Movq (AVar "x0", Reg Rax)]
+  in
+  let actual = List.rev (uncover (List.rev instrs) []) in
+  let expected = [(Movq (AVoid, AVar "x0"), []);
+                  (AWhile ([ACallq ("read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
+                        Set (AG, ByteReg Al); Movzbq (ByteReg Al, AVar "cmp2")],
+                        [[AVar "x0"]; [AVar "read1"; AVar "x0"]; [AVar "x0"]; [AVar "x0"]], (AE, AInt 1, AVar "cmp2"), [Movq (AInt 5, AVar "x0")], [[]]), [AVar "x0"]);
+                  (Movq (AVar "x0", Reg Rax), [AVar "x0"])]
+  in
+  assert_equal expected actual
 )
 
 let test =
@@ -54,6 +71,7 @@ let test =
     "get_read_vars" >:: get_read_vars_test;
     "uncover stmt test" >:: uncover_stmt_test;
     "uncover if test" >:: uncover_if_test;
+    "uncover while test" >:: uncover_while_test;
   ]
 
 let uncover_live_tests =
