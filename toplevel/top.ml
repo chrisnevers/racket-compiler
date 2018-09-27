@@ -500,9 +500,11 @@ and string_of_ainstr a : string =
     "\nElsLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
     "Else\t[\n\t" ^ (string_of_ainstrs els) ^ "]"
   | AWhile (cnd, cnd_live_afters, (cmp, l, r), thn, thn_live_afters) ->
-    (string_of_ainstrs cnd) ^ "]\nThen Live: [\n" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" cnd_live_afters) ^ "]\n" ^ "\n\t[\n\t" ^
-    "While " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
-    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live: [\n" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]"
+    "\nCndLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" cnd_live_afters) ^ "\n\t]\n" ^
+    "\t[\n\t" ^ (string_of_ainstrs cnd) ^ "]\n" ^
+    "While\t" ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
+    "\nThnLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
+    "\nThen\t[\n\t" ^ (string_of_ainstrs thn) ^ "]"
   | Leaq (s, d) -> "Leaq " ^ string_of_aarg s ^ " " ^ string_of_aarg d
   | ACallq (l, args, res) ->
     "Callq " ^ l ^ ", " ^ List.fold_left (fun acc e -> acc ^ " " ^ string_of_aarg e) "" args ^ ", " ^ string_of_aarg res
@@ -663,6 +665,14 @@ let make_multiple_of_16 i =
   let remainder = i mod 16 in
   if remainder = 0 then i
   else i + (16 - remainder)
+
+let rec print_uncover_res result =
+  match result with
+  | (exp, live) :: t ->
+    print_endline ("exp:\t" ^ string_of_ainstr exp);
+    print_endline ("live:\t" ^ (List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ " ") "" live));
+    print_uncover_res t
+  | [] -> ()
 (* gensym *)
 
 module Gensym =
@@ -1585,9 +1595,9 @@ let rec uncover stmts live_after : (ainstr * aarg list) list =
     let live_now = List.sort_uniq compare (head thn_live_after @ head els_live_after @ get_var_list_or_empty l @ get_var_list_or_empty r) in
     (AIf ((o, l, r), thn_stmts, thn_live_after, els_stmts, els_live_after), live_now) :: uncover t live_now
   | AWhile (cnd, _, (o, l, r), thn, _) :: t ->
-    let (cnd_stmts, cnd_live_after) = List.split (List.rev (uncover (List.rev cnd) live_after)) in
+    let (cnd_stmts, cnd_live_after) = List.split (List.rev (uncover (List.rev cnd) (r :: live_after))) in
     let (thn_stmts, thn_live_after) = List.split (List.rev (uncover (List.rev thn) live_after)) in
-    let live_now = List.sort_uniq compare (head thn_live_after @ head cnd_live_after @ get_var_list_or_empty l @ get_var_list_or_empty r) in
+    let live_now = List.sort_uniq compare (head thn_live_after @ head cnd_live_after @ get_var_list_or_empty l) in
     (AWhile (cnd_stmts, cnd_live_after, (o, l, r), thn_stmts, thn_live_after), live_now) :: uncover t live_now
   | s :: t ->
     let written = get_written_vars s in
@@ -1599,7 +1609,9 @@ let rec uncover stmts live_after : (ainstr * aarg list) list =
 let uncover_live program : lprogram =
   match program with
   | PProgram (vars, datatype, stmts) ->
-    let (new_stmts, live_afters) = List.split (List.rev (uncover (List.rev stmts) [])) in
+    let result = (List.rev (uncover (List.rev stmts) [])) in
+    (* print_uncover_res result; *)
+    let (new_stmts, live_afters) = List.split result in
     LProgram (vars, live_afters, datatype, new_stmts)
 
 (* buildInterference *)
@@ -1618,56 +1630,41 @@ let add_bidirected_edge n1 n2 map : unit =
   append_to_value n1 n2 map;
   append_to_value n2 n1 map
 
-let rec add_edges cnd (d: aarg) (targets: aarg list) map =
+let rec add_bidirected_edges_if cnd (d: aarg) (targets: aarg list) map =
   match targets with
   | n :: t ->
-    if cnd n then (add_bidirected_edge d n map; add_edges cnd d t map)
-    else add_edges cnd d t map
+    if cnd n then (add_bidirected_edge d n map; add_bidirected_edges_if cnd d t map)
+    else add_bidirected_edges_if cnd d t map
   | [] -> ()
 
-let rec add_edges_from_nodes nodes targets map =
+let rec add_directed_edges nodes targets map =
   match nodes with
   | h :: t ->
     List.iter (fun e -> append_to_value h e map) targets;
-    add_edges_from_nodes t targets map
+    add_directed_edges t targets map
   | [] -> ()
 
-let get_live_vectors var_types live_vars =
-  List.filter (fun e -> match e with
-      | (name, TypeVector _) -> List.mem (AVar name) live_vars
-      | _ -> false
-  ) var_types
+let get_live_vectors live_vars var_types =
+  List.filter (fun v ->
+    match Hashtbl.find var_types (get_avar_name v) with
+    | TypeVector _ -> true
+    | _ -> false
+  ) live_vars
 
 let rec build_graph stmts live_afters map var_types : interference =
+  let live_vars = head (live_afters) in
   match stmts with
   | Movq (s, d) :: t | Movzbq(s, d) :: t ->
-    let live_vars = hd (live_afters) in
     (* add the edge (d, v) for every v of Lafter(k) unless v = d or v = s. *)
-    add_edges (fun v -> v <> d && v <> s) d live_vars map;
+    add_bidirected_edges_if (fun v -> v <> d && v <> s) d live_vars map;
     build_graph t (tail live_afters) map var_types
   | Addq (s, d) :: t | Subq (s, d) :: t (* | XOrq :: t ? *)->
-    let live_vars = hd (live_afters) in
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
-    add_edges (fun v -> v <> d) d live_vars map;
+    add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
     build_graph t (tail live_afters) map var_types
-  | Callq "collect" :: t | ACallq ("collect", _, _) :: t ->
-    let live_vars = hd (live_afters) in
+  | Callq _ :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_edges_from_nodes live_vars caller_save_aregisters map;
-    (* if a vector-typed variable is live during a call to the collector, it must be spilled to ensure it is visible to the collector. *)
-    (* handled by adding interference edges between the call-live vector-typed variables and all the callee-save registers *)
-    let vec_live = List.filter (fun v ->
-      match Hashtbl.find var_types (get_avar_name v) with
-      | TypeVector _ -> true
-      | _ -> false
-    ) live_vars in
-      (* List.map (fun v -> match v with | (name, _) -> AVar name) (get_live_vectors var_types live_vars) in *)
-    add_edges_from_nodes vec_live callee_save_aregisters map;
-    build_graph t (tail live_afters) map var_types
-  | Callq _ :: t | ACallq (_, _, _) :: t ->
-    let live_vars = hd (live_afters) in
-    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_edges_from_nodes live_vars caller_save_aregisters map;
+    add_directed_edges live_vars caller_save_aregisters map;
     build_graph t (tail live_afters) map var_types
   | AIf ((c, s, d), thn_instrs, thn_lafter, els_instrs, els_lafter) :: t ->
     let _ = build_graph thn_instrs thn_lafter map var_types in
@@ -1677,6 +1674,24 @@ let rec build_graph stmts live_afters map var_types : interference =
     let _ = build_graph cnd_instrs cnd_lafter map var_types in
     let _ = build_graph thn_instrs thn_lafter map var_types in
     build_graph t (tail live_afters) map var_types
+
+  (* if a vector-typed variable is live during a call to the collector, it must be spilled to ensure it is visible to the collector. *)
+  (* handled by adding interference edges between the call-live vector-typed variables and all the callee-save registers *)
+  | ACallq ("collect", _, _) :: t ->
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
+    add_directed_edges live_vars caller_save_aregisters map;
+    let vec_live = get_live_vectors live_vars var_types in
+    add_directed_edges vec_live callee_save_aregisters map;
+    build_graph t (tail live_afters) map var_types
+
+  (* Generic calls *)
+  | ACallq (_, _, v) :: t ->
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
+    add_directed_edges live_vars caller_save_aregisters map;
+    add_bidirected_edges_if (fun e -> true) v live_vars map;
+    build_graph t (tail live_afters) map var_types
+
+  (* Otherwise *)
   | h :: t -> build_graph t (tail live_afters) map var_types
   | [] -> map
 
@@ -1828,44 +1843,9 @@ let allocate_registers program : gcprogram =
     let colors = color_graph graph jvars move in
     (* Reiterate over instructions & replace vars with registers *)
     (* print_gprogram (GProgram (vars, live_afters, graph, datatype, instrs)); *)
-    (* print_color_graph colors; *)
+    print_color_graph colors;
     (* let new_instrs = get_new_instrs instrs colors in *)
     GCProgram (vars, live_afters, colors, datatype, instrs)
-
-(* lowerConditionals *)
-
-
-exception LowerConditionalsException of string
-
-let lower_conditional_error s = raise (LowerConditionalsException s)
-
-let gen_unique label cnt =
-  cnt := !cnt + 1;
-  label ^ (string_of_int !cnt)
-
-let rec lower_instructions instrs uniq_cnt =
-  match instrs with
-  | [] -> []
-  | AIf ((c, a1, a2), thn_instrs, _, els_instrs, _) :: tl ->
-    let thn_label = gen_unique "thn" uniq_cnt in
-    let end_label = gen_unique "end" uniq_cnt in
-    Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
-    Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
-    Label end_label :: lower_instructions tl uniq_cnt
-  | AWhile (cnd_instrs, _, (c, a1, a2), thn_instrs, _) :: tl ->
-    let while_label = gen_unique "while" uniq_cnt in
-    let end_label = gen_unique "end" uniq_cnt in
-    Label while_label :: lower_instructions cnd_instrs uniq_cnt @ Cmpq (a1, a2) :: JmpIf (get_opposite_cmp c, end_label)
-    :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
-    :: Label end_label :: lower_instructions tl uniq_cnt
-  | h :: tl -> h :: lower_instructions tl uniq_cnt
-
-let lower_conditionals program =
-  match program with
-  | GCProgram (vars, live_afters, colors, datatype, instrs) ->
-    let uniq_count = ref 0 in
-    let new_instrs = lower_instructions instrs uniq_count in
-    GCProgram (vars, live_afters, colors, datatype, new_instrs)
 
 (* assignHomes *)
 
@@ -1896,14 +1876,14 @@ let get_arg_home arg homes offset colors =
     else Reg (List.nth registers index)
   | _ -> arg
 
-let save_registers registers use_root_stack =
-  let offset = ref 0 in
-  let pushqs = List.map (fun r ->
-    offset := !offset + 8;
-    Pushq (r)
-  ) registers
-  in
-  if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
+  let save_registers registers use_root_stack =
+    let offset = ref 0 in
+    let pushqs = List.map (fun r ->
+      offset := !offset + 8;
+      Pushq (r)
+    ) registers
+    in
+    if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
 
 let restore_registers registers use_root_stack =
   let offset = ref 0 in
@@ -1928,22 +1908,19 @@ let is_atomic vars live =
 let is_ptr vars live =
   List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> true | _ -> false) live
 
-let rec get_instrs instrs homes offset colors vars live_afters =
+let rec get_instrs instrs homes offset colors live_afters vars =
   match instrs with
   | [] -> []
-  | Addq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Addq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Subq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Subq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Movq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Movq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Negq a :: tl ->
-    let live_after = tail live_afters in
-    Negq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | ACallq (l, args, v) :: tl ->
+  | Addq (a, b) :: t ->
+    Addq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Subq (a, b) :: t ->
+    Subq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Movq (a, b) :: t ->
+    Movq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Negq a :: t ->
+    Negq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | ACallq (l, args, v) :: t ->
+    (* NEED HELP ... SOS PLZ SOME1 HELP ME *)
     let live_vars = hd live_afters in
     (* Get the variables that are atomic (: not vectors) and ptr (: vectors) *)
     let atomic_vars = is_atomic vars live_vars in
@@ -1967,47 +1944,88 @@ let rec get_instrs instrs homes offset colors vars live_afters =
     restore_registers save_atomic_regs false @
     restore_registers ptr_registers true @
     (* Get rest of instructions *)
-    get_instrs tl homes offset colors vars (tail live_afters)
-  | Callq l :: tl ->
-    let live_after = tail live_afters in
-    Callq l :: (get_instrs tl homes offset colors vars live_after)
-  | Pushq a :: tl ->
-    let live_after = tail live_afters in
-    Pushq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Popq a :: tl ->
-    let live_after = tail live_afters in
-    Popq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Xorq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Xorq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Cmpq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Cmpq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Movzbq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Movzbq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Set (c, a) :: tl ->
-    let live_after = tail live_afters in
-    Set (c, get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Retq :: tl ->
-    Retq :: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | Jmp l :: tl ->
-    Jmp l:: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | JmpIf (c, l) :: tl ->
-    JmpIf (c, l):: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | Label l :: tl ->
-    Label l :: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | AWhile (cnd_instrs, _, (c, a, b), thn_instrs, _) :: tl -> assign_error "while should not be in assign homes"
-  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tl -> assign_error "if should not be in assign homes"
-  | Leaq (a, b) :: tl -> Leaq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars (tail live_afters))
+    get_instrs t homes offset colors (tl live_afters) vars
+  (* | ACallq (l, args, v) :: t ->
+    ACallq (l, List.map (fun e -> get_arg_home e homes offset colors) args, get_arg_home v homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars) *)
+  | Callq l :: t ->
+    Callq l :: (get_instrs t homes offset colors (tl live_afters) vars )
+  | Pushq a :: t ->
+    Pushq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Popq a :: t ->
+    Popq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Xorq (a, b) :: t ->
+    Xorq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Cmpq (a, b) :: t ->
+    Cmpq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Movzbq (a, b) :: t ->
+    Movzbq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Set (c, a) :: t ->
+    Set (c, get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Retq :: t ->
+    Retq :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Jmp l :: t ->
+    Jmp l:: (get_instrs t homes offset colors (tl live_afters) vars)
+  | JmpIf (c, l) :: t ->
+    JmpIf (c, l):: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Label l :: t ->
+    Label l :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | AWhile (cnd_instrs, cnd_live_afters, (c, a, b), thn_instrs, thn_live_afters) :: t ->
+    let new_cnd_instrs = get_instrs cnd_instrs homes offset colors cnd_live_afters vars in
+    let ahome = get_arg_home a homes offset colors in
+    let bhome = get_arg_home b homes offset colors in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
+    AWhile (new_cnd_instrs, [], (c, ahome, bhome), new_thn_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    (* assign_error "while should not be in assign homes" *)
+  | AIf ((c, a, b), thn_instrs, thn_live_afters, els_instrs, els_live_afters) :: t ->
+    let ahome = get_arg_home a homes offset colors in
+    let bhome = get_arg_home b homes offset colors in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
+    let new_els_instrs = get_instrs els_instrs homes offset colors els_live_afters vars in
+    AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
 
 let assign_homes program =
   match program with
   | GCProgram (vars, live_afters, colors, datatype, instrs) ->
     let homes = Hashtbl.create 10 in
     let offset = ref 0 in
-    let new_instrs = get_instrs instrs homes offset colors vars live_afters in
+    let new_instrs = get_instrs instrs homes offset colors live_afters vars in
     let var_space = make_multiple_of_16 (- !offset) in
+    AProgram (var_space, datatype, new_instrs)
+
+(* lowerConditionals *)
+
+
+exception LowerConditionalsException of string
+
+let lower_conditional_error s = raise (LowerConditionalsException s)
+
+let gen_unique label cnt =
+  cnt := !cnt + 1;
+  label ^ (string_of_int !cnt)
+
+let rec lower_instructions instrs uniq_cnt =
+  match instrs with
+  | [] -> []
+  | AIf ((c, a1, a2), thn_instrs, _, els_instrs, _) :: t ->
+    let thn_label = gen_unique "thn" uniq_cnt in
+    let end_label = gen_unique "end" uniq_cnt in
+    Cmpq (a1, a2) :: JmpIf (c, thn_label) :: lower_instructions els_instrs uniq_cnt @
+    Jmp end_label :: Label thn_label :: lower_instructions thn_instrs uniq_cnt @
+    Label end_label :: lower_instructions t uniq_cnt
+  | AWhile (cnd_instrs, _, (c, a1, a2), thn_instrs, _) :: t ->
+    let while_label = gen_unique "while" uniq_cnt in
+    let end_label = gen_unique "end" uniq_cnt in
+    Label while_label :: lower_instructions cnd_instrs uniq_cnt @ Cmpq (a1, a2) :: JmpIf (get_opposite_cmp c, end_label)
+    :: lower_instructions thn_instrs uniq_cnt @ Jmp while_label
+    :: Label end_label :: lower_instructions t uniq_cnt
+  | h :: t -> h :: lower_instructions t uniq_cnt
+
+let lower_conditionals program =
+  match program with
+  | AProgram (var_space, datatype, instrs) ->
+    let uniq_count = ref 0 in
+    let new_instrs = lower_instructions instrs uniq_count in
     AProgram (var_space, datatype, new_instrs)
 
 (* patchInstructions *)
@@ -2051,7 +2069,11 @@ let rec patch_instrs instrs = match instrs with
       Movzbq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
     else Movzbq (a, b) :: patch_instrs tl
   | Cmpq (a, b) :: tl ->
-    if is_int a || (is_deref a && is_deref b) then
+    if is_deref a && is_deref b then
+      Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else if is_int a && is_int b then
+      Movq (a, Reg Rax) :: Movq (b, Reg Rcx) ::Cmpq (Reg Rax, Reg Rcx) :: patch_instrs tl
+    else if is_int a then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
     else if is_int b then
       Movq (b, Reg Rax) :: Cmpq (Reg Rax, a) :: patch_instrs tl
@@ -2196,18 +2218,18 @@ let run_allocate_registers program =
     allocate_registers instr
 
 
-let run_lower_conditionals program =
-    let instr = run_allocate_registers program in
-    lower_conditionals instr
-
-
 let run_assign_homes program =
-    let instr = run_lower_conditionals program in
+    let instr = run_allocate_registers program in
     assign_homes instr
 
 
-let run_patch_instructions program =
+let run_lower_conditionals program =
     let instr = run_assign_homes program in
+    lower_conditionals instr
+
+
+let run_patch_instructions program =
+    let instr = run_lower_conditionals program in
     patch_instructions instr
 
 

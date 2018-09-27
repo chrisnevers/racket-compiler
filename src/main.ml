@@ -31,8 +31,8 @@ let compile filename =
 
 let () =
   try
-    (* let program = Sys.argv.(1) in *)
-    let program = "examples/heap/vector.rkt" in
+    let program = Sys.argv.(1) in
+    (* let program = "examples/control-flow/and.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -65,15 +65,15 @@ let () =
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)
-    let lowercnd = lower_conditionals alloc in
+    let assignhomes = assign_homes alloc in
+    (* print_endline "\nAssign Homes"; *)
+    (* print_gprogram asshomes; *)
+    let lowercnd = lower_conditionals assignhomes in
     (* print_endline "\nLower Conditionals"; *)
-    (* print_gprogram lowercnd; *)
-    let assignhomes = assign_homes lowercnd in
-    (* print_endline "\nAssign Homes";
-    print_gprogram asshomes; *)
-    let patchinstrs = patch_instructions assignhomes in
-    (* print_endline "\nPatch Instructions";
-    print_aprogram patchi; *)
+    (* print_gcprogram lowercnd; *)
+    let patchinstrs = patch_instructions lowercnd in
+    (* print_endline "\nPatch Instructions"; *)
+    (* print_aprogram patchi; *)
     let x86 = print_x86 patchinstrs in
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;

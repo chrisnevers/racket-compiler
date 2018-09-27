@@ -38,7 +38,11 @@ let rec patch_instrs instrs = match instrs with
       Movzbq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
     else Movzbq (a, b) :: patch_instrs tl
   | Cmpq (a, b) :: tl ->
-    if is_int a || (is_deref a && is_deref b) then
+    if is_deref a && is_deref b then
+      Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else if is_int a && is_int b then
+      Movq (a, Reg Rax) :: Movq (b, Reg Rcx) ::Cmpq (Reg Rax, Reg Rcx) :: patch_instrs tl
+    else if is_int a then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
     else if is_int b then
       Movq (b, Reg Rax) :: Cmpq (Reg Rax, a) :: patch_instrs tl

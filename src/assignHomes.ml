@@ -30,14 +30,14 @@ let get_arg_home arg homes offset colors =
     else Reg (List.nth registers index)
   | _ -> arg
 
-let save_registers registers use_root_stack =
-  let offset = ref 0 in
-  let pushqs = List.map (fun r ->
-    offset := !offset + 8;
-    Pushq (r)
-  ) registers
-  in
-  if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
+  let save_registers registers use_root_stack =
+    let offset = ref 0 in
+    let pushqs = List.map (fun r ->
+      offset := !offset + 8;
+      Pushq (r)
+    ) registers
+    in
+    if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
 
 let restore_registers registers use_root_stack =
   let offset = ref 0 in
@@ -46,7 +46,7 @@ let restore_registers registers use_root_stack =
     Popq (r)
   ) registers
   in
-  if !offset > 0 then popqs @ [Addq (AInt !offset, Reg Rsp)] else []
+  if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
@@ -62,22 +62,18 @@ let is_atomic vars live =
 let is_ptr vars live =
   List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> true | _ -> false) live
 
-let rec get_instrs instrs homes offset colors vars live_afters =
+let rec get_instrs instrs homes offset colors live_afters vars =
   match instrs with
   | [] -> []
-  | Addq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Addq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Subq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Subq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Movq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Movq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Negq a :: tl ->
-    let live_after = tail live_afters in
-    Negq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | ACallq (l, args, v) :: tl ->
+  | Addq (a, b) :: t ->
+    Addq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Subq (a, b) :: t ->
+    Subq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Movq (a, b) :: t ->
+    Movq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Negq a :: t ->
+    Negq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | ACallq (l, args, v) :: t ->
     (* NEED HELP ... SOS PLZ SOME1 HELP ME *)
     let live_vars = hd live_afters in
     (* Get the variables that are atomic (: not vectors) and ptr (: vectors) *)
@@ -102,45 +98,51 @@ let rec get_instrs instrs homes offset colors vars live_afters =
     restore_registers save_atomic_regs false @
     restore_registers ptr_registers true @
     (* Get rest of instructions *)
-    get_instrs tl homes offset colors vars (tail live_afters)
-  | Callq l :: tl ->
-    let live_after = tail live_afters in
-    Callq l :: (get_instrs tl homes offset colors vars live_after)
-  | Pushq a :: tl ->
-    let live_after = tail live_afters in
-    Pushq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Popq a :: tl ->
-    let live_after = tail live_afters in
-    Popq (get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Xorq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Xorq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Cmpq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Cmpq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Movzbq (a, b) :: tl ->
-    let live_after = tail live_afters in
-    Movzbq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Set (c, a) :: tl ->
-    let live_after = tail live_afters in
-    Set (c, get_arg_home a homes offset colors) :: (get_instrs tl homes offset colors vars live_after)
-  | Retq :: tl ->
-    Retq :: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | Jmp l :: tl ->
-    Jmp l:: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | JmpIf (c, l) :: tl ->
-    JmpIf (c, l):: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | Label l :: tl ->
-    Label l :: (get_instrs tl homes offset colors vars  (tail live_afters))
-  | AWhile (cnd_instrs, _, (c, a, b), thn_instrs, _) :: tl -> assign_error "while should not be in assign homes"
-  | AIf ((c, a, b), thn_instrs, _, els_instrs, _) :: tl -> assign_error "if should not be in assign homes"
-  | Leaq (a, b) :: tl -> Leaq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs tl homes offset colors vars (tail live_afters))
+    get_instrs t homes offset colors (tl live_afters) vars
+  (* | ACallq (l, args, v) :: t ->
+    ACallq (l, List.map (fun e -> get_arg_home e homes offset colors) args, get_arg_home v homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars) *)
+  | Callq l :: t ->
+    Callq l :: (get_instrs t homes offset colors (tl live_afters) vars )
+  | Pushq a :: t ->
+    Pushq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Popq a :: t ->
+    Popq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Xorq (a, b) :: t ->
+    Xorq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Cmpq (a, b) :: t ->
+    Cmpq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Movzbq (a, b) :: t ->
+    Movzbq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Set (c, a) :: t ->
+    Set (c, get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Retq :: t ->
+    Retq :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Jmp l :: t ->
+    Jmp l:: (get_instrs t homes offset colors (tl live_afters) vars)
+  | JmpIf (c, l) :: t ->
+    JmpIf (c, l):: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Label l :: t ->
+    Label l :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | AWhile (cnd_instrs, cnd_live_afters, (c, a, b), thn_instrs, thn_live_afters) :: t ->
+    let new_cnd_instrs = get_instrs cnd_instrs homes offset colors cnd_live_afters vars in
+    let ahome = get_arg_home a homes offset colors in
+    let bhome = get_arg_home b homes offset colors in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
+    AWhile (new_cnd_instrs, [], (c, ahome, bhome), new_thn_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    (* assign_error "while should not be in assign homes" *)
+  | AIf ((c, a, b), thn_instrs, thn_live_afters, els_instrs, els_live_afters) :: t ->
+    let ahome = get_arg_home a homes offset colors in
+    let bhome = get_arg_home b homes offset colors in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
+    let new_els_instrs = get_instrs els_instrs homes offset colors els_live_afters vars in
+    AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
+  | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
 
 let assign_homes program =
   match program with
   | GCProgram (vars, live_afters, colors, datatype, instrs) ->
     let homes = Hashtbl.create 10 in
     let offset = ref 0 in
-    let new_instrs = get_instrs instrs homes offset colors vars live_afters in
+    let new_instrs = get_instrs instrs homes offset colors live_afters vars in
     let var_space = make_multiple_of_16 (- !offset) in
     AProgram (var_space, datatype, new_instrs)

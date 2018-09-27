@@ -1,5 +1,5 @@
 modules = ['List', 'Stream']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'lowerConditionals', 'assignHomes', 'patchInstructions', 'printx86']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -49,14 +49,14 @@ let run_build_inter program =
 let run_allocate_registers program =
     let instr = run_build_inter program in
     allocate_registers instr\n\n
-let run_lower_conditionals program =
-    let instr = run_allocate_registers program in
-    lower_conditionals instr\n\n
 let run_assign_homes program =
-    let instr = run_lower_conditionals program in
+    let instr = run_allocate_registers program in
     assign_homes instr\n\n
-let run_patch_instructions program =
+let run_lower_conditionals program =
     let instr = run_assign_homes program in
+    lower_conditionals instr\n\n
+let run_patch_instructions program =
+    let instr = run_lower_conditionals program in
     patch_instructions instr\n\n
 let run_print_x86 program =
     let instr = run_patch_instructions program in

@@ -76,7 +76,7 @@ let build_graph_movq_test = (fun () ->
     Hashtbl.add map (AVar "c") [];
     let live = [[AVar "a"; AVar "b"; AVar "c"]] in
     let stmt = Movq (AVar "c", AVar "b") in
-    build_graph [stmt] live map var_types;
+    let map = build_graph [stmt] live map var_types in
     assert_equal [AVar "b"] (Hashtbl.find map (AVar "a"));
     assert_equal [AVar "a"] (Hashtbl.find map (AVar "b"));
     assert_equal [] (Hashtbl.find map (AVar "c"))
@@ -87,7 +87,7 @@ let build_graph_addq_test = (fun () ->
     let map = Hashtbl.create 2 in
     let live = [[AVar "a"; AVar "b"; AVar "c"]] in
     let stmt = Addq (AVar "c", AVar "b") in
-    build_graph [stmt] live map var_types;
+    let map = build_graph [stmt] live map var_types in
     assert_equal [AVar "b"] (Hashtbl.find map (AVar "a"));
     assert_equal [AVar "b"] (Hashtbl.find map (AVar "c"));
     assert_equal [AVar "a"; AVar "c"] (Hashtbl.find map (AVar "b"))
@@ -98,7 +98,7 @@ let build_graph_callq_test = (fun () ->
     let map = Hashtbl.create 2 in
     let live = [[AVar "a"]] in
     let stmt = Callq ("hey") in
-    build_graph [stmt] live map var_types;
+    let map = build_graph [stmt] live map var_types in
     assert_equal caller_save_aregisters (Hashtbl.find map (AVar "a"));
 )
 
@@ -107,7 +107,7 @@ let build_graph_acallq_test = (fun () ->
     let map = Hashtbl.create 2 in
     let live = [[AVar "a"]] in
     let stmt = ACallq ("hey", [], AVar "b") in
-    build_graph [stmt] live map var_types;
+    let map = build_graph [stmt] live map var_types in
     assert_equal (AVar "b" :: caller_save_aregisters) (Hashtbl.find map (AVar "a"));
     assert_equal [AVar "a"] (Hashtbl.find map (AVar "b"));
 )
