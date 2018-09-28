@@ -61,6 +61,7 @@ and expose_exp_type e =
 
 and expose_exp e =
   match e with
+  | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
   | RAnd (l, r) -> RAnd (expose_exp_type l, expose_exp_type r)

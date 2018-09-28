@@ -20,16 +20,16 @@ let select_exp e v : ainstr list =
     [Movq (arg, v)]
   | CPrint (dt, a) ->
     let arg = get_aarg_of_carg a in
-    let prinstr = (match dt with
-      | TypeInt -> "print_int"
-      | TypeBool -> "print_bool"
-      | TypeVoid -> "print_unit"
-      | TypeVector l -> "print_vector"
+    (* Args: value, ?tag, newline *)
+    let prinstrs = (match dt with
+      | TypeInt -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_int"]
+      | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
+      | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
+      | TypeVector l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
     ) in
-    [Movq (arg, Reg Rdi); Callq prinstr; Movq (Reg Rax, v)]
+    prinstrs
   | CRead ->
     [ACallq ("read_int", [], v)]
-    (* [Callq "read_int"; Movq (Reg Rax, v)] *)
   | CUnOp (o, a) ->
     let arg = get_aarg_of_carg a in
     if arg = v then [Negq v] else [Movq (arg, v); Negq v]
@@ -54,13 +54,13 @@ let select_exp e v : ainstr list =
     [
       Movq (GlobalValue free_ptr, v);
       Addq (AInt (8 * (i + 1)), GlobalValue free_ptr);
-      Movq (v, Reg Rax);
+      Movq (v, Reg root_stack_register);
       Leaq (TypeRef dt, Reg Rcx);
-      Movq (Reg Rcx, Deref (Rax, 0))
+      Movq (Reg Rcx, Deref (root_stack_register, 0))
     ]
   | CVectorRef (ve, i) ->
     let varg = get_aarg_of_carg ve in
-    [Movq (varg, Reg Rax); Movq (Deref (Rax, 8 * (i + 1)), v)]
+    [Movq (varg, Reg root_stack_register); Movq (Deref (root_stack_register, 8 * (i + 1)), v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
@@ -87,11 +87,11 @@ let rec select_stmts stmt : ainstr list =
     AWhile (cndinstrs, [], (cmp, larg, rarg), thninstrs, []) :: select_stmts t
   | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | CCollect i :: t ->
-    ACallq ("collect", [root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
+    ACallq ("collect", [Reg root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in
-    Movq (varg, Reg Rax) :: Movq (earg, Deref (Rax, 8 * (i + 1))) :: select_stmts t
+    Movq (varg, Reg root_stack_register) :: Movq (earg, Deref (root_stack_register, 8 * (i + 1))) :: select_stmts t
 | [] -> []
 
 let select_instructions program : pprogram =

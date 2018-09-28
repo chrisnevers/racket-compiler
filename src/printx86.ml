@@ -1,17 +1,36 @@
 open AProgram
+open RProgram
 open Registers
+open Gensym
 
 exception InvalidInstructionException of string
-
 let invalid_instruction msg = raise (InvalidInstructionException msg)
+
+exception InvalidTypeException of string
+let invalid_type msg = raise (InvalidTypeException msg)
 
 let rec add_save_registers registers op =
   match registers with
   | reg :: t -> "\t" ^ op ^ "\t%" ^ reg ^ "\n" ^ (add_save_registers t op)
   | [] -> ""
 
+let dt_to_x86 dt tbl =
+  match dt with
+  | TypeInt -> "_tint"
+  | TypeBool -> "_tbool"
+  | TypeVoid -> "_tvoid"
+  | TypeVector l ->
+    try
+      Hashtbl.find tbl dt
+    with
+    | Not_found ->
+      let label = Gensym.gen_str "_tvector" in
+      let _ = Hashtbl.add tbl dt label in
+      label
+
 let arg_to_x86 arg =
   match arg with
+  | GlobalValue l -> os_label_prefix ^ l ^ "(%rip)"
   | AInt i -> "$" ^ (string_of_int i)
   | Reg r | ByteReg r ->
     "%" ^ string_of_register r
@@ -19,6 +38,12 @@ let arg_to_x86 arg =
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
   | AVoid -> invalid_instruction ("Cannot print void")
+  | TypeRef dt-> invalid_instruction ("Did not expect typeref")
+
+let type_arg_to_x86 arg tbl =
+  match arg with
+  | TypeRef dt-> dt_to_x86 dt tbl ^ "(%rip)"
+  | _ -> invalid_instruction ("Printx86:type_arg_to_x86: expected type arg")
 
 let cmp_to_x86 cmp =
   match cmp with
@@ -29,45 +54,105 @@ let cmp_to_x86 cmp =
   | AGE -> "ge"
   | ANE -> "ne"
 
-let rec print_instrs instrs =
+let rec print_instrs instrs typelbls =
   match instrs with
   | [] -> ""
-  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl)
-  | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Retq :: tl -> print_instrs tl
-  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Set (cmp, a) :: tl -> "\tset" ^ cmp_to_x86 cmp ^ "\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl)
-  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl)
-  | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl)
-  | _ -> invalid_instruction "invalid instruction"
+  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Retq :: tl -> print_instrs tl typelbls
+  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Set (cmp, a) :: tl -> "\tset" ^ cmp_to_x86 cmp ^ "\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl typelbls)
+  | Leaq (a, b) :: tl -> "\tleaq\t" ^ type_arg_to_x86 a typelbls ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
+  | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
+
+let get_x86_type_variables typetbl =
+  "\n\t.globl _tint\n" ^
+  "_tint:\n\t.quad	0\n" ^
+  "\n\t.globl _tbool\n" ^
+  "_tbool:\n\t.quad	1\n" ^
+  "\n\t.globl _tvoid\n" ^
+  "_tvoid:\n\t.quad	2\n" ^
+  "\n\t.globl _tvector\n" ^
+  "_tvector:\n\t.quad	4\n\n" ^
+  Hashtbl.fold (fun k v acc ->
+    match k with
+    | TypeVector dt ->
+      (* label: *)
+      acc ^ v ^ ":\n" ^
+      (* type vector *)
+      "\t.quad 4\n" ^
+      (* length of vector/types *)
+      "\t.quad " ^ string_of_int (List.length dt) ^ "\n" ^
+      (* list vector datatypes *)
+      List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" dt ^ "\n"
+    | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
+  ) typetbl ""
+
+let initialize rootstack heap =
+  "\tmovq\t$" ^ string_of_int rootstack ^ ", %rdi\n" ^
+  "\tmovq\t$" ^ string_of_int heap ^ ", %rsi\n" ^
+  "\tcallq\t" ^ os_label_prefix ^ "initialize\n"
+
+let store_rootstack_in_reg roostack =
+  "\tmovq\t" ^ arg_to_x86 (GlobalValue "rootstack_begin") ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let zero_out_rootstack () = "\tmovq\t$0, " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let offset_rootstack_ptr rootstack_space op =
+  if rootstack_space = 0 then "" else "\t" ^ op ^ "\t$" ^ string_of_int rootstack_space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let print_result datatype typetbl =
+  match datatype with
+  | TypeInt ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tmovq\t$1, %rsi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_int\n"
+  | TypeBool ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tmovq\t$1, %rsi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_bool\n"
+  | TypeVoid ->
+    "\tmovq\t$1, %rdi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_void\n"
+  | TypeVector l ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
+    "\tmovq\t$1, %rdx\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_vector\n"
 
 let print_x86 program =
   match program with
-  | AProgram (space, datatype, instrs) ->
-    let beginning = "\t.globl " ^ os_label_prefix ^ "main\n" ^
+  | AProgram (stack_space, rootstack_space, datatype, instrs) ->
+    let heap_size = 1024 in
+    let typetbl = Hashtbl.create 10 in
+    let middle = print_instrs instrs typetbl in
+    let beginning = ".data\n" ^
+                    get_x86_type_variables typetbl ^
+                    ".text\n" ^
+                    "\t.globl " ^ os_label_prefix ^ "main\n\n" ^
                     os_label_prefix ^ "main:\n" ^
                     "\tpushq\t%rbp\n" ^
                     "\tmovq\t%rsp, %rbp\n" ^
                     (add_save_registers callee_save_registers "pushq") ^
-                    "\tsubq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ", %rsp\n\n" in
-    let middle = print_instrs instrs in
-    let ending = "\n\tmovq\t%rax, %rdi\n" ^
-                 "\tcallq\t" ^ os_label_prefix ^ (
-                   match datatype with
-                   | TypeInt -> "print_int\n"
-                   | TypeBool -> "print_bool\n"
-                   | TypeVoid -> "print_unit\n"
-                   | TypeVector l -> "print_vector\n"
-                  ) ^
-                 "\taddq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ",\t%rsp\n" ^
+                    "\tsubq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ", %rsp\n" ^
+                    initialize rootstack_space heap_size ^
+                    store_rootstack_in_reg root_stack_register ^
+                    zero_out_rootstack () ^
+                    (* Jay has it has subq? *)
+                    offset_rootstack_ptr rootstack_space "addq" ^ "\n" in
+    let ending =  "\n" ^ print_result datatype typetbl ^
+                  offset_rootstack_ptr rootstack_space "subq" ^
+                 "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^
                  "\tpopq\t%rbp\n" ^

@@ -69,3 +69,7 @@ let () =
   test "heap" "print_int" "50" None;
   test "heap" "print_bool" "#t" None;
   test "heap" "print_void" "" None;
+  test "heap" "vector" "(1, 2, 3)" None;
+  test "heap" "vector-ref" "#t" None;
+  test "heap" "vector-set" "15" None;
+  test "heap" "nested-vector" "((1, 2), 3)" None;

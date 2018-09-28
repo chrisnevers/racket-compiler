@@ -31,7 +31,7 @@ let rec lower_instructions instrs uniq_cnt =
 
 let lower_conditionals program =
   match program with
-  | AProgram (var_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, instrs) ->
     let uniq_count = ref 0 in
     let new_instrs = lower_instructions instrs uniq_count in
-    AProgram (var_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_instrs)

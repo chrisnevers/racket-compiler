@@ -26,6 +26,7 @@ doc:
 
 output:
 	gcc -c output.S -o output.o
+	gcc -c runtime/runtime.c -o runtime/runtime.o
 	gcc output.o runtime/runtime.o -o output
 
 test:

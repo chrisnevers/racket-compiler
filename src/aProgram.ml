@@ -54,7 +54,7 @@ type ainstr =
   | ACallq of string * aarg list * aarg
 
 type aprogram =
-  AProgram of int * datatype * ainstr list
+  AProgram of int * int * datatype * ainstr list
 
 type pprogram =
   PProgram of var_type * datatype * ainstr list
@@ -199,10 +199,11 @@ let print_pprogram p =
 
 let print_aprogram p =
   match p with
-  | AProgram (vars_space, datatype, instrs) ->
+  | AProgram (vars_space, rootstack_space, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nSpace\t: " ^ (string_of_int vars_space) ^
+      "\nStack Space\t: " ^ (string_of_int vars_space) ^
+      "\nRootStack Space\t: " ^ (string_of_int rootstack_space) ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 

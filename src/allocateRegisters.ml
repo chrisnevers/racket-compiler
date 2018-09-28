@@ -3,6 +3,9 @@ open Registers
 open Helper
 open List
 
+exception AllocateRegistersException of string
+let allocate_error msg = raise (AllocateRegistersException msg)
+
 let find_in_map key map =
   try Hashtbl.find map key
   with Not_found -> []
@@ -26,7 +29,9 @@ let rec get_most_saturated graph saturations =
     let no_of_saturations = List.length (find_in_map k saturations) in
     if no_of_saturations >= (cdr !current) && (is_var k) then
       current := (k, no_of_saturations)) graph;
-  (car !current)
+  if (car !current) == AVar "" then
+    allocate_error "Could not find max saturated node"
+  else (car !current)
 
 let rec get_lowest_color adjacent_colors cur =
   match adjacent_colors with
@@ -53,6 +58,7 @@ let rec get_colors graph saturations colors move =
   | _ ->
     (* Pick node in graph with highest saturation *)
     let max_saturated = get_most_saturated graph saturations in
+    try
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
@@ -70,6 +76,7 @@ let rec get_colors graph saturations colors move =
     (* Remove node from processing list *)
     Hashtbl.remove graph max_saturated;
     get_colors graph saturations colors move
+  with Not_found -> allocate_error ("Could not find max_saturated node in graph: " ^ (string_of_aarg max_saturated))
 
 (* Add register colors to the saturation list of any variable live during a callq *)
 let add_register_saturations sat graph =
@@ -106,8 +113,9 @@ let print_saturation_graph saturations =
 (* Removes registers (added during callq - build interference) from working set *)
 let remove_registers map =
   Hashtbl.filter_map_inplace (fun k v ->
+    if not (is_var k) then None
     (* Remove anything thats not a variable from the interference graph value *)
-    Some (List.filter (fun e ->
+    else Some (List.filter (fun e ->
       match e with
       | AVar _ -> true
       | _ -> false
@@ -139,6 +147,7 @@ let allocate_registers program : gcprogram =
     (* Create move bias graph to doc which vars are movq'd to other vars *)
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
     (* Assign each var a color unique to its adjacent nodes *)
+    (* print_gprogram (GProgram (vars, live_afters, remove_registers (Hashtbl.copy graph), datatype, instrs)); *)
     let colors = color_graph graph jvars move in
     (* Reiterate over instructions & replace vars with registers *)
     (* print_gprogram (GProgram (vars, live_afters, graph, datatype, instrs)); *)

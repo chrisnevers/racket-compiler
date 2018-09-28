@@ -50,6 +50,6 @@ let rec patch_instrs instrs = match instrs with
   | h :: tl -> h :: patch_instrs tl
 
 let patch_instructions program = match program with
-  | AProgram (var_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, instrs) ->
     let new_instrs = patch_instrs instrs in
-    AProgram (var_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_instrs)

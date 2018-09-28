@@ -15,6 +15,6 @@ let caller_save_stack_size = (List.length caller_save_registers) * 8
 
 let arg_locations = [Reg Rdi; Reg Rsi; Reg Rdx; Reg Rcx; Reg R8; Reg R9]
 
-let root_stack_register = Reg R15
+let root_stack_register = R15
 let free_ptr = "free_ptr"
 let fromspace_end = "fromspace_end"
