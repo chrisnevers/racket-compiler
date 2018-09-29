@@ -375,7 +375,7 @@ type ainstr =
   | ACallq of string * aarg list * aarg
 
 type aprogram =
-  AProgram of int * datatype * ainstr list
+  AProgram of int * int * datatype * ainstr list
 
 type pprogram =
   PProgram of var_type * datatype * ainstr list
@@ -520,10 +520,11 @@ let print_pprogram p =
 
 let print_aprogram p =
   match p with
-  | AProgram (vars_space, datatype, instrs) ->
+  | AProgram (vars_space, rootstack_space, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nSpace\t: " ^ (string_of_int vars_space) ^
+      "\nStack Space\t: " ^ (string_of_int vars_space) ^
+      "\nRootStack Space\t: " ^ (string_of_int rootstack_space) ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
@@ -711,7 +712,7 @@ let caller_save_stack_size = (List.length caller_save_registers) * 8
 
 let arg_locations = [Reg Rdi; Reg Rsi; Reg Rdx; Reg Rcx; Reg R8; Reg R9]
 
-let root_stack_register = Reg R15
+let root_stack_register = R15
 let free_ptr = "free_ptr"
 let fromspace_end = "fromspace_end"
 
@@ -1258,6 +1259,7 @@ and expose_exp_type e =
 
 and expose_exp e =
   match e with
+  | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
   | RAnd (l, r) -> RAnd (expose_exp_type l, expose_exp_type r)
@@ -1483,13 +1485,15 @@ let select_exp e v : ainstr list =
     [Movq (arg, v)]
   | CPrint (dt, a) ->
     let arg = get_aarg_of_carg a in
-    let prinstr = (match dt with
-      | TypeInt -> "print_int"
-      | TypeBool -> "print_bool"
-      | TypeVoid -> "print_unit"
-      | TypeVector l -> "print_vector"
+    (* Args: value, ?tag, newline *)
+    let prinstrs = (match dt with
+      | TypeInt -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_int"]
+      | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
+      | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
+      | TypeVector l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
     ) in
-    [Movq (arg, Reg Rdi); Callq prinstr; Movq (Reg Rax, v)]
+    prinstrs
+    (* dont need result - Movq (Reg Rax, v) *)
   | CRead ->
     [ACallq ("read_int", [], v)]
     (* [Callq "read_int"; Movq (Reg Rax, v)] *)
@@ -1550,7 +1554,7 @@ let rec select_stmts stmt : ainstr list =
     AWhile (cndinstrs, [], (cmp, larg, rarg), thninstrs, []) :: select_stmts t
   | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | CCollect i :: t ->
-    ACallq ("collect", [root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
+    ACallq ("collect", [Reg root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in
@@ -1704,6 +1708,9 @@ let build_interference program : gprogram =
 (* allocateRegisters *)
 
 
+exception AllocateRegistersException of string
+let allocate_error msg = raise (AllocateRegistersException msg)
+
 let find_in_map key map =
   try Hashtbl.find map key
   with Not_found -> []
@@ -1727,7 +1734,9 @@ let rec get_most_saturated graph saturations =
     let no_of_saturations = List.length (find_in_map k saturations) in
     if no_of_saturations >= (cdr !current) && (is_var k) then
       current := (k, no_of_saturations)) graph;
-  (car !current)
+  if (car !current) == AVar "" then
+    allocate_error "Could not find max saturated node"
+  else (car !current)
 
 let rec get_lowest_color adjacent_colors cur =
   match adjacent_colors with
@@ -1754,6 +1763,7 @@ let rec get_colors graph saturations colors move =
   | _ ->
     (* Pick node in graph with highest saturation *)
     let max_saturated = get_most_saturated graph saturations in
+    try
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
@@ -1771,6 +1781,7 @@ let rec get_colors graph saturations colors move =
     (* Remove node from processing list *)
     Hashtbl.remove graph max_saturated;
     get_colors graph saturations colors move
+  with Not_found -> allocate_error ("Could not find max_saturated node in graph: " ^ (string_of_aarg max_saturated))
 
 (* Add register colors to the saturation list of any variable live during a callq *)
 let add_register_saturations sat graph =
@@ -1807,6 +1818,9 @@ let print_saturation_graph saturations =
 (* Removes registers (added during callq - build interference) from working set *)
 let remove_registers map =
   Hashtbl.filter_map_inplace (fun k v ->
+    if not (is_var k) then
+    None
+    else
     (* Remove anything thats not a variable from the interference graph value *)
     Some (List.filter (fun e ->
       match e with
@@ -1840,10 +1854,11 @@ let allocate_registers program : gcprogram =
     (* Create move bias graph to doc which vars are movq'd to other vars *)
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
     (* Assign each var a color unique to its adjacent nodes *)
+    (* print_gprogram (GProgram (vars, live_afters, remove_registers (Hashtbl.copy graph), datatype, instrs)); *)
     let colors = color_graph graph jvars move in
     (* Reiterate over instructions & replace vars with registers *)
     (* print_gprogram (GProgram (vars, live_afters, graph, datatype, instrs)); *)
-    print_color_graph colors;
+    (* print_color_graph colors; *)
     (* let new_instrs = get_new_instrs instrs colors in *)
     GCProgram (vars, live_afters, colors, datatype, instrs)
 
@@ -1853,54 +1868,76 @@ let allocate_registers program : gcprogram =
 exception AssignHomesError of string
 let assign_error msg = raise (AssignHomesError msg)
 
-let get_register_offset arg homes offset =
+let get_register_offset arg homes stack_offset =
   try
     Hashtbl.find homes arg
   with
   | Not_found ->
-    offset := !offset - 8;
-    Hashtbl.replace homes arg !offset;
-    !offset
+    stack_offset := !stack_offset - 8;
+    Hashtbl.replace homes arg !stack_offset;
+    !stack_offset
 
 (* Map the variable to a register or spill to the stack if no space *)
-let get_arg_home arg homes offset colors =
+let get_arg_home arg homes stack_offset colors vars rootstack_offset =
   match arg with
   | AVar v ->
     let index = Hashtbl.find colors arg in
     (* If no space, spill to stack *)
     if index >= num_of_registers then
-      Deref (Rbp, get_register_offset arg homes offset)
+      (* If vector store to rootstack *)
+      match Hashtbl.find vars (get_avar_name arg) with
+      | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset)
+      | _ -> Deref (Rbp, get_register_offset arg homes stack_offset)
     (* If no interference, put in any reg *)
     else if index = -1 then Reg Rbx
     (* Assign to corresponding register *)
     else Reg (List.nth registers index)
+  | TypeRef d -> arg
   | _ -> arg
 
-  let save_registers registers use_root_stack =
-    let offset = ref 0 in
-    let pushqs = List.map (fun r ->
-      offset := !offset + 8;
-      Pushq (r)
-    ) registers
-    in
-    if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
+let save_registers registers =
+  let offset = ref 0 in
+  let pushqs = List.map (fun r ->
+    offset := !offset + 8;
+    Pushq (r)
+  ) registers
+  in
+  if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
 
-let restore_registers registers use_root_stack =
+let restore_registers registers =
   let offset = ref 0 in
   let popqs = List.map (fun r ->
     offset := !offset + 8;
     Popq (r)
   ) registers
   in
-  if !offset > 0 then popqs @ [Addq (AInt !offset, Reg Rsp)] else []
+  if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
+
+let save_ptr_registers registers =
+  let offset = ref 0 in
+  let pushqs = List.map (fun r ->
+    offset := !offset + 8;
+    Movq (r, Deref (root_stack_register, !offset))
+  ) registers
+  in
+  if !offset > 0 then pushqs else []
+
+let restore_ptr_registers registers =
+  let offset = ref 0 in
+  let pushqs = List.map (fun r ->
+    offset := !offset - 8;
+    Movq (Deref (root_stack_register, !offset), r)
+  ) registers
+  in
+  if !offset > 0 then pushqs else []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
     assign_error "too many args to function"
   else List.mapi (fun i e -> Movq (e, List.nth arg_locations i)) registers
 
-let get_arg_homes arg homes offset colors =
-  List.map (fun e -> get_arg_home e homes offset colors) arg
+let get_arg_homes arg homes offset colors vars rootstack_offset=
+  List.map (fun e -> get_arg_home e homes offset colors vars rootstack_offset) arg
 
 let is_atomic vars live =
   List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> false | _ -> true) live
@@ -1908,17 +1945,17 @@ let is_atomic vars live =
 let is_ptr vars live =
   List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> true | _ -> false) live
 
-let rec get_instrs instrs homes offset colors live_afters vars =
+let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset =
   match instrs with
   | [] -> []
   | Addq (a, b) :: t ->
-    Addq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Addq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Subq (a, b) :: t ->
-    Subq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Subq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Movq (a, b) :: t ->
-    Movq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Movq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Negq a :: t ->
-    Negq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Negq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | ACallq (l, args, v) :: t ->
     (* NEED HELP ... SOS PLZ SOME1 HELP ME *)
     let live_vars = hd live_afters in
@@ -1926,72 +1963,71 @@ let rec get_instrs instrs homes offset colors live_afters vars =
     let atomic_vars = is_atomic vars live_vars in
     let ptr_vars = is_ptr vars live_vars in
     (* Get the corresponding assigned homes (registers or derefs) *)
-    let atomic_registers = get_arg_homes atomic_vars homes offset colors in
-    let ptr_registers = get_arg_homes ptr_vars homes offset colors in
+    let atomic_registers = get_arg_homes atomic_vars homes offset colors vars rootstack_offset in
+    let ptr_registers = get_arg_homes ptr_vars homes offset colors vars rootstack_offset in
     (* Only save atomic registers that are caller save *)
     let save_atomic_regs = List.filter (fun e -> List.mem e caller_save_aregisters) atomic_registers in
-    (* ??? What to do with ptr registers and root stack ??? *)
     (* Before calling label, save the atomic and ptr registers *)
-    save_registers save_atomic_regs false @
-    save_registers ptr_registers true @
+    save_registers save_atomic_regs @
+    save_ptr_registers ptr_registers @
     (* Map needed args to the necessary func arg locations *)
-    push_call_args (get_arg_homes args homes offset colors) @
+    push_call_args (get_arg_homes args homes offset colors vars rootstack_offset) @
     (* Call the function *)
     Callq l ::
     (* Move result to variable *)
-    Movq (Reg Rax, get_arg_home v homes offset colors) ::
+    Movq (Reg Rax, get_arg_home v homes offset colors vars rootstack_offset) ::
     (* Pop the needed live variables back off the stack *)
-    restore_registers save_atomic_regs false @
-    restore_registers ptr_registers true @
+    restore_registers save_atomic_regs @
+    restore_ptr_registers ptr_registers @
     (* Get rest of instructions *)
-    get_instrs t homes offset colors (tl live_afters) vars
-  (* | ACallq (l, args, v) :: t ->
-    ACallq (l, List.map (fun e -> get_arg_home e homes offset colors) args, get_arg_home v homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars) *)
+    get_instrs t homes offset colors (tl live_afters) vars rootstack_offset
   | Callq l :: t ->
-    Callq l :: (get_instrs t homes offset colors (tl live_afters) vars )
+    Callq l :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Pushq a :: t ->
-    Pushq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Pushq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Popq a :: t ->
-    Popq (get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Popq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Xorq (a, b) :: t ->
-    Xorq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Xorq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Cmpq (a, b) :: t ->
-    Cmpq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Cmpq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Movzbq (a, b) :: t ->
-    Movzbq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Movzbq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Set (c, a) :: t ->
-    Set (c, get_arg_home a homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Set (c, get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Retq :: t ->
-    Retq :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Retq :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Jmp l :: t ->
-    Jmp l:: (get_instrs t homes offset colors (tl live_afters) vars)
+    Jmp l:: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | JmpIf (c, l) :: t ->
-    JmpIf (c, l):: (get_instrs t homes offset colors (tl live_afters) vars)
+    JmpIf (c, l):: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Label l :: t ->
-    Label l :: (get_instrs t homes offset colors (tl live_afters) vars)
+    Label l :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | AWhile (cnd_instrs, cnd_live_afters, (c, a, b), thn_instrs, thn_live_afters) :: t ->
-    let new_cnd_instrs = get_instrs cnd_instrs homes offset colors cnd_live_afters vars in
-    let ahome = get_arg_home a homes offset colors in
-    let bhome = get_arg_home b homes offset colors in
-    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
-    AWhile (new_cnd_instrs, [], (c, ahome, bhome), new_thn_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    let new_cnd_instrs = get_instrs cnd_instrs homes offset colors cnd_live_afters vars rootstack_offset in
+    let ahome = get_arg_home a homes offset colors vars rootstack_offset in
+    let bhome = get_arg_home b homes offset colors vars rootstack_offset in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars rootstack_offset in
+    AWhile (new_cnd_instrs, [], (c, ahome, bhome), new_thn_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars) rootstack_offset
     (* assign_error "while should not be in assign homes" *)
   | AIf ((c, a, b), thn_instrs, thn_live_afters, els_instrs, els_live_afters) :: t ->
-    let ahome = get_arg_home a homes offset colors in
-    let bhome = get_arg_home b homes offset colors in
-    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars in
-    let new_els_instrs = get_instrs els_instrs homes offset colors els_live_afters vars in
-    AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars)
-  | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors, get_arg_home b homes offset colors) :: (get_instrs t homes offset colors (tl live_afters) vars)
+    let ahome = get_arg_home a homes offset colors vars rootstack_offset in
+    let bhome = get_arg_home b homes offset colors vars rootstack_offset in
+    let new_thn_instrs = get_instrs thn_instrs homes offset colors thn_live_afters vars rootstack_offset in
+    let new_els_instrs = get_instrs els_instrs homes offset colors els_live_afters vars rootstack_offset in
+    AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
 
 let assign_homes program =
   match program with
   | GCProgram (vars, live_afters, colors, datatype, instrs) ->
     let homes = Hashtbl.create 10 in
-    let offset = ref 0 in
-    let new_instrs = get_instrs instrs homes offset colors live_afters vars in
-    let var_space = make_multiple_of_16 (- !offset) in
-    AProgram (var_space, datatype, new_instrs)
+    let stack_offset = ref 0 in
+    let rootstack_offset = ref 0 in
+    let new_instrs = get_instrs instrs homes stack_offset colors live_afters vars rootstack_offset in
+    let var_space = make_multiple_of_16 (- !stack_offset) in
+    let vec_space = make_multiple_of_16 (!rootstack_offset) in
+    AProgram (var_space, vec_space, datatype, new_instrs)
 
 (* lowerConditionals *)
 
@@ -2023,10 +2059,10 @@ let rec lower_instructions instrs uniq_cnt =
 
 let lower_conditionals program =
   match program with
-  | AProgram (var_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, instrs) ->
     let uniq_count = ref 0 in
     let new_instrs = lower_instructions instrs uniq_count in
-    AProgram (var_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_instrs)
 
 (* patchInstructions *)
 
@@ -2081,24 +2117,41 @@ let rec patch_instrs instrs = match instrs with
   | h :: tl -> h :: patch_instrs tl
 
 let patch_instructions program = match program with
-  | AProgram (var_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, instrs) ->
     let new_instrs = patch_instrs instrs in
-    AProgram (var_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_instrs)
 
 (* printx86 *)
 
 
 exception InvalidInstructionException of string
-
 let invalid_instruction msg = raise (InvalidInstructionException msg)
+
+exception InvalidTypeException of string
+let invalid_type msg = raise (InvalidTypeException msg)
 
 let rec add_save_registers registers op =
   match registers with
   | reg :: t -> "\t" ^ op ^ "\t%" ^ reg ^ "\n" ^ (add_save_registers t op)
   | [] -> ""
 
+let dt_to_x86 dt tbl =
+  match dt with
+  | TypeInt -> "_tint"
+  | TypeBool -> "_tbool"
+  | TypeVoid -> "_tvoid"
+  | TypeVector l ->
+    try
+      Hashtbl.find tbl dt
+    with
+    | Not_found ->
+      let label = Gensym.gen_str "_tvector" in
+      let _ = Hashtbl.add tbl dt label in
+      label
+
 let arg_to_x86 arg =
   match arg with
+  | GlobalValue l -> os_label_prefix ^ l ^ "(%rip)"
   | AInt i -> "$" ^ (string_of_int i)
   | Reg r | ByteReg r ->
     "%" ^ string_of_register r
@@ -2106,6 +2159,12 @@ let arg_to_x86 arg =
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
   | AVoid -> invalid_instruction ("Cannot print void")
+  | TypeRef dt-> invalid_instruction ("Did not expect typeref")
+
+let type_arg_to_x86 arg tbl =
+  match arg with
+  | TypeRef dt-> dt_to_x86 dt tbl ^ "(%rip)"
+  | _ -> invalid_instruction ("Printx86:type_arg_to_x86: expected type arg")
 
 let cmp_to_x86 cmp =
   match cmp with
@@ -2116,45 +2175,104 @@ let cmp_to_x86 cmp =
   | AGE -> "ge"
   | ANE -> "ne"
 
-let rec print_instrs instrs =
+let rec print_instrs instrs typelbls =
   match instrs with
   | [] -> ""
-  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl)
-  | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Retq :: tl -> print_instrs tl
-  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Set (cmp, a) :: tl -> "\tset" ^ cmp_to_x86 cmp ^ "\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl)
-  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl)
-  | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl)
-  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl)
-  | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl)
-  | _ -> invalid_instruction "invalid instruction"
+  | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Retq :: tl -> print_instrs tl typelbls
+  | Xorq (a, b) :: tl -> "\txorq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Cmpq (a, b) :: tl -> "\tcmpq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Set (cmp, a) :: tl -> "\tset" ^ cmp_to_x86 cmp ^ "\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | Movzbq (a, b) :: tl -> "\tmovzbq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
+  | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl typelbls)
+  | Leaq (a, b) :: tl -> "\tleaq\t" ^ type_arg_to_x86 a typelbls ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
+  | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
+
+let get_x86_type_variables typetbl =
+  "\n\t.globl _tint\n" ^
+  "_tint:\n\t.quad	0\n" ^
+  "\n\t.globl _tbool\n" ^
+  "_tbool:\n\t.quad	1\n" ^
+  "\n\t.globl _tvoid\n" ^
+  "_tvoid:\n\t.quad	2\n" ^
+  "\n\t.globl _tvector\n" ^
+  "_tvector:\n\t.quad	4\n\n" ^
+  Hashtbl.fold (fun k v acc ->
+    match k with
+    | TypeVector dt ->
+      (* label: *)
+      acc ^ v ^ ":\n" ^
+      (* type vector *)
+      "\t.quad 4\n" ^
+      (* length of vector/types *)
+      "\t.quad " ^ string_of_int (List.length dt) ^ "\n" ^
+      (* list vector datatypes *)
+      List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" dt ^ "\n"
+    | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
+  ) typetbl ""
+
+let initialize rootstack heap =
+  "\tmovq\t$" ^ string_of_int rootstack ^ ", %rdi\n" ^
+  "\tmovq\t$" ^ string_of_int heap ^ ", %rsi\n" ^
+  "\tcallq\t" ^ os_label_prefix ^ "initialize\n"
+
+let store_rootstack_in_reg roostack =
+  "\tmovq\t" ^ arg_to_x86 (GlobalValue "rootstack_begin") ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let zero_out_rootstack () = "\tmovq\t$0, " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let offset_rootstack_ptr rootstack_space op =
+  if rootstack_space = 0 then "" else "\t" ^ op ^ "\t$" ^ string_of_int rootstack_space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+
+let print_result datatype typetbl =
+  match datatype with
+  | TypeInt ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tmovq\t$1, %rsi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_int\n"
+  | TypeBool ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tmovq\t$1, %rsi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_bool\n"
+  | TypeVoid ->
+    "\tmovq\t$1, %rdi\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_void\n"
+  | TypeVector l ->
+    "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
+    "\tmovq\t$1, %rdx\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_vector\n"
 
 let print_x86 program =
   match program with
-  | AProgram (space, datatype, instrs) ->
-    let beginning = "\t.globl " ^ os_label_prefix ^ "main\n" ^
+  | AProgram (stack_space, rootstack_space, datatype, instrs) ->
+    let heap_size = 100 in
+    let typetbl = Hashtbl.create 10 in
+    let middle = print_instrs instrs typetbl in
+    let beginning = ".data\n" ^
+                    get_x86_type_variables typetbl ^
+                    ".text\n" ^
+                    "\t.globl " ^ os_label_prefix ^ "main\n\n" ^
                     os_label_prefix ^ "main:\n" ^
                     "\tpushq\t%rbp\n" ^
                     "\tmovq\t%rsp, %rbp\n" ^
                     (add_save_registers callee_save_registers "pushq") ^
-                    "\tsubq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ", %rsp\n\n" in
-    let middle = print_instrs instrs in
-    let ending = "\n\tmovq\t%rax, %rdi\n" ^
-                 "\tcallq\t" ^ os_label_prefix ^ (
-                   match datatype with
-                   | TypeInt -> "print_int\n"
-                   | TypeBool -> "print_bool\n"
-                   | TypeVoid -> "print_unit\n"
-                   | TypeVector l -> "print_vector\n"
-                  ) ^
-                 "\taddq\t$" ^ string_of_int (space + callee_save_stack_size) ^ ",\t%rsp\n" ^
+                    "\tsubq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ", %rsp\n" ^
+                    initialize rootstack_space heap_size ^
+                    store_rootstack_in_reg root_stack_register ^
+                    zero_out_rootstack () ^
+                    (* Jay has it has subq? *)
+                    offset_rootstack_ptr rootstack_space "addq" ^ "\n" in
+    let ending =  "\n" ^ print_result datatype typetbl ^
+                  offset_rootstack_ptr rootstack_space "subq" ^
+                 "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^
                  "\tpopq\t%rbp\n" ^

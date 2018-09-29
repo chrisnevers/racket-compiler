@@ -157,7 +157,7 @@ let rec evaluate ast table =
     | RPrint e ->
       let result = evaluate e table in
       let _ = match result with
-      | TypeIs (_, a) -> print_endline (string_of_rexp a)
+      | TypeIs (_, a) -> print_endline (string_of_rexp_value a)
       in make_tvoid RVoid
     | RBegin _ -> repl_error "begin should not be in repl eval"
     | RWhen (_, _) -> repl_error "when should not be in repl eval"
@@ -179,7 +179,7 @@ let rec repl () =
     let typed = typecheck_exp_type expand (Hashtbl.create 5) in
     let result = evaluate typed (Hashtbl.create 5) in
     let _ = match result with
-      | TypeIs (_, a) -> print_endline (string_of_rexp a)
+      | TypeIs (_, a) -> print_endline (string_of_rexp_value a)
     in
     repl ()
   with ex ->

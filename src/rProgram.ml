@@ -89,6 +89,20 @@ and string_of_datatype_options (dt: datatype option list) =
   | h :: t -> string_of_datatype_option h ^ " * " ^ string_of_datatype_options t
   | [] -> ""
 
+let rec string_of_rvector_values e =
+  match e with
+  | TypeIs (_, h) :: [] -> string_of_rexp_value h
+  | TypeIs (_, h) :: t -> string_of_rexp_value h ^ ", " ^ string_of_rvector_values t
+  | [] -> ""
+
+and string_of_rexp_value e : string =
+  match e with
+  | RInt i -> string_of_int i
+  | RBool b -> if b then "#t" else "#f"
+  | RVoid -> "void"
+  | RVector ve -> "(" ^ string_of_rvector_values ve ^ ")"
+  | _ -> ""
+
 let rec string_of_rexp e : string =
   "(" ^
   (fun e ->
