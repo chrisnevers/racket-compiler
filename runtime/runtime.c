@@ -91,19 +91,43 @@ void initialize(uint64_t rs, uint64_t hs) {
 }
 
 
-void process(int64_t** qp) {
-    // If node is not a ptr || has been copied - skip
-    // Copy all tuples directly reachable from node over to to-space
-        // Place them at the back of the queue
-    // Updates the ptr in the popped tuple so they point to the newly copied tuples
-    // Pop it off queue
-    return;
+// Address is a forwarding ptr if its a number within the to-space
+int is_forwarding_ptr (int tag) {
+    return ( tag >= tospace_begin && tag < tospace_end );
+}
+
+// Is number within the from-space address range
+int is_fromspace_ptr (int ptr) {
+    return ( ptr >= fromspace_begin && ptr < fromspace_end );
 }
 
 
-// Address is a forwarding ptr if its a number within the to-space
-int is_forwarding_ptr (int tag) {
-    return ( tag >= tospace_begin && tag <= tospace_end );
+void process(int64_t** qp) {
+    int64_t* node = *qp;
+    int tag     = node[0];      // Datatype of pointer
+    int length  = node[1] + 1;  // Length of contents, including the tag
+
+    // If its not a pointer or it has already been copied then skip
+    if (tag != tvector || is_forwarding_ptr (tag)) {
+        return;
+    }
+
+    // Iterate over tuple
+    // If there is a tuple in from-space: copy
+
+    int64_t* q_ptr = queue_tail;
+
+    for (int i = 0; i < length; ++i) {
+        if (is_fromspace_ptr (q_ptr[i])) {
+            process ((int64_t*) q_ptr[i]);
+        }
+    }
+
+    *qp = q_ptr;    // Updates the ptr in the popped tuple so they point to the newly copied tuples
+
+    queue_head++;   // pop node off queue
+
+    return;
 }
 
 
@@ -141,8 +165,6 @@ void collect(int64_t* new_rs_ptr, uint64_t bytes_requested, int64_t request_no) 
 
     printf("collect\n");
     queue_head = queue_tail = tospace_begin;
-
-    // look into increasing heap size if bytes_requested > heap size
 
     // Copy all tuples immediately reachable from root set into to-space
     // to form initial queue
