@@ -3,11 +3,12 @@
 #include <stdint.h>
 #include <string.h>
 
-int debug = 0;
+int debug = 1;
 
 // Garbage collection methods
 void initialize(uint64_t rootstack_size, uint64_t heap_size);
 void collect(int64_t* rootstack_ptr, uint64_t bytes_requested, int64_t request_no);
+void copy (int64_t** rp);
 
 // Print methods
 void print_int(int64_t i, short newline);
@@ -81,7 +82,7 @@ void initialize(uint64_t rs, uint64_t hs) {
 
     if (debug) {
         printf("initialize\n");
-        printf("initialized fromspace size: %lld\n\tfrom %lld to %lld\n", hs, fromspace_begin, fromspace_end);
+        printf("initialized fromspace size: %lld\n\tfrom %lld to %lld\n", hs, (int64_t)fromspace_begin, (int64_t)fromspace_end);
     }
 
     free_ptr = fromspace_begin;
@@ -92,34 +93,33 @@ void initialize(uint64_t rs, uint64_t hs) {
 
 
 // Address is a forwarding ptr if its a number within the to-space
-int is_forwarding_ptr (int tag) {
-    return ( tag >= tospace_begin && tag < tospace_end );
+int is_forwarding_ptr (int64_t tag) {
+    return ( (int64_t*)tag >= tospace_begin && (int64_t*)tag < tospace_end );
 }
 
 // Is number within the from-space address range
-int is_fromspace_ptr (int ptr) {
-    return ( ptr >= fromspace_begin && ptr < fromspace_end );
+int is_fromspace_ptr (int64_t ptr) {
+    return ( (int64_t*)ptr >= fromspace_begin && (int64_t*)ptr < fromspace_end );
 }
 
 
 void process(int64_t** qp) {
+
     int64_t* node = *qp;
-    int tag     = node[0];      // Datatype of pointer
-    int length  = node[1] + 1;  // Length of contents, including the tag
+    int64_t tag     = node[0];      // Datatype of pointer
 
     // If its not a pointer or it has already been copied then skip
-    if (tag != tvector || is_forwarding_ptr (tag)) {
+    if (tag != tvector) {
         return;
     }
 
-    // Iterate over tuple
-    // If there is a tuple in from-space: copy
-
+    // Iterate over tuple: If there is a tuple in from-space: copy
+    int64_t length = node[1] + 1;   // Length of contents, including the tag
     int64_t* q_ptr = queue_tail;
 
     for (int i = 0; i < length; ++i) {
         if (is_fromspace_ptr (q_ptr[i])) {
-            process ((int64_t*) q_ptr[i]);
+            copy ((int64_t**)q_ptr[i]);
         }
     }
 
@@ -137,14 +137,20 @@ void process(int64_t** qp) {
 void copy (int64_t** rp) {
 
     int64_t* from_ptr = *rp;
-    int tag     = from_ptr[0];      // Datatype of pointer
-    int length  = from_ptr[1] + 1;  // Length of contents, including the tag
+    int64_t tag     = from_ptr[0];      // Datatype of pointer
 
-    // If its not a pointer or it has already been copied then skip
-    if (tag != tvector || is_forwarding_ptr (tag)) {
+    // If it has already been copied, change old pointer to new address
+    if (is_forwarding_ptr (tag)) {
+        *rp = (int64_t*)tag;
         return;
     }
 
+    // If its not a pointer
+    if (tag != tvector) {
+        return;
+    }
+
+    int64_t length  = from_ptr[1];      // Length of contents, including the tag
     int64_t* to_ptr = queue_tail;       // Start copying to the to-space
 
     for (int i = 0; i < length; ++i) {  // Copy all the contents of the ptr
@@ -153,7 +159,7 @@ void copy (int64_t** rp) {
 
     queue_tail += length;               // Update the position of the queue_tail
 
-    from_ptr[0] = (int64_t) to_ptr;     // Change the old tag to the address of the new ptr
+    from_ptr[0] = (int64_t) to_ptr;     // Change the old tag to the address of the new ptr (setting up forwarding ptr)
 
     *rp = to_ptr;                       // Change the original ptr location to point the newly copied ptr in the to-space
 
@@ -161,10 +167,33 @@ void copy (int64_t** rp) {
 }
 
 
+/*
+ * swap_spaces: exchanges the from-space and to-space begin & end ptrs
+ */
+void swap_spaces () {
+    int64_t* tmp_begin = tospace_begin;
+    int64_t* tmp_end   = tospace_end;
+    tospace_begin      = fromspace_begin;
+    tospace_end        = fromspace_end;
+    fromspace_begin    = tmp_begin;
+    fromspace_end      = tmp_end;
+}
+
+void show_space (int64_t* start, int64_t* end, char* label) {
+    int64_t* ptr = start;
+    while (ptr != end) {
+        printf("%s: %lld\n", label, *ptr);
+        ptr++;
+    }
+}
+
+
 void collect(int64_t* new_rs_ptr, uint64_t bytes_requested, int64_t request_no) {
 
     printf("collect\n");
     queue_head = queue_tail = tospace_begin;
+    show_space(fromspace_begin, fromspace_end, "fromspace");
+    show_space(tospace_begin, tospace_end, "tospace");
 
     // Copy all tuples immediately reachable from root set into to-space
     // to form initial queue
@@ -177,7 +206,18 @@ void collect(int64_t* new_rs_ptr, uint64_t bytes_requested, int64_t request_no) 
         process(&queue_head);
     }
 
+    // Set up free_pointer for future allocates
+    free_ptr = queue_tail + 1;
+
+    // Swap to and from space
+    swap_spaces ();
+
     // Clear to-space memory
+    memset (tospace_begin, 0, heap_size);
+
+    printf("collect done\n");
+    show_space(fromspace_begin, fromspace_end, "fromspace");
+    show_space(tospace_begin, tospace_end, "tospace");
 
     return;
 }
