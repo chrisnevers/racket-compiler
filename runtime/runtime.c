@@ -101,25 +101,48 @@ void process(int64_t** qp) {
 }
 
 
+// Address is a forwarding ptr if its a number within the to-space
+int is_forwarding_ptr (int tag) {
+    return ( tag >= tospace_begin && tag <= tospace_end );
+}
+
+
+/*
+ * copy - copies a pointer from the from-space to the to-space.
+ */
 void copy (int64_t** rp) {
-    // Copy to to-space
-    // Store forwarding ptr
-    // Mark old tuple to indicate its been visited
+
+    int64_t* from_ptr = *rp;
+    int tag     = from_ptr[0];      // Datatype of pointer
+    int length  = from_ptr[1] + 1;  // Length of contents, including the tag
+
+    // If its not a pointer or it has already been copied then skip
+    if (tag != tvector || is_forwarding_ptr (tag)) {
+        return;
+    }
+
+    int64_t* to_ptr = queue_tail;       // Start copying to the to-space
+
+    for (int i = 0; i < length; ++i) {  // Copy all the contents of the ptr
+        to_ptr[i] = from_ptr[i];
+    }
+
+    queue_tail += length;               // Update the position of the queue_tail
+
+    from_ptr[0] = (int64_t) to_ptr;     // Change the old tag to the address of the new ptr
+
+    *rp = to_ptr;                       // Change the original ptr location to point the newly copied ptr in the to-space
+
+    return;
 }
 
 
 void collect(int64_t* new_rs_ptr, uint64_t bytes_requested, int64_t request_no) {
 
     printf("collect\n");
-    queue_head = queue_tail = rootstack_begin;
+    queue_head = queue_tail = tospace_begin;
 
-    // If program wants to allocate an object larger than the heap,
-    // increase the heap size to accomodate the request
-    while (bytes_requested >= heap_size) {
-        heap_size = heap_size * 2;
-        initialize_space("fromspace", &fromspace_begin, &fromspace_end, heap_size);
-        initialize_space("tospace", &tospace_begin, &tospace_end, heap_size);
-    }
+    // look into increasing heap size if bytes_requested > heap size
 
     // Copy all tuples immediately reachable from root set into to-space
     // to form initial queue
