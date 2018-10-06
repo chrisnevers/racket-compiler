@@ -3,7 +3,8 @@ open Registers
 open Helper
 open List
 
-let is_var a = match a with AVar _ -> true | _ -> false
+exception AllocateRegistersException of string
+let allocate_error msg = raise (AllocateRegistersException msg)
 
 let find_in_map key map =
   try Hashtbl.find map key
@@ -28,7 +29,9 @@ let rec get_most_saturated graph saturations =
     let no_of_saturations = List.length (find_in_map k saturations) in
     if no_of_saturations >= (cdr !current) && (is_var k) then
       current := (k, no_of_saturations)) graph;
-  (car !current)
+  if (car !current) == AVar "" then
+    allocate_error "Could not find max saturated node"
+  else (car !current)
 
 let rec get_lowest_color adjacent_colors cur =
   match adjacent_colors with
@@ -55,6 +58,7 @@ let rec get_colors graph saturations colors move =
   | _ ->
     (* Pick node in graph with highest saturation *)
     let max_saturated = get_most_saturated graph saturations in
+    try
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
@@ -72,64 +76,60 @@ let rec get_colors graph saturations colors move =
     (* Remove node from processing list *)
     Hashtbl.remove graph max_saturated;
     get_colors graph saturations colors move
+  with Not_found -> allocate_error ("Could not find max_saturated node in graph: " ^ (string_of_aarg max_saturated))
+
+(* Add register colors to the saturation list of any variable live during a callq *)
+let add_register_saturations sat graph =
+  (* Get index of given register in the set of all assignable registers *)
+  let rec get_index e l cnt =
+    match l with
+    | h :: t -> if h = e then cnt else get_index e t (cnt + 1)
+    | [] -> -1
+  in
+  (* Gets the equivalent color of a register *)
+  let get_register_colors k graph : int list =
+    try
+      let values = Hashtbl.find graph k in
+      List.rev (List.fold_left (fun acc e ->
+        match e with
+        | Reg r ->
+          let index = get_index r registers 0 in
+          if index != -1 then index :: acc else acc
+        | _ -> acc
+      ) [] values)
+    with Not_found -> []
+  in
+  (* Any variable that interfers with registers, add those register colors to its saturation list *)
+  Hashtbl.iter (fun k v -> Hashtbl.replace sat k (get_register_colors k graph)) sat;
+  sat
+
+let print_saturation_graph saturations =
+  Hashtbl.iter (fun k v ->
+    print_string ((string_of_aarg k) ^ ": [");
+    print_string (List.fold_left (fun acc e -> acc ^ (string_of_int e) ^ " ") "" v);
+    print_endline "]";
+  ) saturations
+
+(* Removes registers (added during callq - build interference) from working set *)
+let remove_registers map =
+  Hashtbl.filter_map_inplace (fun k v ->
+    if not (is_var k) then None
+    (* Remove anything thats not a variable from the interference graph value *)
+    else Some (List.filter (fun e ->
+      match e with
+      | AVar _ -> true
+      | _ -> false
+    ) v)
+  ) map;
+  map
 
 let color_graph graph vars move =
   (* List of numbers a variable cannot be assigned *)
-  let saturations = create_graph vars [] in
+  let saturations = add_register_saturations (create_graph vars []) graph in
+  (* print_saturation_graph saturations; *)
   (* The color (number) a variable is assigned *)
   let colors = create_graph vars (-1) in
-  get_colors (Hashtbl.copy graph) saturations colors move
-
-(* Map the variable to a register or spill to the stack if no space *)
-let get_register a graph =
-  match a with
-  | AVar v ->
-    let index = Hashtbl.find graph a in
-    if index >= num_of_registers then a
-    else if index = -1 then Reg Rbx
-    else Reg (List.nth registers index)
-  | _ -> a
-
-let rec get_new_instrs instrs graph =
-  match instrs with
-  | [] -> []
-  | Addq (a, b) :: tl ->
-    Addq (get_register a graph, get_register b graph) :: get_new_instrs tl graph
-  | Subq (a, b) :: tl ->
-    Subq (get_register a graph, get_register b graph) :: get_new_instrs tl graph
-  | Movq (a, b) :: tl ->
-    let a_register = get_register a graph in
-    let b_register = get_register b graph in
-    if (a_register = b_register) then get_new_instrs tl graph
-    else Movq (a_register, b_register) :: get_new_instrs tl graph
-  | Xorq (a, b) :: tl ->
-    Xorq (get_register a graph, get_register b graph) :: get_new_instrs tl graph
-  | Cmpq (a, b) :: tl ->
-    Cmpq (get_register a graph, get_register b graph) :: get_new_instrs tl graph
-  | Movzbq (a, b) :: tl ->
-    Movzbq (get_register a graph, get_register b graph) :: get_new_instrs tl graph
-  | Set (c, b) :: tl ->
-    Set (c, get_register b graph) :: get_new_instrs tl graph
-  | Jmp l :: tl ->
-    Jmp l :: get_new_instrs tl graph
-  | JmpIf (c, l) :: tl ->
-    JmpIf (c, l) :: get_new_instrs tl graph
-  | Label l :: tl ->
-    Label l :: get_new_instrs tl graph
-  | Negq a :: tl ->
-    Negq (get_register a graph) :: get_new_instrs tl graph
-  | Callq l :: tl ->
-    Callq l :: get_new_instrs tl graph
-  | Pushq a :: tl ->
-    Pushq (get_register a graph) :: get_new_instrs tl graph
-  | Popq a :: tl ->
-    Popq (get_register a graph) :: get_new_instrs tl graph
-  | Retq :: tl ->
-    Retq :: get_new_instrs tl graph
-  | AIf ((c, a, b), thn_instr, _, els_instr, _):: tl ->
-    AIf ( (c, get_register a graph, get_register b graph),
-          get_new_instrs thn_instr graph, [],
-          get_new_instrs els_instr graph, []) :: get_new_instrs tl graph
+  get_colors (remove_registers (Hashtbl.copy graph)) saturations colors move
 
 let rec create_move_bias_graph instrs tbl =
   match instrs with
@@ -140,13 +140,17 @@ let rec create_move_bias_graph instrs tbl =
   | _ :: tl -> create_move_bias_graph tl tbl
   | [] -> tbl
 
-let allocate_registers program : gprogram =
+let allocate_registers program : gcprogram =
   match program with
-  | GProgram (vars, graph, datatype, instrs) ->
+  | GProgram (vars, live_afters, graph, datatype, instrs) ->
+    let jvars = get_hashtable_keys vars in
     (* Create move bias graph to doc which vars are movq'd to other vars *)
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
     (* Assign each var a color unique to its adjacent nodes *)
-    let colors = color_graph graph vars move in
+    (* print_gprogram (GProgram (vars, live_afters, remove_registers (Hashtbl.copy graph), datatype, instrs)); *)
+    let colors = color_graph graph jvars move in
     (* Reiterate over instructions & replace vars with registers *)
-    let new_instrs = get_new_instrs instrs colors in
-    GProgram (vars, graph, datatype, new_instrs)
+    (* print_gprogram (GProgram (vars, live_afters, graph, datatype, instrs)); *)
+    (* print_color_graph colors; *)
+    (* let new_instrs = get_new_instrs instrs colors in *)
+    GCProgram (vars, live_afters, colors, datatype, instrs)

@@ -30,10 +30,12 @@ Run:
     - Boolean support: `#t` and `#f`
     - Relational operators: `eq?`, `<`, `<=`, `>`, `>=`, `pos?`, `zero?`, and `neg?`
     - Logical operators: `and`, `or`, and `not`
-    - `if-else` expressions
+    - `if-else`, `when`, `unless`, and `begin` expressions
+4. ~~Tuples & Garbage Collection~~
+    - Vectors (tuples): `vector`
+    - Vector operations: `vector-set!`, `vector-ref`
+    - Stop and Copy garbage collection
 
 TODO:
-* Vectors
-* Garbage Collection
 * Functions
 * ...

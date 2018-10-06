@@ -61,3 +61,17 @@ let () =
   test "control-flow" "neg?" "#t" None;
   test "control-flow" "zero?" "#t" (Some "0");
   test "control-flow" "zero?" "#f" (Some "5");
+  test "control-flow" "begin" "2" (Some "5");
+  test "control-flow" "while" "" (Some "5");
+  test "control-flow" "while" "0" (Some "0");
+  test "control-flow" "while2" "0" (Some "0");
+  test "control-flow" "while2" "5" (Some "5\n0");
+  test "heap" "print_int" "50" None;
+  test "heap" "print_bool" "#t" None;
+  test "heap" "print_void" "" None;
+  test "heap" "vector" "(1, 2, 3)" None;
+  test "heap" "vector-ref" "#t" None;
+  test "heap" "vector-set" "15" None;
+  test "heap" "nested-vector" "(((1, 2), 3), (1, 2))" None;
+  test "heap" "call_collect" "((1, 2, 3), (1, 2, 3))" None;
+  test "heap" "nested-vec-ref" "42" None;

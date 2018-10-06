@@ -2,8 +2,10 @@ open Lexer
 open Token
 open Parser
 open RProgram
+open Expand
 open Uniquify
 open Typecheck
+open ExposeAllocation
 open Flatten
 open CProgram
 open SelectInstructions
@@ -15,6 +17,7 @@ open LowerConditionals
 open AssignHomes
 open PatchInstructions
 open Printx86
+open Gensym
 
 let write_to_file file str =
   let channel = open_out file in
@@ -29,20 +32,25 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
+    (* let program = "examples/heap/gen_vec.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
     (* print_tokens tokens; *)
     let ast = parse tokens in
+    let expanded = expand ast in
     (* print_endline "\nParse"; *)
     (* print_rprogram ast; *)
-    let uniq = uniquify ast in
+    let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
     let typed = typecheck uniq in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
-    let flat = flatten typed in
+    let exposed = expose_allocation typed in
+    (* print_endline "\nExpose"; *)
+    (* print_rprogram exposed; *)
+    let flat = flatten exposed in
     (* print_endline "\nFlatten"; *)
     (* print_cprogram flat; *)
     let selinstr = select_instructions flat in
@@ -57,15 +65,15 @@ let () =
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
     (* print_gprogram alloc; *)
-    let lowercnd = lower_conditionals alloc in
+    let assignhomes = assign_homes alloc in
+    (* print_endline "\nAssign Homes"; *)
+    (* print_gprogram asshomes; *)
+    let lowercnd = lower_conditionals assignhomes in
     (* print_endline "\nLower Conditionals"; *)
-    (* print_gprogram lowercnd; *)
-    let assignhomes = assign_homes lowercnd in
-    (* print_endline "\nAssign Homes";
-    print_gprogram asshomes; *)
-    let patchinstrs = patch_instructions assignhomes in
-    (* print_endline "\nPatch Instructions";
-    print_aprogram patchi; *)
+    (* print_gcprogram lowercnd; *)
+    let patchinstrs = patch_instructions lowercnd in
+    (* print_endline "\nPatch Instructions"; *)
+    (* print_aprogram patchi; *)
     let x86 = print_x86 patchinstrs in
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;

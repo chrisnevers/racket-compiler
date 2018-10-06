@@ -1,13 +1,15 @@
 open OUnit
 open Uniquify
 open RProgram
+open Gensym
 
 let get_var_name_test = (fun () ->
   let v = "name" in
-  let works () = 
+  let works () =
+    Gensym.reset ();
     let table = Hashtbl.create 1 in
     let _ = Hashtbl.add table v 1 in
-    assert_equal "name" (get_var_name v table);
+    assert_equal "name1" (get_var_name v table);
   in
   let throws_exn () =
     let table = Hashtbl.create 1 in
@@ -20,15 +22,17 @@ let get_var_name_test = (fun () ->
 )
 
 let uniquify_name_test = (fun () ->
+  Gensym.reset ();
   let v = "name" in
   let table = Hashtbl.create 2 in
-  assert_equal "name" (uniquify_name v table);
-  assert_equal "name2" (uniquify_name v table);
+  assert_equal "name0" (uniquify_name v table);
+  assert_equal "name1" (uniquify_name v table);
 )
 
 let uniquify_test = (fun () ->
-  let program = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a", RUnOp ("-", RVar "a"), RVar "a"))) in
-  let expected = RProgram (TypeUnit, RLet ("a", RInt 2, RLet ("a2", RUnOp ("-", RVar "a"), RVar "a2"))) in
+  Gensym.reset ();
+  let program = RProgram (None, make_tnone (RLet ("a", make_tnone (RInt 2), make_tnone (RLet ("a", make_tnone (RUnOp ("-", make_tnone (RVar "a"))), make_tnone (RVar "a")))))) in
+  let expected = RProgram (None, make_tnone (RLet ("a0", make_tnone (RInt 2), make_tnone (RLet ("a1", make_tnone (RUnOp ("-", make_tnone (RVar "a0"))), make_tnone (RVar "a1")))))) in
   assert_equal expected (uniquify program);
 )
 

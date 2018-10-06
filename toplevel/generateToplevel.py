@@ -1,5 +1,5 @@
 modules = ['List', 'Stream']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'registers', 'lexer', 'parser', 'uniquify', 'typecheck', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'lowerConditionals', 'assignHomes', 'patchInstructions', 'printx86']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -22,15 +22,21 @@ let run_lex program =
 let run_parse program =
     let tokens = run_lex program in
     parse tokens\n\n
-let run_uniquify program =
+let run_expand program =
     let ast = run_parse program in
-    uniquify ast\n\n
+    expand ast\n\n
+let run_uniquify program =
+    let expand = run_expand program in
+    uniquify expand\n\n
 let run_typecheck program =
     let uniq = run_uniquify program in
     typecheck uniq\n\n
-let run_flatten program =
+let run_expose program =
     let typed = run_typecheck program in
-    flatten typed\n\n
+    expose_allocation typed\n\n
+let run_flatten program =
+    let exposed = run_expose program in
+    flatten exposed\n\n
 let run_select_instrs program =
     let flat = run_flatten program in
     select_instructions flat\n\n
@@ -43,14 +49,14 @@ let run_build_inter program =
 let run_allocate_registers program =
     let instr = run_build_inter program in
     allocate_registers instr\n\n
-let run_lower_conditionals program =
-    let instr = run_allocate_registers program in
-    lower_conditionals instr\n\n
 let run_assign_homes program =
-    let instr = run_lower_conditionals program in
+    let instr = run_allocate_registers program in
     assign_homes instr\n\n
-let run_patch_instructions program =
+let run_lower_conditionals program =
     let instr = run_assign_homes program in
+    lower_conditionals instr\n\n
+let run_patch_instructions program =
+    let instr = run_lower_conditionals program in
     patch_instructions instr\n\n
 let run_print_x86 program =
     let instr = run_patch_instructions program in

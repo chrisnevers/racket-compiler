@@ -15,17 +15,21 @@ type aregister =
 
 type acmp =
   | AE
+  | ANE
   | AL
   | ALE
   | AG
   | AGE
 
 type aarg =
+  | AVoid
   | AInt of int
   | AVar of string
   | Reg of aregister
   | Deref of aregister * int
   | ByteReg of aregister
+  | GlobalValue of string
+  | TypeRef of datatype
 
 type ainstr =
   | Addq of aarg * aarg
@@ -44,27 +48,44 @@ type ainstr =
   | JmpIf of acmp * string
   | Label of string
   | AIf of (acmp * aarg * aarg) * ainstr list * aarg list list * ainstr list * aarg list list
+  | AWhile of ainstr list * aarg list list * (acmp * aarg * aarg) * ainstr list * aarg list list
+  | Leaq of aarg * aarg
+  (* Callq (label, args, result location ) *)
+  | ACallq of string * aarg list * aarg
 
 type aprogram =
-  AProgram of int * datatype * ainstr list
+  AProgram of int * int * datatype * ainstr list
 
 type pprogram =
-  PProgram of string list * datatype * ainstr list
+  PProgram of var_type * datatype * ainstr list
 
 type lprogram =
-  LProgram of string list * aarg list list * datatype * ainstr list
+  LProgram of var_type * aarg list list * datatype * ainstr list
 
 type interference = ((aarg, aarg list) Hashtbl.t)
+type colorgraph = ((aarg, int) Hashtbl.t)
 
 type gprogram =
-  GProgram of string list * interference * datatype * ainstr list
+  GProgram of var_type * aarg list list * interference * datatype * ainstr list
+
+type gcprogram =
+    GCProgram of var_type * aarg list list * colorgraph * datatype * ainstr list
+
+exception AVarException of string
+
+let get_avar_name a =
+  match a with
+  | AVar s -> s
+  | _ -> raise (AVarException "expected variable")
 
 let get_aarg_of_carg c : aarg =
   match c with
+  | CVoid -> AVoid
   | CVar v -> AVar v
   | CInt i -> AInt i
   | CBool true -> AInt 1
   | CBool false -> AInt 0
+  | CGlobalValue s -> GlobalValue s
 
 let get_acmp_of_ccmp c : acmp =
   match c with
@@ -74,9 +95,19 @@ let get_acmp_of_ccmp c : acmp =
   | CG -> AG
   | CGE -> AGE
 
+let get_opposite_cmp c =
+  match c with
+  | AE -> ANE
+  | ANE -> AE
+  | AL -> AGE
+  | ALE -> AG
+  | AG -> ALE
+  | AGE -> AL
+
 let string_of_acmp c : string =
   match c with
   | AE -> "eq?"
+  | ANE -> "neq?"
   | AL -> "<"
   | ALE -> "<="
   | AG -> ">"
@@ -105,11 +136,14 @@ let string_of_register r : string =
 let string_of_aarg a : string =
   "(" ^ (fun e ->
   match a with
+  | AVoid -> "Void"
   | AInt i -> "Int " ^ (string_of_int i)
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)
   | Deref (r, i) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_int i)
   | ByteReg r -> "ByteReg " ^ (string_of_register r)
+  | GlobalValue s -> "GlobalVal " ^ s
+  | TypeRef dt -> "TypeRef " ^ string_of_datatype dt
   ) a
   ^ ")"
 
@@ -133,31 +167,43 @@ and string_of_ainstr a : string =
   | Popq e -> "Popq " ^ (string_of_aarg e)
   | Xorq (l, r) -> "Xorq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Cmpq (l, r) -> "Cmpq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
-  | Set (cmp, e) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg e)
+  | Set (cmp, e) -> "Set " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg e)
   | Movzbq (l, r) -> "Movzbq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Jmp s -> "Jmp " ^ s
   | JmpIf (cmp, s) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ s
   | Label s -> "Label " ^ s
   | AIf ((cmp, l, r), thn, thn_live_afters, els, els_live_afters) ->
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
-    "\n\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\nThen Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "]\n[\n\t"
-    ^ (string_of_ainstrs els) ^ "]\nElse Live:\t[" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" els_live_afters) ^ "]"
+    "\nThnLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
+    "\nThen\t[\n\t" ^ (string_of_ainstrs thn) ^ "]\n" ^
+    "\nElsLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
+    "Else\t[\n\t" ^ (string_of_ainstrs els) ^ "]"
+  | AWhile (cnd, cnd_live_afters, (cmp, l, r), thn, thn_live_afters) ->
+    "\nCndLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" cnd_live_afters) ^ "\n\t]\n" ^
+    "\t[\n\t" ^ (string_of_ainstrs cnd) ^ "]\n" ^
+    "While\t" ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
+    "\nThnLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
+    "\nThen\t[\n\t" ^ (string_of_ainstrs thn) ^ "]"
+  | Leaq (s, d) -> "Leaq " ^ string_of_aarg s ^ " " ^ string_of_aarg d
+  | ACallq (l, args, res) ->
+    "Callq " ^ l ^ ", " ^ List.fold_left (fun acc e -> acc ^ " " ^ string_of_aarg e) "" args ^ ", " ^ string_of_aarg res
 
 let print_pprogram p =
   match p with
   | PProgram (vars, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
 let print_aprogram p =
   match p with
-  | AProgram (vars_space, datatype, instrs) ->
+  | AProgram (vars_space, rootstack_space, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nSpace\t: " ^ (string_of_int vars_space) ^
+      "\nStack Space\t: " ^ (string_of_int vars_space) ^
+      "\nRootStack Space\t: " ^ (string_of_int rootstack_space) ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
@@ -166,7 +212,7 @@ let print_lprogram p =
   | LProgram (vars, live_afters, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+      (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
       "\nLive-Afters: [");
       List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
       print_endline ("\t]" ^
@@ -174,10 +220,13 @@ let print_lprogram p =
 
 let print_gprogram p =
   match p with
-  | GProgram (vars, graph, datatype, instrs) ->
+  | GProgram (vars, live_afters, graph, datatype, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
-      "\nVars\t: [" ^ (string_of_string_list vars) ^ "]" ^
+    (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
+      "\nLive-Afters: [\n");
+      List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
+      print_endline ("]" ^
       "\nGraph\t: [");
       Hashtbl.iter (fun k v ->
         print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: [");
@@ -185,6 +234,24 @@ let print_gprogram p =
         print_endline " ]";
       ) graph;
       print_endline ("\t]" ^
+      "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_gcprogram p =
+  match p with
+  | GCProgram (vars, live_afters, graph, datatype, instrs) ->
+    print_endline (
+      "Program\t: " ^ (string_of_datatype datatype) ^
+    (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
+      "\nLive-Afters: [\n");
+      List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
+      print_endline ("]" ^
+      (* "\nGraph\t: [");
+      Hashtbl.iter (fun k v ->
+        print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: [");
+        print_string (string_of_datatype v);
+        print_endline " ]";
+      ) graph;
+      print_endline ("\t]" ^ *)
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
 
 let print_color_graph colors =
@@ -201,12 +268,7 @@ let print_move_bias_graph tbl =
     )) tbl;
   print_endline ""
 
-let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
-let caller_save_registers = ["rax"; "rdx"; "rcx"; "rsi"; "rdi"; "r8"; "r9"; "r10"; "r11"]
-let callee_save_aregisters = [Reg Rbx; Reg R12; Reg R13; Reg R14; Reg R15]
-let caller_save_aregisters = [Reg Rax; Reg Rdx; Reg Rcx; Reg Rsi; Reg Rdi; Reg R8; Reg R9; Reg R10; Reg R11]
 let os_label_prefix = "_"
-let callee_save_stack_size = (List.length callee_save_registers) * 8
 
 exception RegisterException of string
 
@@ -230,3 +292,5 @@ let register_of_string s : aarg =
     | "r15" -> Reg R15
     | "al" -> Reg Al
     | _ -> raise (RegisterException "register does not exist")
+
+let is_var a = match a with AVar _ -> true | _ -> false

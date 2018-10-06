@@ -4,11 +4,20 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
-            "name": "OCaml",
+            "name": "Main",
             "type": "ocamldebug",
             "request": "launch",
             "program": "${workspaceRoot}/main.d.byte",
+            "console": "internalConsole",
+            "stopOnEntry": false
+        },
+        {
+            "name": "Test",
+            "type": "ocamldebug",
+            "request": "launch",
+            "program": "${workspaceRoot}/test.d.byte",
             "console": "internalConsole",
             "stopOnEntry": false
         }

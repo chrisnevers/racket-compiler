@@ -9,7 +9,7 @@ let select_exp_carg_test = (fun () ->
 )
 
 let select_exp_cread_test = (fun () ->
-  assert_equal [Callq "read_int"; Movq (Reg Rax, AVar "v")] (select_exp CRead (AVar "v"));
+  assert_equal [ACallq ("read_int", [], AVar "v")] (select_exp CRead (AVar "v"));
 )
 
 let select_exp_cunop_test = (fun () ->

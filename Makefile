@@ -24,7 +24,13 @@ debug:
 doc:
 	ocamldoc -html src/*mli -d docs
 
+output:
+	gcc -c output.S -o output.o
+	gcc -c runtime/runtime.c -o runtime/runtime.o
+	gcc output.o runtime/runtime.o -o output
+
 test:
+	ocamlbuild ${BUILD_FLAGS} ${TEST_FLAGS} ${DEBUG_FLAGS} tests/test.d.byte
 	ocamlbuild ${TEST_FLAGS} tests/test.native --
 	ocamlbuild ${TEST_FLAGS} tests/exampleTests.native --
 

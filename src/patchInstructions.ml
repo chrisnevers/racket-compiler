@@ -4,6 +4,10 @@ let is_deref arg = match arg with
   | Deref _ -> true
   | _ -> false
 
+let is_void arg = match arg with
+  | AVoid -> true
+  | _ -> false
+
 let is_int arg = match arg with
   | AInt _ -> true
   | _ -> false
@@ -19,6 +23,8 @@ let rec patch_instrs instrs = match instrs with
       Movq (a, Reg Rax) :: Subq (Reg Rax, b) :: patch_instrs tl
     else Subq (a, b) :: patch_instrs tl
   | Movq (a, b) :: tl ->
+    if is_void b then patch_instrs tl else
+    if is_void a then Movq (AInt 0, b) :: patch_instrs tl else
     if a = b then patch_instrs tl else
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
@@ -32,12 +38,18 @@ let rec patch_instrs instrs = match instrs with
       Movzbq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
     else Movzbq (a, b) :: patch_instrs tl
   | Cmpq (a, b) :: tl ->
-    if is_int a || (is_deref a && is_deref b) then
+    if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else if is_int a && is_int b then
+      Movq (a, Reg Rax) :: Movq (b, Reg Rcx) ::Cmpq (Reg Rax, Reg Rcx) :: patch_instrs tl
+    else if is_int a then
+      Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
+    else if is_int b then
+      Movq (b, Reg Rax) :: Cmpq (Reg Rax, a) :: patch_instrs tl
     else Cmpq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
 let patch_instructions program = match program with
-  | AProgram (var_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, instrs) ->
     let new_instrs = patch_instrs instrs in
-    AProgram (var_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_instrs)

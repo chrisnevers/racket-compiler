@@ -16,6 +16,15 @@ type token =
   | TPos
   | TNeg
   | TZero
+  | TVector
+  | TVectorSet
+  | TVectorRef
+  | TVoid
+  | TBegin
+  | TWhen
+  | TUnless
+  | TPrint
+  | TWhile
   | TEOF
 
 let string_of_token t =
@@ -37,6 +46,15 @@ let string_of_token t =
   | TPos -> "pos?"
   | TNeg -> "neg?"
   | TZero -> "zero?"
+  | TVector -> "vector"
+  | TVectorSet -> "vector-set!"
+  | TVectorRef -> "vector-ref"
+  | TVoid -> "void"
+  | TBegin -> "begin"
+  | TWhen -> "when"
+  | TUnless -> "unless"
+  | TPrint -> "print"
+  | TWhile -> "while"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

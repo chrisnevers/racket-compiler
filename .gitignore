@@ -5,3 +5,5 @@ _build
 runtime/runtime.o
 main.d.byte
 output*
+test.d.byte
+runtime.s
