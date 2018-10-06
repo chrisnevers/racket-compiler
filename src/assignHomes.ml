@@ -53,22 +53,22 @@ let restore_registers registers =
   if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
 
 let save_ptr_registers registers =
-  let offset = ref 0 in
+  let offset = ref (- 8) in
   let pushqs = List.map (fun r ->
     offset := !offset + 8;
     Movq (r, Deref (root_stack_register, !offset))
   ) registers
   in
-  if !offset > 0 then pushqs else []
+  if !offset > (- 8) then pushqs else []
 
 let restore_ptr_registers registers =
-  let offset = ref 0 in
+  let offset = ref (- 8) in
   let pushqs = List.map (fun r ->
-    offset := !offset - 8;
+    offset := !offset + 8;
     Movq (Deref (root_stack_register, !offset), r)
   ) registers
   in
-  if !offset > 0 then pushqs else []
+  if !offset > (- 8) then pushqs else []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
@@ -104,6 +104,7 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     (* Get the corresponding assigned homes (registers or derefs) *)
     let atomic_registers = get_arg_homes atomic_vars homes offset colors vars rootstack_offset in
     let ptr_registers = get_arg_homes ptr_vars homes offset colors vars rootstack_offset in
+    rootstack_offset := if List.length ptr_registers > !rootstack_offset then List.length ptr_registers else !rootstack_offset;
     (* Only save atomic registers that are caller save *)
     let save_atomic_regs = List.filter (fun e -> List.mem e caller_save_aregisters) atomic_registers in
     (* Before calling label, save the atomic and ptr registers *)

@@ -158,6 +158,20 @@ and string_of_datatype_options (dt: datatype option list) =
   | h :: t -> string_of_datatype_option h ^ " * " ^ string_of_datatype_options t
   | [] -> ""
 
+let rec string_of_rvector_values e =
+  match e with
+  | TypeIs (_, h) :: [] -> string_of_rexp_value h
+  | TypeIs (_, h) :: t -> string_of_rexp_value h ^ ", " ^ string_of_rvector_values t
+  | [] -> ""
+
+and string_of_rexp_value e : string =
+  match e with
+  | RInt i -> string_of_int i
+  | RBool b -> if b then "#t" else "#f"
+  | RVoid -> "void"
+  | RVector ve -> "(" ^ string_of_rvector_values ve ^ ")"
+  | _ -> ""
+
 let rec string_of_rexp e : string =
   "(" ^
   (fun e ->
@@ -622,6 +636,8 @@ let is_var a = match a with AVar _ -> true | _ -> false
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
+let heap_size = 1024
+
 exception OutOfBoundsException of string
 let out_of_bounds_error msg = raise (OutOfBoundsException msg)
 
@@ -697,8 +713,11 @@ end
 (* registers *)
 
 
-(* General purpose registers: Rax, Rcx *)
-let registers = [Rbx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
+(*
+  General purpose registers: Rax, Rcx, R11
+  Don't assign to rootstack: R15
+*)
+let registers = [Rbx; Rdx; Rsi; Rdi; R8; R9; R10; R12; R13; R14]
 let num_of_registers = List.length registers
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]
@@ -1411,7 +1430,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let (barg, bstmts, bvars) = flatten_typed_exp b ~v:v in
       let flat_arg = barg in
       let stmts = istmts @ bstmts in
-      let var_list = (name, dt) :: ivars @ bvars in
+      let var_list = (name, get_datatype i) :: ivars @ bvars in
       (flat_arg, stmts, var_list)
     | RRead ->
       let var_name = get_var_name v "read" in
@@ -1493,10 +1512,8 @@ let select_exp e v : ainstr list =
       | TypeVector l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
     ) in
     prinstrs
-    (* dont need result - Movq (Reg Rax, v) *)
   | CRead ->
     [ACallq ("read_int", [], v)]
-    (* [Callq "read_int"; Movq (Reg Rax, v)] *)
   | CUnOp (o, a) ->
     let arg = get_aarg_of_carg a in
     if arg = v then [Negq v] else [Movq (arg, v); Negq v]
@@ -1521,13 +1538,13 @@ let select_exp e v : ainstr list =
     [
       Movq (GlobalValue free_ptr, v);
       Addq (AInt (8 * (i + 1)), GlobalValue free_ptr);
-      Movq (v, Reg Rax);
+      Movq (v, Reg R11);
       Leaq (TypeRef dt, Reg Rcx);
-      Movq (Reg Rcx, Deref (Rax, 0))
+      Movq (Reg Rcx, Deref (R11, 0))
     ]
   | CVectorRef (ve, i) ->
     let varg = get_aarg_of_carg ve in
-    [Movq (varg, Reg Rax); Movq (Deref (Rax, 8 * (i + 1)), v)]
+    [Movq (varg, Reg R11); Movq (Deref (R11, 8 * (i + 1)), v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
@@ -1558,7 +1575,7 @@ let rec select_stmts stmt : ainstr list =
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in
-    Movq (varg, Reg Rax) :: Movq (earg, Deref (Rax, 8 * (i + 1))) :: select_stmts t
+    Movq (varg, Reg R11) :: Movq (earg, Deref (R11, 8 * (i + 1))) :: select_stmts t
 | [] -> []
 
 let select_instructions program : pprogram =
@@ -1818,11 +1835,9 @@ let print_saturation_graph saturations =
 (* Removes registers (added during callq - build interference) from working set *)
 let remove_registers map =
   Hashtbl.filter_map_inplace (fun k v ->
-    if not (is_var k) then
-    None
-    else
+    if not (is_var k) then None
     (* Remove anything thats not a variable from the interference graph value *)
-    Some (List.filter (fun e ->
+    else Some (List.filter (fun e ->
       match e with
       | AVar _ -> true
       | _ -> false
@@ -1914,22 +1929,22 @@ let restore_registers registers =
   if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
 
 let save_ptr_registers registers =
-  let offset = ref 0 in
+  let offset = ref (- 8) in
   let pushqs = List.map (fun r ->
     offset := !offset + 8;
     Movq (r, Deref (root_stack_register, !offset))
   ) registers
   in
-  if !offset > 0 then pushqs else []
+  if !offset > (- 8) then pushqs else []
 
 let restore_ptr_registers registers =
-  let offset = ref 0 in
+  let offset = ref (- 8) in
   let pushqs = List.map (fun r ->
-    offset := !offset - 8;
+    offset := !offset + 8;
     Movq (Deref (root_stack_register, !offset), r)
   ) registers
   in
-  if !offset > 0 then pushqs else []
+  if !offset > (- 8) then pushqs else []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
@@ -1965,6 +1980,7 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     (* Get the corresponding assigned homes (registers or derefs) *)
     let atomic_registers = get_arg_homes atomic_vars homes offset colors vars rootstack_offset in
     let ptr_registers = get_arg_homes ptr_vars homes offset colors vars rootstack_offset in
+    rootstack_offset := if List.length ptr_registers > !rootstack_offset then List.length ptr_registers else !rootstack_offset;
     (* Only save atomic registers that are caller save *)
     let save_atomic_regs = List.filter (fun e -> List.mem e caller_save_aregisters) atomic_registers in
     (* Before calling label, save the atomic and ptr registers *)
@@ -2227,10 +2243,12 @@ let initialize rootstack heap =
 let store_rootstack_in_reg roostack =
   "\tmovq\t" ^ arg_to_x86 (GlobalValue "rootstack_begin") ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
 
-let zero_out_rootstack () = "\tmovq\t$0, " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+let zero_out_rootstack () = "\tmovq\t$0, (" ^ arg_to_x86 (Reg root_stack_register) ^ ")\n"
 
-let offset_rootstack_ptr rootstack_space op =
-  if rootstack_space = 0 then "" else "\t" ^ op ^ "\t$" ^ string_of_int rootstack_space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+let offset_rootstack_ptr rootstack_space heap_size op =
+  (* If no rootstack space, use 1/4 of heap_size *)
+  let space = if rootstack_space = 0 then heap_size else rootstack_space in
+  "\t" ^ op ^ "\t$" ^ string_of_int space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
 
 let print_result datatype typetbl =
   match datatype with
@@ -2246,6 +2264,7 @@ let print_result datatype typetbl =
     "\tmovq\t$1, %rdi\n" ^
     "\tcallq\t" ^ os_label_prefix ^ "print_void\n"
   | TypeVector l ->
+    "\tmovq\t%rax, %rdi\n" ^
     "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
     "\tmovq\t$1, %rdx\n" ^
     "\tcallq\t" ^ os_label_prefix ^ "print_vector\n"
@@ -2253,7 +2272,6 @@ let print_result datatype typetbl =
 let print_x86 program =
   match program with
   | AProgram (stack_space, rootstack_space, datatype, instrs) ->
-    let heap_size = 100 in
     let typetbl = Hashtbl.create 10 in
     let middle = print_instrs instrs typetbl in
     let beginning = ".data\n" ^
@@ -2269,9 +2287,9 @@ let print_x86 program =
                     store_rootstack_in_reg root_stack_register ^
                     zero_out_rootstack () ^
                     (* Jay has it has subq? *)
-                    offset_rootstack_ptr rootstack_space "addq" ^ "\n" in
+                    offset_rootstack_ptr rootstack_space heap_size "addq" ^ "\n" in
     let ending =  "\n" ^ print_result datatype typetbl ^
-                  offset_rootstack_ptr rootstack_space "subq" ^
+                  offset_rootstack_ptr rootstack_space heap_size "subq" ^
                  "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^

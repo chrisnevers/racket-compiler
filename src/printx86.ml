@@ -2,6 +2,7 @@ open AProgram
 open RProgram
 open Registers
 open Gensym
+open Helper
 
 exception InvalidInstructionException of string
 let invalid_instruction msg = raise (InvalidInstructionException msg)
@@ -106,10 +107,12 @@ let initialize rootstack heap =
 let store_rootstack_in_reg roostack =
   "\tmovq\t" ^ arg_to_x86 (GlobalValue "rootstack_begin") ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
 
-let zero_out_rootstack () = "\tmovq\t$0, " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+let zero_out_rootstack () = "\tmovq\t$0, (" ^ arg_to_x86 (Reg root_stack_register) ^ ")\n"
 
-let offset_rootstack_ptr rootstack_space op =
-  if rootstack_space = 0 then "" else "\t" ^ op ^ "\t$" ^ string_of_int rootstack_space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
+let offset_rootstack_ptr rootstack_space heap_size op =
+  (* If no rootstack space, use 1/4 of heap_size *)
+  let space = if rootstack_space = 0 then heap_size else rootstack_space in
+  "\t" ^ op ^ "\t$" ^ string_of_int space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
 
 let print_result datatype typetbl =
   match datatype with
@@ -133,7 +136,6 @@ let print_result datatype typetbl =
 let print_x86 program =
   match program with
   | AProgram (stack_space, rootstack_space, datatype, instrs) ->
-    let heap_size = 1024 in
     let typetbl = Hashtbl.create 10 in
     let middle = print_instrs instrs typetbl in
     let beginning = ".data\n" ^
@@ -148,10 +150,9 @@ let print_x86 program =
                     initialize rootstack_space heap_size ^
                     store_rootstack_in_reg root_stack_register ^
                     zero_out_rootstack () ^
-                    (* Jay has it has subq? *)
-                    offset_rootstack_ptr rootstack_space "addq" ^ "\n" in
+                    offset_rootstack_ptr rootstack_space heap_size "addq" ^ "\n" in
     let ending =  "\n" ^ print_result datatype typetbl ^
-                  offset_rootstack_ptr rootstack_space "subq" ^
+                  offset_rootstack_ptr rootstack_space heap_size "subq" ^
                  "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^

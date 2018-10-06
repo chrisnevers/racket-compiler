@@ -3,6 +3,8 @@ open AProgram
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
 
+let heap_size = 1024
+
 exception OutOfBoundsException of string
 let out_of_bounds_error msg = raise (OutOfBoundsException msg)
 

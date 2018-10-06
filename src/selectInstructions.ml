@@ -54,13 +54,13 @@ let select_exp e v : ainstr list =
     [
       Movq (GlobalValue free_ptr, v);
       Addq (AInt (8 * (i + 1)), GlobalValue free_ptr);
-      Movq (v, Reg root_stack_register);
+      Movq (v, Reg R11);
       Leaq (TypeRef dt, Reg Rcx);
-      Movq (Reg Rcx, Deref (root_stack_register, 0))
+      Movq (Reg Rcx, Deref (R11, 0))
     ]
   | CVectorRef (ve, i) ->
     let varg = get_aarg_of_carg ve in
-    [Movq (varg, Reg root_stack_register); Movq (Deref (root_stack_register, 8 * (i + 1)), v)]
+    [Movq (varg, Reg R11); Movq (Deref (R11, 8 * (i + 1)), v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
@@ -91,7 +91,7 @@ let rec select_stmts stmt : ainstr list =
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in
-    Movq (varg, Reg root_stack_register) :: Movq (earg, Deref (root_stack_register, 8 * (i + 1))) :: select_stmts t
+    Movq (varg, Reg R11) :: Movq (earg, Deref (R11, 8 * (i + 1))) :: select_stmts t
 | [] -> []
 
 let select_instructions program : pprogram =

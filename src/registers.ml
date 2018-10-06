@@ -1,7 +1,10 @@
 open AProgram
 
-(* General purpose registers: Rax, Rcx *)
-let registers = [Rbx; Rdx; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15]
+(*
+  General purpose registers: Rax, Rcx, R11
+  Don't assign to rootstack: R15
+*)
+let registers = [Rbx; Rdx; Rsi; Rdi; R8; R9; R10; R12; R13; R14]
 let num_of_registers = List.length registers
 
 let callee_save_registers = ["rbx"; "r12"; "r13"; "r14"; "r15"]

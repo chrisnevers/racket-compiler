@@ -32,7 +32,7 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
-    (* let program = "examples/control-flow/and.rkt" in *)
+    (* let program = "examples/heap/gen_vec.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)

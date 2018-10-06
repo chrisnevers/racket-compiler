@@ -133,7 +133,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let (barg, bstmts, bvars) = flatten_typed_exp b ~v:v in
       let flat_arg = barg in
       let stmts = istmts @ bstmts in
-      let var_list = (name, dt) :: ivars @ bvars in
+      let var_list = (name, get_datatype i) :: ivars @ bvars in
       (flat_arg, stmts, var_list)
     | RRead ->
       let var_name = get_var_name v "read" in

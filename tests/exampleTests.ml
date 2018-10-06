@@ -72,4 +72,6 @@ let () =
   test "heap" "vector" "(1, 2, 3)" None;
   test "heap" "vector-ref" "#t" None;
   test "heap" "vector-set" "15" None;
-  test "heap" "nested-vector" "((1, 2), 3)" None;
+  test "heap" "nested-vector" "(((1, 2), 3), (1, 2))" None;
+  test "heap" "call_collect" "((1, 2, 3), (1, 2, 3))" None;
+  test "heap" "nested-vec-ref" "42" None;
