@@ -20,6 +20,7 @@ and expand_exp exp :rexp =
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)
+  | RVectorLength v -> RVectorLength (expand_exp_type v)
   | RNot e -> RNot (expand_exp_type e)
   | RIf (c, t, e) -> RIf (expand_exp_type c, expand_exp_type t, expand_exp_type e)
   | RCmp (o, l, r) -> RCmp (o, expand_exp_type l, expand_exp_type r)

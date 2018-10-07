@@ -33,7 +33,7 @@ Run:
     - `if-else`, `when`, `unless`, and `begin` expressions
 4. ~~Tuples & Garbage Collection~~
     - Vectors (tuples): `vector`
-    - Vector operations: `vector-set!`, `vector-ref`
+    - Vector operations: `vector-set!`, `vector-ref`, `vector-length`
     - Stop and Copy garbage collection
 
 TODO:

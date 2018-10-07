@@ -64,6 +64,7 @@ and expose_exp e =
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
+  | RVectorLength v -> RVectorLength (expose_exp_type v)
   | RAnd (l, r) -> RAnd (expose_exp_type l, expose_exp_type r)
   | ROr (l, r) -> ROr (expose_exp_type l, expose_exp_type r)
   | RNot e -> RNot (expose_exp_type e)
