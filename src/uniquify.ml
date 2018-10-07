@@ -29,6 +29,7 @@ let rec uniquify_exp ast table : rexp =
   | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table) es)
   | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table, i)
   | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table, i, uniquify_exp_type e table)
+  | RVectorLength v -> RVectorLength (uniquify_exp_type v table)
   | RAnd (l, r) -> RAnd (uniquify_exp_type l table, uniquify_exp_type r table)
   | ROr (l, r) -> ROr (uniquify_exp_type l table, uniquify_exp_type r table)
   | RNot e -> RNot (uniquify_exp_type e table)

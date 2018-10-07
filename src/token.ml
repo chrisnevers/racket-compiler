@@ -19,6 +19,7 @@ type token =
   | TVector
   | TVectorSet
   | TVectorRef
+  | TVectorLength
   | TVoid
   | TBegin
   | TWhen
@@ -49,6 +50,7 @@ let string_of_token t =
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
+  | TVectorLength -> "vector-length"
   | TVoid -> "void"
   | TBegin -> "begin"
   | TWhen -> "when"

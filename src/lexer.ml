@@ -72,6 +72,7 @@ let rec scan_identifier stream acc : token =
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
+    | "vector-length" -> TVectorLength
     | "begin"   -> TBegin
     | "when"    -> TWhen
     | "unless"  -> TUnless

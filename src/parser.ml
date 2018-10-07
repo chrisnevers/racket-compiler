@@ -1,6 +1,7 @@
 open List
 open RProgram
 open Token
+open Helper
 
 exception ParserError of string
 
@@ -62,6 +63,9 @@ let rec parse_exp tokens : rexp =
     let index = parse_int tokens in
     let e2 = parse_typed_exp tokens in
     RVectorSet(e1, index, e2)
+  | TVectorLength ->
+    let e = parse_typed_exp tokens in
+    RVectorLength e
   | TRead -> RRead
   | TPrint ->
     let exp = parse_typed_exp tokens in

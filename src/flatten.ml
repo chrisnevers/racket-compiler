@@ -173,6 +173,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
     | RVector _ -> flatten_error "should not have vector in flatten"
+    | RVectorLength _ -> flatten_error "should not have vector-length in flatten"
     | RBegin _ -> flatten_error "should not have begin in flatten"
     | RWhen (_, _) -> flatten_error "should not have when in flatten"
     | RUnless (_, _) -> flatten_error "should not have unless in flatten"

@@ -15,6 +15,7 @@ and rexp =
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
+  | RVectorLength of rexp_type
   | RCollect of int
   | RAllocate of int * datatype
   | RGlobalValue of string
@@ -123,6 +124,7 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RVectorLength e -> "Vector-length " ^ (string_of_rexp_type e)
   | RCollect i -> "Collect (" ^ string_of_int i ^ ")"
   | RAllocate (i, dt) -> "Allocate (" ^ string_of_int i ^ ", " ^ string_of_datatype dt ^ ")"
   | RGlobalValue s -> "Global-Value (" ^ s ^ ")"

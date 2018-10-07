@@ -1,5 +1,6 @@
 open RProgram
 open List
+open Helper
 
 exception TypecheckError of string
 
@@ -40,6 +41,11 @@ let rec typecheck_exp exp table =
       else typecheck_error ("typecheck_exp: vector-set! must operate on same type. Expected " ^ (string_of_datatype tk) ^ " but received " ^ (string_of_datatype edt))
       with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
     | _ -> typecheck_error ("typecheck_exp: Vector-set! must operate on vector. Received: " ^ (string_of_datatype dt)))
+  | RVectorLength v ->
+    let nv = typecheck_exp_type v table in
+    let vdt = get_datatype nv in
+    if is_vector vdt then make_tint (RInt (get_vector_length vdt))
+    else typecheck_error ("typecheck_exp: Vector-length must operate on vector. Received: " ^ (string_of_datatype vdt))
   | RVar v -> TypeIs (get_var_type v table, RVar v)
   | RAnd (l, r) ->
     let nl = typecheck_exp_type l table in

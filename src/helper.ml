@@ -1,4 +1,5 @@
 open AProgram
+open RProgram
 
 let cdr = fun (_, b) -> b
 let car = fun (a, _) -> a
@@ -57,3 +58,15 @@ let rec print_uncover_res result =
     print_endline ("live:\t" ^ (List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ " ") "" live));
     print_uncover_res t
   | [] -> ()
+
+exception VectorLength of string
+
+let get_vector_length vec =
+  match vec with
+  | TypeVector dt -> List.length dt
+  | _ -> raise (VectorLength ("expected vector but received: " ^ (string_of_datatype vec)))
+
+let is_vector vec =
+  match vec with
+  | TypeVector dt -> true
+  | _ -> false
