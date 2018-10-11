@@ -24,12 +24,20 @@ type token =
   | TVector
   | TVectorSet
   | TVectorRef
+  | TVectorLength
   | TVoid
   | TBegin
   | TWhen
   | TUnless
   | TPrint
   | TWhile
+  | TDefine
+  | TColon
+  | TArrow
+  | TTypeInt
+  | TTypeBool
+  | TTypeVoid
+  | TTypeVector
   | TEOF
 
 let string_of_token t =
@@ -54,12 +62,20 @@ let string_of_token t =
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
+  | TVectorLength -> "vector-length"
   | TVoid -> "void"
   | TBegin -> "begin"
   | TWhen -> "when"
   | TUnless -> "unless"
   | TPrint -> "print"
   | TWhile -> "while"
+  | TDefine -> "define"
+  | TColon -> ":"
+  | TArrow -> "->"
+  | TTypeInt -> "Int"
+  | TTypeBool -> "Bool"
+  | TTypeVoid -> "Void"
+  | TTypeVector -> "Vector"
   | TEOF -> "EOF"
 
 let print_tokens tokens =
@@ -72,6 +88,7 @@ type datatype =
   | TypeBool
   | TypeVoid
   | TypeVector of datatype list
+  | TypeFunction of datatype list * datatype
 
 type rexp_type =
   | TypeIs of datatype option * rexp
@@ -84,6 +101,7 @@ and rexp =
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
+  | RVectorLength of rexp_type
   | RCollect of int
   | RAllocate of int * datatype
   | RGlobalValue of string
@@ -101,9 +119,13 @@ and rexp =
   | RUnless of rexp_type * rexp_type list
   | RPrint of rexp_type
   | RWhile of rexp_type * rexp_type
+  | RApply of string * rexp_type list
+
+type rdefine =
+  | RDefine of string * (string * datatype) list * datatype * rexp_type
 
 type rprogram =
-  | RProgram of datatype option * rexp_type
+  | RProgram of datatype option * rdefine list * rexp_type
 
 let get_datatype_option et : datatype option =
   match et with
@@ -192,6 +214,7 @@ let rec string_of_rexp e : string =
   | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RVectorLength e -> "Vector-length " ^ (string_of_rexp_type e)
   | RCollect i -> "Collect (" ^ string_of_int i ^ ")"
   | RAllocate (i, dt) -> "Allocate (" ^ string_of_int i ^ ", " ^ string_of_datatype dt ^ ")"
   | RGlobalValue s -> "Global-Value (" ^ s ^ ")"
@@ -200,6 +223,7 @@ let rec string_of_rexp e : string =
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
+  | RApply (id, args) -> id ^ "(" ^ (string_of_rexps_type args) ^ ")"
   ) e
   ^ ")\n"
 
@@ -222,7 +246,7 @@ and string_of_rexps_type e : string =
 
 let print_rprogram p =
   match p with
-  | RProgram (dt, e) -> print_endline ("Program :\nDatatype: " ^ (string_of_datatype_option dt) ^ "\nExp:" ^ (string_of_rexp_type e))
+  | RProgram (dt, defs, e) -> print_endline ("Program :\nDatatype: " ^ (string_of_datatype_option dt) ^ "\nExp:" ^ (string_of_rexp_type e))
 
 (* cProgram *)
 
@@ -690,6 +714,19 @@ let rec print_uncover_res result =
     print_endline ("live:\t" ^ (List.fold_left (fun acc e -> acc ^ string_of_aarg e ^ " ") "" live));
     print_uncover_res t
   | [] -> ()
+
+exception VectorLength of string
+
+let get_vector_length vec =
+  match vec with
+  | TypeVector dt -> List.length dt
+  | _ -> raise (VectorLength ("expected vector but received: " ^ (string_of_datatype vec)))
+
+let is_vector vec =
+  match vec with
+  | TypeVector dt -> true
+  | _ -> false
+
 (* gensym *)
 
 module Gensym =
@@ -809,11 +846,17 @@ let rec scan_identifier stream acc : token =
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
+    | "vector-length" -> TVectorLength
     | "begin"   -> TBegin
     | "when"    -> TWhen
     | "unless"  -> TUnless
     | "print"   -> TPrint
     | "while"   -> TWhile
+    | "define"  -> TDefine
+    | "Int"     -> TTypeInt
+    | "Bool"    -> TTypeBool
+    | "Void"    -> TTypeVoid
+    | "Vector"  -> TTypeVector
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -831,11 +874,16 @@ let scan_token stream : token = try
     else if is_digit c then scan_literal stream (Char.escaped c)
     else match c with
     | '+' -> TArithOp "+"
-    | '-' -> TArithOp "-"
+    | '-' ->
+      let next = peek_char stream in
+      if next = Some '>' then
+        let _ = next_char stream in TArrow
+      else TArithOp "-"
     | '(' -> TLParen
     | ')' -> TRParen
     | '[' -> TLBracket
     | ']' -> TRBracket
+    | ':' -> TColon
     | '>' ->
       let next = peek_char stream in
       if next = Some '=' then let _ = next_char stream in TCmpOp ">=" else TCmpOp ">"
@@ -888,7 +936,9 @@ let rec parse_exp tokens : rexp =
   match token with
   | TLParen ->
     let exp = parse_exp tokens in
-    expect_token tokens TRParen; exp
+    (match exp with
+    | RVar v -> parse_func_call v tokens
+    | _ -> expect_token tokens TRParen; exp)
   | TVoid -> RVoid
   | TInt i -> RInt i
   | TVar v -> RVar v
@@ -916,6 +966,9 @@ let rec parse_exp tokens : rexp =
     let index = parse_int tokens in
     let e2 = parse_typed_exp tokens in
     RVectorSet(e1, index, e2)
+  | TVectorLength ->
+    let e = parse_typed_exp tokens in
+    RVectorLength e
   | TRead -> RRead
   | TPrint ->
     let exp = parse_typed_exp tokens in
@@ -981,13 +1034,120 @@ and parse_inner_exps tokens =
     let exp = parse_typed_exp tokens in
     exp :: parse_inner_exps tokens
 
+and parse_func_call v tokens =
+  let next = next_token tokens in
+  match next with
+  | TRParen -> expect_token tokens TRParen; RApply (v, [])
+  | _ ->
+    let args = parse_inner_exps tokens in
+    expect_token tokens TRParen;
+    RApply (v, args)
+
+(* Vector and Func types are wrapped in parens *)
+let is_type tokens =
+  let next = next_token tokens in
+  match next with
+  | TTypeInt | TTypeBool | TTypeVoid | TTypeVector -> true
+  | TLParen ->
+    let nt = hd (tl !tokens) in
+    (match nt with TTypeVector | TTypeInt | TTypeBool | TTypeVoid -> true)
+  | _ -> false
+
+let token_to_type token =
+  match token with
+  | TTypeInt -> TypeInt
+  | TTypeBool -> TypeBool
+  | TTypeVoid -> TypeVoid
+  | _ -> parser_error "expected int, bool, or void"
+
+let rec parse_inner_type tokens =
+  let token = get_token tokens in
+  match token with
+  | TTypeVector ->
+    let types = parse_types tokens in
+    TypeVector types
+  | TTypeInt | TTypeBool | TTypeVoid ->
+    let arg_types = parse_func_types tokens in
+    TypeFunction (arg_types, token_to_type token)
+  | TArrow ->
+    let ret_type = parse_type tokens in
+    TypeFunction ([], ret_type)
+
+and parse_func_types tokens =
+  let next = next_token tokens in
+  match next with
+  | TArrow ->
+    expect_token tokens TArrow;
+    let arg_type = parse_type tokens in
+    arg_type :: parse_func_types tokens
+  | TRParen -> []
+
+and parse_type tokens =
+  let token = get_token tokens in
+  match token with
+  | TTypeInt  -> TypeInt
+  | TTypeBool -> TypeBool
+  | TTypeVoid -> TypeVoid
+  | TLParen   ->
+    let itype = parse_inner_type tokens in
+    expect_token tokens TRParen;
+    itype
+  | _ -> parser_error ("expected a type but received: " ^ (string_of_token token))
+
+and parse_types tokens =
+  let next = next_token tokens in
+  match is_type tokens with
+  | true ->
+    let arg_type = parse_type tokens in
+    arg_type :: parse_types tokens
+  | false -> []
+
+let rec parse_arg tokens =
+  expect_token tokens TLBracket;
+  let id = parse_var tokens in
+  expect_token tokens TColon;
+  let id_type = parse_type tokens in
+  expect_token tokens TRBracket;
+  (id, id_type)
+
+and parse_args tokens =
+  let next = next_token tokens in
+  match next with
+  | TLBracket ->
+    let arg = parse_arg tokens in
+    arg :: parse_args tokens
+  | _ -> []
+
+let parse_definition tokens =
+  expect_token tokens TLParen;
+  expect_token tokens TDefine;
+  expect_token tokens TLParen;
+  let id = parse_var tokens in
+  let args = parse_args tokens in
+  expect_token tokens TRParen;
+  expect_token tokens TColon;
+  let ret_type = parse_type tokens in
+  let body = parse_typed_exp tokens in
+  expect_token tokens TRParen;
+  RDefine (id, args, ret_type, body)
+
+let rec parse_definitions tokens =
+  (* Does this hd of tl ever error? *)
+  let token = hd (tl !tokens) in
+  match token with
+  | TDefine ->
+    let def = parse_definition tokens in
+    def :: parse_definitions tokens
+  | _ -> []
+
 let parse_program tokens : rprogram =
   expect_token tokens TLParen;
   expect_token tokens TProgram;
+  let defs = parse_definitions tokens in
   let exp = parse_typed_exp tokens in
   expect_token tokens TRParen;
   expect_token tokens TEOF;
-  RProgram (None, exp)
+  RProgram (None, defs, exp)
 
 let parse tokens =
   let token_list = ref tokens in
@@ -1015,6 +1175,7 @@ and expand_exp exp :rexp =
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)
+  | RVectorLength v -> RVectorLength (expand_exp_type v)
   | RNot e -> RNot (expand_exp_type e)
   | RIf (c, t, e) -> RIf (expand_exp_type c, expand_exp_type t, expand_exp_type e)
   | RCmp (o, l, r) -> RCmp (o, expand_exp_type l, expand_exp_type r)
@@ -1030,8 +1191,8 @@ and expand_exp_type exp :rexp_type =
 
 let expand program =
   match program with
-  | RProgram (dt, e) ->
-    RProgram (dt, expand_exp_type e)
+  | RProgram (dt, defs, e) ->
+    RProgram (dt, defs, expand_exp_type e)
 
 (* uniquify *)
 
@@ -1064,6 +1225,7 @@ let rec uniquify_exp ast table : rexp =
   | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table) es)
   | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table, i)
   | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table, i, uniquify_exp_type e table)
+  | RVectorLength v -> RVectorLength (uniquify_exp_type v table)
   | RAnd (l, r) -> RAnd (uniquify_exp_type l table, uniquify_exp_type r table)
   | ROr (l, r) -> ROr (uniquify_exp_type l table, uniquify_exp_type r table)
   | RNot e -> RNot (uniquify_exp_type e table)
@@ -1079,7 +1241,7 @@ and uniquify_exp_type ast table : rexp_type =
 
 let uniquify ast : rprogram =
   match ast with
-  | RProgram (_, e) -> RProgram (None, uniquify_exp_type e (Hashtbl.create 10))
+  | RProgram (_, defs, e) -> RProgram (None, defs, uniquify_exp_type e (Hashtbl.create 10))
 
 (* typecheck *)
 
@@ -1123,6 +1285,11 @@ let rec typecheck_exp exp table =
       else typecheck_error ("typecheck_exp: vector-set! must operate on same type. Expected " ^ (string_of_datatype tk) ^ " but received " ^ (string_of_datatype edt))
       with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
     | _ -> typecheck_error ("typecheck_exp: Vector-set! must operate on vector. Received: " ^ (string_of_datatype dt)))
+  | RVectorLength v ->
+    let nv = typecheck_exp_type v table in
+    let vdt = get_datatype nv in
+    if is_vector vdt then make_tint (RInt (get_vector_length vdt))
+    else typecheck_error ("typecheck_exp: Vector-length must operate on vector. Received: " ^ (string_of_datatype vdt))
   | RVar v -> TypeIs (get_var_type v table, RVar v)
   | RAnd (l, r) ->
     let nl = typecheck_exp_type l table in
@@ -1212,10 +1379,10 @@ and typecheck_exp_type exp table =
 
 let typecheck program : rprogram =
   match program with
-  | RProgram (_, e) ->
+  | RProgram (_, defs, e) ->
     let ne = typecheck_exp_type e (Hashtbl.create 10) in
     match ne with
-    | TypeIs (dt, _) -> RProgram (dt, ne)
+    | TypeIs (dt, _) -> RProgram (dt, defs, ne)
 
 (* exposeAllocation *)
 
@@ -1281,6 +1448,7 @@ and expose_exp e =
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
+  | RVectorLength v -> RVectorLength (expose_exp_type v)
   | RAnd (l, r) -> RAnd (expose_exp_type l, expose_exp_type r)
   | ROr (l, r) -> ROr (expose_exp_type l, expose_exp_type r)
   | RNot e -> RNot (expose_exp_type e)
@@ -1295,7 +1463,7 @@ and expose_exp e =
 
 let expose_allocation program =
   match program with
-  | RProgram (dt, e) -> RProgram (dt, expose_exp_type e)
+  | RProgram (dt, defs, e) -> RProgram (dt, defs, expose_exp_type e)
 
 (* flatten *)
 
@@ -1470,6 +1638,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
     | RVector _ -> flatten_error "should not have vector in flatten"
+    | RVectorLength _ -> flatten_error "should not have vector-length in flatten"
     | RBegin _ -> flatten_error "should not have begin in flatten"
     | RWhen (_, _) -> flatten_error "should not have when in flatten"
     | RUnless (_, _) -> flatten_error "should not have unless in flatten"
@@ -1477,7 +1646,7 @@ let rec flatten_typed_exp ?(v=None) exp =
 
 let flatten program : cprogram =
   match program with
-  | RProgram (Some dt, e) ->
+  | RProgram (Some dt, defs, e) ->
     let (arg, stmts, vars) = flatten_typed_exp e in
     let new_stmts = stmts @ [CReturn arg] in
     let var2dt = make_hashtable vars in
@@ -2286,7 +2455,6 @@ let print_x86 program =
                     initialize rootstack_space heap_size ^
                     store_rootstack_in_reg root_stack_register ^
                     zero_out_rootstack () ^
-                    (* Jay has it has subq? *)
                     offset_rootstack_ptr rootstack_space heap_size "addq" ^ "\n" in
     let ending =  "\n" ^ print_result datatype typetbl ^
                   offset_rootstack_ptr rootstack_space heap_size "subq" ^

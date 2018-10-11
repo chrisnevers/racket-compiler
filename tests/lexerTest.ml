@@ -22,11 +22,11 @@ let is_valid_id_test = fun () ->
   assert_equal false (is_valid_id '[')
 
 let scan_all_tokens_test = fun () ->
-  let program = "()[]program let if read +- > >= < <= eq? and not #t #f" in
+  let program = "()[]program let if read +- > -> >= < <= eq? and not #t #f : Int Void Vector" in
   assert_equal
     [TLParen; TRParen; TLBracket; TRBracket; TProgram; TLet; TIf; TRead;
-    TArithOp "+"; TArithOp "-"; TCmpOp ">"; TCmpOp ">="; TCmpOp "<"; TCmpOp "<=";
-    TCmpOp "eq?"; TLogOp "and"; TLogOp "not"; TBool true; TBool false; TEOF]
+    TArithOp "+"; TArithOp "-"; TCmpOp ">"; TArrow; TCmpOp ">="; TCmpOp "<"; TCmpOp "<=";
+    TCmpOp "eq?"; TLogOp "and"; TLogOp "not"; TBool true; TBool false; TColon; TTypeInt; TTypeVoid; TTypeVector; TEOF]
     (scan_all_tokens (Stream.of_string program) [])
 
 let scan_literal_test = fun () ->

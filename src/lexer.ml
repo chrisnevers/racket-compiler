@@ -78,6 +78,11 @@ let rec scan_identifier stream acc : token =
     | "unless"  -> TUnless
     | "print"   -> TPrint
     | "while"   -> TWhile
+    | "define"  -> TDefine
+    | "Int"     -> TTypeInt
+    | "Bool"    -> TTypeBool
+    | "Void"    -> TTypeVoid
+    | "Vector"  -> TTypeVector
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -95,11 +100,16 @@ let scan_token stream : token = try
     else if is_digit c then scan_literal stream (Char.escaped c)
     else match c with
     | '+' -> TArithOp "+"
-    | '-' -> TArithOp "-"
+    | '-' ->
+      let next = peek_char stream in
+      if next = Some '>' then
+        let _ = next_char stream in TArrow
+      else TArithOp "-"
     | '(' -> TLParen
     | ')' -> TRParen
     | '[' -> TLBracket
     | ']' -> TRBracket
+    | ':' -> TColon
     | '>' ->
       let next = peek_char stream in
       if next = Some '=' then let _ = next_char stream in TCmpOp ">=" else TCmpOp ">"

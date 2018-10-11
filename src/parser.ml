@@ -35,7 +35,9 @@ let rec parse_exp tokens : rexp =
   match token with
   | TLParen ->
     let exp = parse_exp tokens in
-    expect_token tokens TRParen; exp
+    (match exp with
+    | RVar v -> parse_func_call v tokens
+    | _ -> expect_token tokens TRParen; exp)
   | TVoid -> RVoid
   | TInt i -> RInt i
   | TVar v -> RVar v
@@ -131,13 +133,121 @@ and parse_inner_exps tokens =
     let exp = parse_typed_exp tokens in
     exp :: parse_inner_exps tokens
 
+and parse_func_call v tokens =
+  let next = next_token tokens in
+  match next with
+  | TRParen -> expect_token tokens TRParen; RApply (v, [])
+  | _ ->
+    let args = parse_inner_exps tokens in
+    expect_token tokens TRParen;
+    RApply (v, args)
+
+(* Vector and Func types are wrapped in parens *)
+let is_type tokens =
+  let next = next_token tokens in
+  match next with
+  | TTypeInt | TTypeBool | TTypeVoid | TTypeVector -> true
+  | TLParen ->
+    let nt = hd (tl !tokens) in
+    (match nt with
+    | TTypeVector | TTypeInt | TTypeBool | TTypeVoid -> true
+    | _ -> false)
+  | _ -> false
+
+let token_to_type token =
+  match token with
+  | TTypeInt -> TypeInt
+  | TTypeBool -> TypeBool
+  | TTypeVoid -> TypeVoid
+  | _ -> parser_error "expected int, bool, or void"
+
+let rec parse_inner_type tokens =
+  let token = get_token tokens in
+  match token with
+  | TTypeVector ->
+    let types = parse_types tokens in
+    TypeVector types
+  | TTypeInt | TTypeBool | TTypeVoid ->
+    let arg_types = parse_func_types tokens in
+    TypeFunction (arg_types, token_to_type token)
+  | TArrow ->
+    let ret_type = parse_type tokens in
+    TypeFunction ([], ret_type)
+
+and parse_func_types tokens =
+  let next = next_token tokens in
+  match next with
+  | TArrow ->
+    expect_token tokens TArrow;
+    let arg_type = parse_type tokens in
+    arg_type :: parse_func_types tokens
+  | TRParen -> []
+
+and parse_type tokens =
+  let token = get_token tokens in
+  match token with
+  | TTypeInt  -> TypeInt
+  | TTypeBool -> TypeBool
+  | TTypeVoid -> TypeVoid
+  | TLParen   ->
+    let itype = parse_inner_type tokens in
+    expect_token tokens TRParen;
+    itype
+  | _ -> parser_error ("expected a type but received: " ^ (string_of_token token))
+
+and parse_types tokens =
+  let next = next_token tokens in
+  match is_type tokens with
+  | true ->
+    let arg_type = parse_type tokens in
+    arg_type :: parse_types tokens
+  | false -> []
+
+let rec parse_arg tokens =
+  expect_token tokens TLBracket;
+  let id = parse_var tokens in
+  expect_token tokens TColon;
+  let id_type = parse_type tokens in
+  expect_token tokens TRBracket;
+  (id, id_type)
+
+and parse_args tokens =
+  let next = next_token tokens in
+  match next with
+  | TLBracket ->
+    let arg = parse_arg tokens in
+    arg :: parse_args tokens
+  | _ -> []
+
+let parse_definition tokens =
+  expect_token tokens TLParen;
+  expect_token tokens TDefine;
+  expect_token tokens TLParen;
+  let id = parse_var tokens in
+  let args = parse_args tokens in
+  expect_token tokens TRParen;
+  expect_token tokens TColon;
+  let ret_type = parse_type tokens in
+  let body = parse_typed_exp tokens in
+  expect_token tokens TRParen;
+  RDefine (id, args, ret_type, body)
+
+let rec parse_definitions tokens =
+  let token = hd (tl !tokens) in
+  match token with
+  | TDefine ->
+    let def = parse_definition tokens in
+    def :: parse_definitions tokens
+  | _ -> []
+
 let parse_program tokens : rprogram =
   expect_token tokens TLParen;
   expect_token tokens TProgram;
+  let defs = parse_definitions tokens in
   let exp = parse_typed_exp tokens in
   expect_token tokens TRParen;
   expect_token tokens TEOF;
-  RProgram (None, exp)
+  RProgram (None, defs, exp)
 
 let parse tokens =
   let token_list = ref tokens in

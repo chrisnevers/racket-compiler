@@ -79,4 +79,4 @@ and expose_exp e =
 
 let expose_allocation program =
   match program with
-  | RProgram (dt, e) -> RProgram (dt, expose_exp_type e)
+  | RProgram (dt, defs, e) -> RProgram (dt, defs, expose_exp_type e)

@@ -36,5 +36,5 @@ and expand_exp_type exp :rexp_type =
 
 let expand program =
   match program with
-  | RProgram (dt, e) ->
-    RProgram (dt, expand_exp_type e)
+  | RProgram (dt, defs, e) ->
+    RProgram (dt, defs, expand_exp_type e)

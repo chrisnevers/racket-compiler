@@ -135,7 +135,7 @@ and typecheck_exp_type exp table =
 
 let typecheck program : rprogram =
   match program with
-  | RProgram (_, e) ->
+  | RProgram (_, defs, e) ->
     let ne = typecheck_exp_type e (Hashtbl.create 10) in
     match ne with
-    | TypeIs (dt, _) -> RProgram (dt, ne)
+    | TypeIs (dt, _) -> RProgram (dt, defs, ne)

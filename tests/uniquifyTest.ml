@@ -31,8 +31,8 @@ let uniquify_name_test = (fun () ->
 
 let uniquify_test = (fun () ->
   Gensym.reset ();
-  let program = RProgram (None, make_tnone (RLet ("a", make_tnone (RInt 2), make_tnone (RLet ("a", make_tnone (RUnOp ("-", make_tnone (RVar "a"))), make_tnone (RVar "a")))))) in
-  let expected = RProgram (None, make_tnone (RLet ("a0", make_tnone (RInt 2), make_tnone (RLet ("a1", make_tnone (RUnOp ("-", make_tnone (RVar "a0"))), make_tnone (RVar "a1")))))) in
+  let program = RProgram (None, [], make_tnone (RLet ("a", make_tnone (RInt 2), make_tnone (RLet ("a", make_tnone (RUnOp ("-", make_tnone (RVar "a"))), make_tnone (RVar "a")))))) in
+  let expected = RProgram (None, [], make_tnone (RLet ("a0", make_tnone (RInt 2), make_tnone (RLet ("a1", make_tnone (RUnOp ("-", make_tnone (RVar "a0"))), make_tnone (RVar "a1")))))) in
   assert_equal expected (uniquify program);
 )
 

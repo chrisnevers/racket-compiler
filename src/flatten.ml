@@ -181,7 +181,7 @@ let rec flatten_typed_exp ?(v=None) exp =
 
 let flatten program : cprogram =
   match program with
-  | RProgram (Some dt, e) ->
+  | RProgram (Some dt, defs, e) ->
     let (arg, stmts, vars) = flatten_typed_exp e in
     let new_stmts = stmts @ [CReturn arg] in
     let var2dt = make_hashtable vars in
