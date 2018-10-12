@@ -162,6 +162,7 @@ let rec string_of_datatype dt =
   | TypeBool -> "bool"
   | TypeVoid -> "void"
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
+  | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
 
 and string_of_datatypes dt =
   match dt with
@@ -1092,6 +1093,7 @@ let rec parse_inner_type tokens =
   | TArrow ->
     let ret_type = parse_type tokens in
     TypeFunction ([], ret_type)
+  | _ -> parser_error "expected type or arrow"
 
 and parse_func_types tokens =
   let next = next_token tokens in
@@ -1116,7 +1118,6 @@ and parse_type tokens =
   | _ -> parser_error ("expected a type but received: " ^ (string_of_token token))
 
 and parse_types tokens =
-  let next = next_token tokens in
   match is_type tokens with
   | true ->
     let arg_type = parse_type tokens in
@@ -1234,7 +1235,8 @@ let get_var_name v table sigma : string =
     let count = Hashtbl.find table v in
     v ^ (string_of_int count)
   with Not_found ->
-    try let _ = Hashtbl.find sigma v in v
+    try let count = Hashtbl.find sigma v in
+    v ^ (string_of_int count)
     with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
@@ -1273,12 +1275,12 @@ and uniquify_exp_type ast table sigma : rexp_type =
 let rec uniquify_defs defs sigma =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
-    uniquify_name id sigma;
+    let new_id = uniquify_name id sigma in
     let table = Hashtbl.create 10 in
     let arg_ids, arg_datatypes = List.split args in
     let new_arg_ids = List.map (fun a -> uniquify_name a table) arg_ids in
     let new_args = List.combine new_arg_ids arg_datatypes in
-    let new_def = RDefine (id, new_args, ret_type, uniquify_exp_type body table sigma) in
+    let new_def = RDefine (new_id, new_args, ret_type, uniquify_exp_type body table sigma) in
     new_def :: uniquify_defs t sigma
   | [] -> []
 
@@ -2355,7 +2357,7 @@ let is_int arg = match arg with
 let rec patch_instrs instrs = match instrs with
   | [] -> []
   | IDivq s :: tl ->
-    if is_int s then [Movq (s, Reg Rcx); IDivq (Reg Rcx)]
+    if is_int s then Movq (s, Reg Rcx) :: IDivq (Reg Rcx) :: patch_instrs tl
     else IDivq s :: patch_instrs tl
   | IMulq (a, b) :: tl ->
     if is_deref a && is_deref b then

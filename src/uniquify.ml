@@ -10,7 +10,8 @@ let get_var_name v table sigma : string =
     let count = Hashtbl.find table v in
     v ^ (string_of_int count)
   with Not_found ->
-    try let _ = Hashtbl.find sigma v in v
+    try let count = Hashtbl.find sigma v in
+    v ^ (string_of_int count)
     with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
@@ -49,12 +50,12 @@ and uniquify_exp_type ast table sigma : rexp_type =
 let rec uniquify_defs defs sigma =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
-    uniquify_name id sigma;
+    let new_id = uniquify_name id sigma in
     let table = Hashtbl.create 10 in
     let arg_ids, arg_datatypes = List.split args in
     let new_arg_ids = List.map (fun a -> uniquify_name a table) arg_ids in
     let new_args = List.combine new_arg_ids arg_datatypes in
-    let new_def = RDefine (id, new_args, ret_type, uniquify_exp_type body table sigma) in
+    let new_def = RDefine (new_id, new_args, ret_type, uniquify_exp_type body table sigma) in
     new_def :: uniquify_defs t sigma
   | [] -> []
 

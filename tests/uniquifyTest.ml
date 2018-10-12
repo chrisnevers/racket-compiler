@@ -43,9 +43,9 @@ let uniquify_def_test = (fun () ->
   Gensym.reset();
   let program = "(program (define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2))" in
   let actual = run_uniquify program `String in
-  let expected = RProgram (None, [RDefine ("add", [("x1", TypeInt); ("y2", TypeInt)], TypeInt,
+  let expected = RProgram (None, [RDefine ("add0", [("x1", TypeInt); ("y2", TypeInt)], TypeInt,
     TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x1"), TypeIs (None, RVar "y2"))))],
-    TypeIs (None, RApply ("add", [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
+    TypeIs (None, RApply ("add0", [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
   in
   assert_equal expected actual
 )
@@ -55,7 +55,7 @@ let uniquify_def2_test = (fun () ->
   let program = "(program (define (map-vec [f : (Int -> Int)] [v : (Vector Int Int)]) : (Vector Int Int) (vector (f (vector-ref v 0)) (f (vector-ref v 1)))) (define (add1 [x : Int]) : Int (+ x 1)) (vector-ref (map-vec add1 (vector 0 41)) 1)) " in
   let actual = run_uniquify program `String in
   let expected = RProgram (None,
-  [RDefine ("map-vec",
+  [RDefine ("map-vec0",
     [("f1", TypeFunction ([TypeInt], TypeInt));
      ("v2", TypeVector [TypeInt; TypeInt])],
     TypeVector [TypeInt; TypeInt],
@@ -67,14 +67,14 @@ let uniquify_def2_test = (fun () ->
        TypeIs (None,
         RApply ("f1",
          [TypeIs (None, RVectorRef (TypeIs (None, RVar "v2"), 1))]))]));
-   RDefine ("add1", [("x4", TypeInt)], TypeInt,
+   RDefine ("add13", [("x4", TypeInt)], TypeInt,
     TypeIs (None,
      RBinOp ("+", TypeIs (None, RVar "x4"), TypeIs (None, RInt 1))))],
   TypeIs (None,
    RVectorRef
     (TypeIs (None,
-      RApply ("map-vec",
-       [TypeIs (None, RVar "add1");
+      RApply ("map-vec0",
+       [TypeIs (None, RVar "add13");
         TypeIs (None, RVector [TypeIs (None, RInt 0); TypeIs (None, RInt 41)])])),
     1)))
   in
