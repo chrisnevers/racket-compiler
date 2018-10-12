@@ -10,8 +10,10 @@ let get_var_list_or_empty v : aarg list =
 
 let get_written_vars i =
   match i with
+  | Cqto | IDivq _ -> [Reg Rdx]
   | Movq (l, r) | Addq (l, r) | Subq (l, r)
   | Movzbq (l, r) | Xorq (l, r) -> get_var_list_or_empty r
+  | IMulq (l, r) -> Reg Rdx :: get_var_list_or_empty r
   | Set (l, r) -> get_var_list_or_empty r
   | Negq e -> get_var_list_or_empty e
   | ACallq (_, _, v) -> if v != AVoid then [v] else []
@@ -19,7 +21,8 @@ let get_written_vars i =
 
 let get_read_vars i =
   match i with
-  | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | IDivq e -> Reg Rdx :: get_var_list_or_empty e
+  | IMulq (l, r) | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
   | Movq (l, r) | Movzbq (l, r) -> get_var_list_or_empty l
   | Negq e -> get_var_list_or_empty e
   | ACallq (_, args, _) -> List.fold_left (fun acc e -> acc @ get_var_list_or_empty e) [] args

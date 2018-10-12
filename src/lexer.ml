@@ -99,6 +99,9 @@ let scan_token stream : token = try
     if is_alpha c then scan_identifier stream (Char.escaped c)
     else if is_digit c then scan_literal stream (Char.escaped c)
     else match c with
+    | '*' -> TArithOp "*"
+    | '/' -> TArithOp "/"
+    | '%' -> TArithOp "%"
     | '+' -> TArithOp "+"
     | '-' ->
       let next = peek_char stream in

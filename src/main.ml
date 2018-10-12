@@ -32,7 +32,7 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
-    (* let program = "examples/heap/gen_vec.rkt" in *)
+    (* let program = "examples/basics/bad-mult.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -44,6 +44,9 @@ let () =
     let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
+
+    (* let reveal = reveal_functions uniq in *)
+
     let typed = typecheck uniq in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
@@ -64,16 +67,16 @@ let () =
     (* print_gprogram interfer; *)
     let alloc = allocate_registers interfer in
     (* print_endline "\nAllocate Registers"; *)
-    (* print_gprogram alloc; *)
+    (* print_gcprogram alloc; *)
     let assignhomes = assign_homes alloc in
     (* print_endline "\nAssign Homes"; *)
-    (* print_gprogram asshomes; *)
+    (* print_aprogram assignhomes; *)
     let lowercnd = lower_conditionals assignhomes in
     (* print_endline "\nLower Conditionals"; *)
-    (* print_gcprogram lowercnd; *)
+    (* print_aprogram lowercnd; *)
     let patchinstrs = patch_instructions lowercnd in
     (* print_endline "\nPatch Instructions"; *)
-    (* print_aprogram patchi; *)
+    (* print_aprogram patchinstrs; *)
     let x86 = print_x86 patchinstrs in
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;

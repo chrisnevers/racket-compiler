@@ -32,6 +32,9 @@ type aarg =
   | TypeRef of datatype
 
 type ainstr =
+  | Cqto
+  | IDivq of aarg
+  | IMulq of aarg * aarg
   | Addq of aarg * aarg
   | Subq of aarg * aarg
   | Movq of aarg * aarg
@@ -157,6 +160,9 @@ let rec string_of_ainstrs i : string =
 
 and string_of_ainstr a : string =
   match a with
+  | Cqto -> "Cqto"
+  | IDivq e -> "IDivq " ^ (string_of_aarg e)
+  | IMulq (l, r) -> "IMulq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Addq (l, r) -> "Addq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Subq (l, r) -> "Subq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Movq (l, r) -> "Movq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
@@ -217,6 +223,15 @@ let print_lprogram p =
       List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
       print_endline ("\t]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_interfer graph =
+  print_endline "\nGraph\t: [";
+  Hashtbl.iter (fun k v ->
+    print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: [");
+    List.iter (fun e -> print_string ((string_of_aarg e) ^ ", ")) v;
+    print_endline " ]";
+  ) graph;
+  print_endline "\t]"
 
 let print_gprogram p =
   match p with

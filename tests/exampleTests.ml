@@ -38,6 +38,9 @@ let () =
   test "basics" "add" "-10" (Some "0");
   test "basics" "neg" "-45" None;
   test "basics" "uniquify" "18" None;
+  test "basics" "mult" "192000" (Some "3");
+  test "basics" "div" "35" None;
+  test "basics" "modulo" "21" None;
   test "reg-alloc" "liveness" "42" None;
   test "control-flow" "and" "#t" (Some "10");
   test "control-flow" "and" "#f" (Some "5");

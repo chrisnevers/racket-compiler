@@ -391,6 +391,9 @@ type aarg =
   | TypeRef of datatype
 
 type ainstr =
+  | Cqto
+  | IDivq of aarg
+  | IMulq of aarg * aarg
   | Addq of aarg * aarg
   | Subq of aarg * aarg
   | Movq of aarg * aarg
@@ -516,6 +519,9 @@ let rec string_of_ainstrs i : string =
 
 and string_of_ainstr a : string =
   match a with
+  | Cqto -> "Cqto"
+  | IDivq e -> "IDivq " ^ (string_of_aarg e)
+  | IMulq (l, r) -> "IMulq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Addq (l, r) -> "Addq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Subq (l, r) -> "Subq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | Movq (l, r) -> "Movq " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
@@ -576,6 +582,15 @@ let print_lprogram p =
       List.iter (fun e -> print_endline ("\t" ^ string_of_aarg_list e)) live_afters;
       print_endline ("\t]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]")
+
+let print_interfer graph =
+  print_endline "\nGraph\t: [";
+  Hashtbl.iter (fun k v ->
+    print_string ("\n\tNode\t: " ^ (string_of_aarg k) ^ "\n\tEdges\t: [");
+    List.iter (fun e -> print_string ((string_of_aarg e) ^ ", ")) v;
+    print_endline " ]";
+  ) graph;
+  print_endline "\t]"
 
 let print_gprogram p =
   match p with
@@ -873,6 +888,9 @@ let scan_token stream : token = try
     if is_alpha c then scan_identifier stream (Char.escaped c)
     else if is_digit c then scan_literal stream (Char.escaped c)
     else match c with
+    | '*' -> TArithOp "*"
+    | '/' -> TArithOp "/"
+    | '%' -> TArithOp "%"
     | '+' -> TArithOp "+"
     | '-' ->
       let next = peek_char stream in
@@ -1050,7 +1068,9 @@ let is_type tokens =
   | TTypeInt | TTypeBool | TTypeVoid | TTypeVector -> true
   | TLParen ->
     let nt = hd (tl !tokens) in
-    (match nt with TTypeVector | TTypeInt | TTypeBool | TTypeVoid -> true)
+    (match nt with
+    | TTypeVector | TTypeInt | TTypeBool | TTypeVoid -> true
+    | _ -> false)
   | _ -> false
 
 let token_to_type token =
@@ -1081,6 +1101,7 @@ and parse_func_types tokens =
     let arg_type = parse_type tokens in
     arg_type :: parse_func_types tokens
   | TRParen -> []
+  | _ -> parser_error "expected -> or )"
 
 and parse_type tokens =
   let token = get_token tokens in
@@ -1132,7 +1153,6 @@ let parse_definition tokens =
   RDefine (id, args, ret_type, body)
 
 let rec parse_definitions tokens =
-  (* Does this hd of tl ever error? *)
   let token = hd (tl !tokens) in
   match token with
   | TDefine ->
@@ -1183,16 +1203,24 @@ and expand_exp exp :rexp =
   | RBinOp (o, l, r) -> RBinOp (o, expand_exp_type l, expand_exp_type r)
   | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
   | RWhile (c, e) -> RWhile (expand_exp_type c, expand_exp_type e)
+  | RApply (e, args) -> RApply (e, List.map (fun a -> expand_exp_type a) args)
   | _ -> exp
 
 and expand_exp_type exp :rexp_type =
   match exp with
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e)
 
+let rec expand_defs defs =
+  match defs with
+  | RDefine (id, args, ret_type, body) :: t ->
+    let new_def = RDefine (id, args, ret_type, expand_exp_type body) in
+    new_def :: expand_defs t
+  | [] -> []
+
 let expand program =
   match program with
   | RProgram (dt, defs, e) ->
-    RProgram (dt, defs, expand_exp_type e)
+    RProgram (dt, expand_defs defs, expand_exp_type e)
 
 (* uniquify *)
 
@@ -1201,47 +1229,67 @@ exception UniquifyError of string
 
 let uniquify_error s = raise (UniquifyError s)
 
-let get_var_name v table : string =
+let get_var_name v table sigma : string =
   try
     let count = Hashtbl.find table v in
     v ^ (string_of_int count)
-  with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
+  with Not_found ->
+    try let _ = Hashtbl.find sigma v in v
+    with Not_found -> uniquify_error ("get_var_name: Variable " ^ v ^ " is undefined")
 
 let uniquify_name v table : string =
   let cnt = Gensym.gen_int () in
   let _ = Hashtbl.replace table v cnt in
   v ^ (string_of_int cnt)
 
-let rec uniquify_exp ast table : rexp =
+let rec uniquify_exp ast table sigma : rexp =
   match ast with
   | RLet (v, i, b) ->
-    let iexp = uniquify_exp_type i table in
+    let iexp = uniquify_exp_type i table sigma in
     let uniq_var = uniquify_name v table in
-    let bexp = uniquify_exp_type b table in
+    let bexp = uniquify_exp_type b table sigma in
     RLet (uniq_var, iexp, bexp)
-  | RUnOp (o, e) -> RUnOp (o, uniquify_exp_type e table)
-  | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp_type l table, uniquify_exp_type r table)
-  | RVar v -> RVar (get_var_name v table)
-  | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table) es)
-  | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table, i)
-  | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table, i, uniquify_exp_type e table)
-  | RVectorLength v -> RVectorLength (uniquify_exp_type v table)
-  | RAnd (l, r) -> RAnd (uniquify_exp_type l table, uniquify_exp_type r table)
-  | ROr (l, r) -> ROr (uniquify_exp_type l table, uniquify_exp_type r table)
-  | RNot e -> RNot (uniquify_exp_type e table)
-  | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table, uniquify_exp_type thn table, uniquify_exp_type els table)
-  | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table, uniquify_exp_type r table)
-  | RPrint e -> RPrint (uniquify_exp_type e table)
-  | RWhile (c, e) -> RWhile (uniquify_exp_type c table, uniquify_exp_type e table)
+  | RUnOp (o, e) -> RUnOp (o, uniquify_exp_type e table sigma)
+  | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
+  | RVar v -> RVar (get_var_name v table sigma)
+  | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table sigma) es)
+  | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table sigma, i)
+  | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table sigma, i, uniquify_exp_type e table sigma)
+  | RVectorLength v -> RVectorLength (uniquify_exp_type v table sigma)
+  | RAnd (l, r) -> RAnd (uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
+  | ROr (l, r) -> ROr (uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
+  | RNot e -> RNot (uniquify_exp_type e table sigma)
+  | RIf (cnd, thn, els) -> RIf (uniquify_exp_type cnd table sigma, uniquify_exp_type thn table sigma, uniquify_exp_type els table sigma)
+  | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
+  | RPrint e -> RPrint (uniquify_exp_type e table sigma)
+  | RWhile (c, e) -> RWhile (uniquify_exp_type c table sigma, uniquify_exp_type e table sigma)
+  | RApply (id, args) -> RApply (get_var_name id table sigma, List.map (fun a -> uniquify_exp_type a table sigma) args)
   | _ -> ast
 
-and uniquify_exp_type ast table : rexp_type =
+and uniquify_exp_type ast table sigma : rexp_type =
   match ast with
-  | TypeIs (dt, e) -> TypeIs (dt, uniquify_exp e table)
+  | TypeIs (dt, e) -> TypeIs (dt, uniquify_exp e table sigma)
+
+let rec uniquify_defs defs sigma =
+  match defs with
+  | RDefine (id, args, ret_type, body) :: t ->
+    uniquify_name id sigma;
+    let table = Hashtbl.create 10 in
+    let arg_ids, arg_datatypes = List.split args in
+    let new_arg_ids = List.map (fun a -> uniquify_name a table) arg_ids in
+    let new_args = List.combine new_arg_ids arg_datatypes in
+    let new_def = RDefine (id, new_args, ret_type, uniquify_exp_type body table sigma) in
+    new_def :: uniquify_defs t sigma
+  | [] -> []
 
 let uniquify ast : rprogram =
   match ast with
-  | RProgram (_, defs, e) -> RProgram (None, defs, uniquify_exp_type e (Hashtbl.create 10))
+  | RProgram (_, defs, e) ->
+    (* Stores function ids *)
+    let sigma = (Hashtbl.create 10) in
+    let new_defs = uniquify_defs defs sigma in
+    let new_exp = uniquify_exp_type e (Hashtbl.create 10) sigma in
+    RProgram (None, new_defs, new_exp)
 
 (* typecheck *)
 
@@ -1338,11 +1386,17 @@ let rec typecheck_exp exp table =
       if ldt = rdt then make_tbool (RCmp (o, nl, nr))
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
-  | RUnOp (o, e) ->
+  | RUnOp ("-", e) ->
     let ne = typecheck_exp_type e table in
     let edt = get_datatype_option ne in
-    if edt = Some TypeInt then make_tint (RUnOp (o, ne))
-    else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integer")
+    if edt = Some TypeInt then make_tint (RUnOp ("-", ne))
+    else typecheck_error ("typecheck_exp: - must be applied on integer")
+  | RUnOp ("+", e) ->
+    let ne = typecheck_exp_type e table in
+    let edt = get_datatype_option ne in
+    if edt = Some TypeInt then ne
+    else typecheck_error ("typecheck_exp: + must be applied on integer")
+  | RUnOp (o, e) -> typecheck_error ("typecheck_exp: " ^ o ^ " not a unary operator")
   | RBinOp (o, l, r) ->
     let nl = typecheck_exp_type l table in
     let ldt = get_datatype_option nl in
@@ -1692,6 +1746,20 @@ let select_exp e v : ainstr list =
     if larg = v then [Addq (rarg, v)] else
     if rarg = v then [Addq (larg, v)] else
     [Movq (larg, v); Addq (rarg, v)]
+  | CBinOp ("*", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    if larg = v then [IMulq (rarg, v)] else
+    if rarg = v then [IMulq (larg, v)] else
+    [Movq (larg, v); IMulq (rarg, v)]
+  | CBinOp ("/", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    [Movq (larg, Reg Rax); Cqto; IDivq (rarg); Movq (Reg Rax, v)]
+  | CBinOp ("%", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    [Movq (larg, Reg Rax); Cqto; IDivq (rarg); Movq (Reg Rdx, v)]
   | CBinOp (_, _, _) ->
     select_instruction_error "select_exp: Unsupported binary arithmetic operator"
   | CNot a ->
@@ -1704,6 +1772,7 @@ let select_exp e v : ainstr list =
     (* Handle switching cmpq arg positions *)
     [Cmpq (rarg, larg); Set (op, ByteReg Al); Movzbq (ByteReg Al, v)]
   | CAlloc (i, dt) ->
+    (* print_endline ("Alloc: " ^ (string_of_aarg v) ^ " : " ^ (string_of_int (8 * (i + 1)))); *)
     [
       Movq (GlobalValue free_ptr, v);
       Addq (AInt (8 * (i + 1)), GlobalValue free_ptr);
@@ -1762,8 +1831,10 @@ let get_var_list_or_empty v : aarg list =
 
 let get_written_vars i =
   match i with
+  | Cqto | IDivq _ -> [Reg Rdx]
   | Movq (l, r) | Addq (l, r) | Subq (l, r)
   | Movzbq (l, r) | Xorq (l, r) -> get_var_list_or_empty r
+  | IMulq (l, r) -> Reg Rdx :: get_var_list_or_empty r
   | Set (l, r) -> get_var_list_or_empty r
   | Negq e -> get_var_list_or_empty e
   | ACallq (_, _, v) -> if v != AVoid then [v] else []
@@ -1771,7 +1842,8 @@ let get_written_vars i =
 
 let get_read_vars i =
   match i with
-  | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
+  | IDivq e -> Reg Rdx :: get_var_list_or_empty e
+  | IMulq (l, r) | Addq (l, r) | Subq (l, r) | Cmpq (l, r) | Xorq (l, r) -> get_var_list_or_empty l @ get_var_list_or_empty r
   | Movq (l, r) | Movzbq (l, r) -> get_var_list_or_empty l
   | Negq e -> get_var_list_or_empty e
   | ACallq (_, args, _) -> List.fold_left (fun acc e -> acc @ get_var_list_or_empty e) [] args
@@ -1852,6 +1924,13 @@ let rec build_graph stmts live_afters map var_types : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
     build_graph t (tail live_afters) map var_types
+  | IMulq (s, d) :: t ->
+    add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
+  | Cqto :: t | IDivq _ :: t ->
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
   | Callq _ :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
     add_directed_edges live_vars caller_save_aregisters map;
@@ -1889,6 +1968,7 @@ let build_interference program : gprogram =
   match program with
   | LProgram (var_types, live_afters, datatype, stmts) ->
     let map = build_graph stmts live_afters (Hashtbl.create 10) var_types in
+    (* print_interfer map; *)
     GProgram (var_types, live_afters, map, datatype, stmts)
 
 (* allocateRegisters *)
@@ -1953,7 +2033,8 @@ let rec get_colors graph saturations colors move =
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
-    let adjacent_colors = get_adjacent_colors colors adjacents in
+    (* Get lowest color using saturations not adjacents. This way registers are put into account *)
+    let adjacent_colors = Hashtbl.find saturations max_saturated in
     (* Find its move bias neighboring nodes *)
     let move_adjacents = find_in_map max_saturated move in
     (* Find whats its move bias neighbors are already assigned *)
@@ -2052,12 +2133,12 @@ let allocate_registers program : gcprogram =
 exception AssignHomesError of string
 let assign_error msg = raise (AssignHomesError msg)
 
-let get_register_offset arg homes stack_offset =
+let get_register_offset arg homes stack_offset is_root =
   try
     Hashtbl.find homes arg
   with
   | Not_found ->
-    stack_offset := !stack_offset - 8;
+    stack_offset := if is_root then !stack_offset + 8 else !stack_offset - 8;
     Hashtbl.replace homes arg !stack_offset;
     !stack_offset
 
@@ -2070,8 +2151,8 @@ let get_arg_home arg homes stack_offset colors vars rootstack_offset =
     if index >= num_of_registers then
       (* If vector store to rootstack *)
       match Hashtbl.find vars (get_avar_name arg) with
-      | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset)
-      | _ -> Deref (Rbp, get_register_offset arg homes stack_offset)
+      | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset true)
+      | _ -> Deref (Rbp, get_register_offset arg homes stack_offset false)
     (* If no interference, put in any reg *)
     else if index = -1 then Reg Rbx
     (* Assign to corresponding register *)
@@ -2132,6 +2213,11 @@ let is_ptr vars live =
 let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset =
   match instrs with
   | [] -> []
+  | Cqto :: t -> Cqto :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | IDivq a :: t ->
+    IDivq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | IMulq (a, b) :: t ->
+    IMulq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Addq (a, b) :: t ->
     Addq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Subq (a, b) :: t ->
@@ -2254,6 +2340,8 @@ let lower_conditionals program =
 
 let is_deref arg = match arg with
   | Deref _ -> true
+  | GlobalValue _ -> true
+  | TypeRef _ -> true
   | _ -> false
 
 let is_void arg = match arg with
@@ -2266,6 +2354,13 @@ let is_int arg = match arg with
 
 let rec patch_instrs instrs = match instrs with
   | [] -> []
+  | IDivq s :: tl ->
+    if is_int s then [Movq (s, Reg Rcx); IDivq (Reg Rcx)]
+    else IDivq s :: patch_instrs tl
+  | IMulq (a, b) :: tl ->
+    if is_deref a && is_deref b then
+      Movq (a, Reg Rax) :: IMulq (Reg Rax, b) :: patch_instrs tl
+    else IMulq (a, b) :: patch_instrs tl
   | Addq (a, b) :: tl ->
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Addq (Reg Rax, b) :: patch_instrs tl
@@ -2363,6 +2458,9 @@ let cmp_to_x86 cmp =
 let rec print_instrs instrs typelbls =
   match instrs with
   | [] -> ""
+  | Cqto :: tl -> "\tcqto\n" ^ (print_instrs tl typelbls)
+  | IDivq a :: tl -> "\tidivq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | IMulq (a, b) :: tl -> "\timulq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)

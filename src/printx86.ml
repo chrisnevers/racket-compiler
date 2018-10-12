@@ -58,6 +58,9 @@ let cmp_to_x86 cmp =
 let rec print_instrs instrs typelbls =
   match instrs with
   | [] -> ""
+  | Cqto :: tl -> "\tcqto\n" ^ (print_instrs tl typelbls)
+  | IDivq a :: tl -> "\tidivq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
+  | IMulq (a, b) :: tl -> "\timulq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Addq (a, b) :: tl -> "\taddq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)

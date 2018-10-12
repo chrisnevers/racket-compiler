@@ -7,12 +7,12 @@ open List
 exception AssignHomesError of string
 let assign_error msg = raise (AssignHomesError msg)
 
-let get_register_offset arg homes stack_offset =
+let get_register_offset arg homes stack_offset is_root =
   try
     Hashtbl.find homes arg
   with
   | Not_found ->
-    stack_offset := !stack_offset - 8;
+    stack_offset := if is_root then !stack_offset + 8 else !stack_offset - 8;
     Hashtbl.replace homes arg !stack_offset;
     !stack_offset
 
@@ -25,8 +25,8 @@ let get_arg_home arg homes stack_offset colors vars rootstack_offset =
     if index >= num_of_registers then
       (* If vector store to rootstack *)
       match Hashtbl.find vars (get_avar_name arg) with
-      | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset)
-      | _ -> Deref (Rbp, get_register_offset arg homes stack_offset)
+      | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset true)
+      | _ -> Deref (Rbp, get_register_offset arg homes stack_offset false)
     (* If no interference, put in any reg *)
     else if index = -1 then Reg Rbx
     (* Assign to corresponding register *)
@@ -87,6 +87,11 @@ let is_ptr vars live =
 let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset =
   match instrs with
   | [] -> []
+  | Cqto :: t -> Cqto :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | IDivq a :: t ->
+    IDivq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | IMulq (a, b) :: t ->
+    IMulq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Addq (a, b) :: t ->
     Addq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Subq (a, b) :: t ->

@@ -28,13 +28,21 @@ and expand_exp exp :rexp =
   | RBinOp (o, l, r) -> RBinOp (o, expand_exp_type l, expand_exp_type r)
   | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
   | RWhile (c, e) -> RWhile (expand_exp_type c, expand_exp_type e)
+  | RApply (e, args) -> RApply (e, List.map (fun a -> expand_exp_type a) args)
   | _ -> exp
 
 and expand_exp_type exp :rexp_type =
   match exp with
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e)
 
+let rec expand_defs defs =
+  match defs with
+  | RDefine (id, args, ret_type, body) :: t ->
+    let new_def = RDefine (id, args, ret_type, expand_exp_type body) in
+    new_def :: expand_defs t
+  | [] -> []
+
 let expand program =
   match program with
   | RProgram (dt, defs, e) ->
-    RProgram (dt, defs, expand_exp_type e)
+    RProgram (dt, expand_defs defs, expand_exp_type e)

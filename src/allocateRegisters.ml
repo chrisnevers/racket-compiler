@@ -62,7 +62,8 @@ let rec get_colors graph saturations colors move =
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
-    let adjacent_colors = get_adjacent_colors colors adjacents in
+    (* Get lowest color using saturations not adjacents. This way registers are put into account *)
+    let adjacent_colors = Hashtbl.find saturations max_saturated in
     (* Find its move bias neighboring nodes *)
     let move_adjacents = find_in_map max_saturated move in
     (* Find whats its move bias neighbors are already assigned *)

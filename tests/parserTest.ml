@@ -3,15 +3,7 @@ open Lexer
 open Parser
 open Token
 open RProgram
-
-let run_lex program input_type =
-  let stream = get_stream program input_type in
-  scan_all_tokens stream []
-
-let run_parse program input_type =
-  let stream = get_stream program input_type in
-  let tokens = scan_all_tokens stream [] in
-  parse tokens
+open Runners
 
 let get_token_test = (fun () ->
   let tokens = [TLParen; TProgram] in

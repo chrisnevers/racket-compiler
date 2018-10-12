@@ -77,6 +77,7 @@ let rec string_of_datatype dt =
   | TypeBool -> "bool"
   | TypeVoid -> "void"
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
+  | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
 
 and string_of_datatypes dt =
   match dt with

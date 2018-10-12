@@ -94,11 +94,17 @@ let rec typecheck_exp exp table =
       if ldt = rdt then make_tbool (RCmp (o, nl, nr))
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
-  | RUnOp (o, e) ->
+  | RUnOp ("-", e) ->
     let ne = typecheck_exp_type e table in
     let edt = get_datatype_option ne in
-    if edt = Some TypeInt then make_tint (RUnOp (o, ne))
-    else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integer")
+    if edt = Some TypeInt then make_tint (RUnOp ("-", ne))
+    else typecheck_error ("typecheck_exp: - must be applied on integer")
+  | RUnOp ("+", e) ->
+    let ne = typecheck_exp_type e table in
+    let edt = get_datatype_option ne in
+    if edt = Some TypeInt then ne
+    else typecheck_error ("typecheck_exp: + must be applied on integer")
+  | RUnOp (o, e) -> typecheck_error ("typecheck_exp: " ^ o ^ " not a unary operator")
   | RBinOp (o, l, r) ->
     let nl = typecheck_exp_type l table in
     let ldt = get_datatype_option nl in

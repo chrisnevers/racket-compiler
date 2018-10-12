@@ -39,6 +39,20 @@ let select_exp e v : ainstr list =
     if larg = v then [Addq (rarg, v)] else
     if rarg = v then [Addq (larg, v)] else
     [Movq (larg, v); Addq (rarg, v)]
+  | CBinOp ("*", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    if larg = v then [IMulq (rarg, v)] else
+    if rarg = v then [IMulq (larg, v)] else
+    [Movq (larg, v); IMulq (rarg, v)]
+  | CBinOp ("/", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    [Movq (larg, Reg Rax); Cqto; IDivq (rarg); Movq (Reg Rax, v)]
+  | CBinOp ("%", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    [Movq (larg, Reg Rax); Cqto; IDivq (rarg); Movq (Reg Rdx, v)]
   | CBinOp (_, _, _) ->
     select_instruction_error "select_exp: Unsupported binary arithmetic operator"
   | CNot a ->
@@ -51,6 +65,7 @@ let select_exp e v : ainstr list =
     (* Handle switching cmpq arg positions *)
     [Cmpq (rarg, larg); Set (op, ByteReg Al); Movzbq (ByteReg Al, v)]
   | CAlloc (i, dt) ->
+    (* print_endline ("Alloc: " ^ (string_of_aarg v) ^ " : " ^ (string_of_int (8 * (i + 1)))); *)
     [
       Movq (GlobalValue free_ptr, v);
       Addq (AInt (8 * (i + 1)), GlobalValue free_ptr);

@@ -2,6 +2,8 @@ open AProgram
 
 let is_deref arg = match arg with
   | Deref _ -> true
+  | GlobalValue _ -> true
+  | TypeRef _ -> true
   | _ -> false
 
 let is_void arg = match arg with
@@ -14,6 +16,13 @@ let is_int arg = match arg with
 
 let rec patch_instrs instrs = match instrs with
   | [] -> []
+  | IDivq s :: tl ->
+    if is_int s then Movq (s, Reg Rcx) :: IDivq (Reg Rcx) :: patch_instrs tl
+    else IDivq s :: patch_instrs tl
+  | IMulq (a, b) :: tl ->
+    if is_deref a && is_deref b then
+      Movq (a, Reg Rax) :: IMulq (Reg Rax, b) :: patch_instrs tl
+    else IMulq (a, b) :: patch_instrs tl
   | Addq (a, b) :: tl ->
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Addq (Reg Rax, b) :: patch_instrs tl

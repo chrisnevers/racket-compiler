@@ -49,6 +49,13 @@ let rec build_graph stmts live_afters map var_types : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
     build_graph t (tail live_afters) map var_types
+  | IMulq (s, d) :: t ->
+    add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
+  | Cqto :: t | IDivq _ :: t ->
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
   | Callq _ :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
     add_directed_edges live_vars caller_save_aregisters map;
@@ -86,4 +93,5 @@ let build_interference program : gprogram =
   match program with
   | LProgram (var_types, live_afters, datatype, stmts) ->
     let map = build_graph stmts live_afters (Hashtbl.create 10) var_types in
+    (* print_interfer map; *)
     GProgram (var_types, live_afters, map, datatype, stmts)

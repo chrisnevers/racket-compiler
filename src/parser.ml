@@ -173,6 +173,7 @@ let rec parse_inner_type tokens =
   | TArrow ->
     let ret_type = parse_type tokens in
     TypeFunction ([], ret_type)
+  | _ -> parser_error "expected type or arrow"
 
 and parse_func_types tokens =
   let next = next_token tokens in
@@ -182,6 +183,7 @@ and parse_func_types tokens =
     let arg_type = parse_type tokens in
     arg_type :: parse_func_types tokens
   | TRParen -> []
+  | _ -> parser_error "expected -> or )"
 
 and parse_type tokens =
   let token = get_token tokens in
@@ -196,7 +198,6 @@ and parse_type tokens =
   | _ -> parser_error ("expected a type but received: " ^ (string_of_token token))
 
 and parse_types tokens =
-  let next = next_token tokens in
   match is_type tokens with
   | true ->
     let arg_type = parse_type tokens in
