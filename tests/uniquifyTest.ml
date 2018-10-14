@@ -45,7 +45,7 @@ let uniquify_def_test = (fun () ->
   let actual = run_uniquify program `String in
   let expected = RProgram (None, [RDefine ("add0", [("x1", TypeInt); ("y2", TypeInt)], TypeInt,
     TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x1"), TypeIs (None, RVar "y2"))))],
-    TypeIs (None, RApply ("add0", [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
+    TypeIs (None, RApply (TypeIs (None, RVar "add0"), [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
   in
   assert_equal expected actual
 )
@@ -62,10 +62,10 @@ let uniquify_def2_test = (fun () ->
     TypeIs (None,
      RVector
       [TypeIs (None,
-        RApply ("f1",
+        RApply (TypeIs (None, RVar "f1"),
          [TypeIs (None, RVectorRef (TypeIs (None, RVar "v2"), 0))]));
        TypeIs (None,
-        RApply ("f1",
+        RApply (TypeIs (None, RVar "f1"),
          [TypeIs (None, RVectorRef (TypeIs (None, RVar "v2"), 1))]))]));
    RDefine ("add13", [("x4", TypeInt)], TypeInt,
     TypeIs (None,
@@ -73,7 +73,7 @@ let uniquify_def2_test = (fun () ->
   TypeIs (None,
    RVectorRef
     (TypeIs (None,
-      RApply ("map-vec0",
+      RApply (TypeIs (None, RVar "map-vec0"),
        [TypeIs (None, RVar "add13");
         TypeIs (None, RVector [TypeIs (None, RInt 0); TypeIs (None, RInt 41)])])),
     1)))

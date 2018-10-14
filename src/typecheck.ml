@@ -143,12 +143,14 @@ let rec typecheck_exp exp table sigma =
     let ne = typecheck_exp_type e table sigma in
     let dt = get_datatype_option ne in
     TypeIs (dt, RWhile (nc, ne))
-  | RApply (id, args) ->
+  | RApply (fun_id, args) ->
+    let id = get_var_id fun_id in
     let fun_dt = get_value sigma table id in
     let (fun_args, fun_ret) = get_some_func_types fun_dt in
     let new_args = List.map (fun e -> typecheck_exp_type e table sigma) args in
     List.iter2 compare_args new_args fun_args;
-    TypeIs (Some fun_ret, RApply (id, new_args))
+    let apply_fun = TypeIs (Some (TypeFunction (fun_args, fun_ret)), RFunctionRef id) in
+    TypeIs (Some fun_ret, RApply (apply_fun, new_args))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"

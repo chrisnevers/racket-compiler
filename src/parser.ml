@@ -136,11 +136,11 @@ and parse_inner_exps tokens =
 and parse_func_call v tokens =
   let next = next_token tokens in
   match next with
-  | TRParen -> expect_token tokens TRParen; RApply (v, [])
+  | TRParen -> expect_token tokens TRParen; RApply (TypeIs (None, RVar v), [])
   | _ ->
     let args = parse_inner_exps tokens in
     expect_token tokens TRParen;
-    RApply (v, args)
+    RApply (TypeIs (None, RVar v), args)
 
 (* Vector and Func types are wrapped in parens *)
 let is_type tokens =

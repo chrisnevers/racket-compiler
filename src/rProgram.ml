@@ -35,7 +35,7 @@ and rexp =
   | RUnless of rexp_type * rexp_type list
   | RPrint of rexp_type
   | RWhile of rexp_type * rexp_type
-  | RApply of string * rexp_type list
+  | RApply of rexp_type * rexp_type list
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
@@ -140,7 +140,7 @@ let rec string_of_rexp e : string =
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
-  | RApply (id, args) -> id ^ "(" ^ (string_of_rexps_type args) ^ ")"
+  | RApply (id, args) -> string_of_rexp_type id ^ "(" ^ (string_of_rexps_type args) ^ ")"
   ) e
   ^ ")\n"
 

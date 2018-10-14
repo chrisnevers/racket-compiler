@@ -40,7 +40,7 @@ let rec uniquify_exp ast table sigma : rexp =
   | RCmp (o, l, r) -> RCmp (o, uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
   | RPrint e -> RPrint (uniquify_exp_type e table sigma)
   | RWhile (c, e) -> RWhile (uniquify_exp_type c table sigma, uniquify_exp_type e table sigma)
-  | RApply (id, args) -> RApply (get_var_name id table sigma, List.map (fun a -> uniquify_exp_type a table sigma) args)
+  | RApply (id, args) -> RApply (uniquify_exp_type id table sigma, List.map (fun a -> uniquify_exp_type a table sigma) args)
   | _ -> ast
 
 and uniquify_exp_type ast table sigma : rexp_type =

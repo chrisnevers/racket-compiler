@@ -8,6 +8,11 @@ exception FlattenError of string
 
 let flatten_error s = raise (FlattenError s)
 
+let get_func_id f =
+  match f with
+  | TypeIs (dt, RFunctionRef label) -> label
+  | _ -> flatten_error "Expected function-ref"
+
 let get_var_name v name =
   match v with
   | Some name -> name
@@ -173,9 +178,10 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = [CAssign (var_name, CAlloc (i, ty))] in
       let var_list = if v = None then [(var_name, dt)] else [] in
       (flat_arg, stmts, var_list)
-    | RApply (id, args) ->
+    | RApply (fun_id, args) ->
       let flat_args, flat_stmts, flat_vars =
         split3 (map (fun a -> flatten_typed_exp a) args) in
+      let id = get_func_id fun_id in
       let var_name = get_var_name v id in
       let flat_arg = CVar var_name in
       let apply = CApply (CFunctionRef id, flat_args) in

@@ -58,7 +58,7 @@ let parse_define_test = (fun () ->
     let actual = run_parse program `String in
     let expected = RProgram (None, [RDefine ("add", [("x", TypeInt); ("y", TypeInt)], TypeInt,
                                     TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x"), TypeIs (None, RVar "y"))))],
-                                    TypeIs (None, RApply ("add", [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
+                                    TypeIs (None, RApply (TypeIs (None, RVar "add"), [TypeIs (None, RInt 1); TypeIs (None, RInt 2)])))
     in
     assert_equal expected actual
 )
@@ -66,7 +66,7 @@ let parse_define_test = (fun () ->
 let parse_no_arg_apply_test = (fun () ->
   let program = "(program (foo))" in
   let actual = run_parse program `String in
-  let expected = RProgram (None, [], TypeIs (None, RApply ("foo", []))) in
+  let expected = RProgram (None, [], TypeIs (None, RApply (TypeIs (None, RVar "foo"), []))) in
   assert_equal expected actual
 )
 
@@ -82,12 +82,12 @@ let parse_vec_and_func_args_test = (fun () ->
        ("v", TypeVector [TypeInt; TypeInt])],
       TypeVector [TypeInt; TypeInt],
       TypeIs (None, RVector
-        [TypeIs (None, RApply ("f", [TypeIs (None, RVectorRef (TypeIs (None, RVar "v"), 0))]));
-         TypeIs (None, RApply ("f", [TypeIs (None, RVectorRef (TypeIs (None, RVar "v"), 1))]))]));
+        [TypeIs (None, RApply (TypeIs (None, RVar "f"), [TypeIs (None, RVectorRef (TypeIs (None, RVar "v"), 0))]));
+         TypeIs (None, RApply (TypeIs (None, RVar "f"), [TypeIs (None, RVectorRef (TypeIs (None, RVar "v"), 1))]))]));
       RDefine ("add1", [("x", TypeInt)], TypeInt,
         TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x"), TypeIs (None, RInt 1))))],
       TypeIs (None, RVectorRef
-        (TypeIs (None, RApply ("map-vec", [TypeIs (None, RVar "add1"); TypeIs (None, RVector [TypeIs (None, RInt 0); TypeIs (None, RInt 41)])])),
+        (TypeIs (None, RApply (TypeIs (None, RVar "map-vec") , [TypeIs (None, RVar "add1"); TypeIs (None, RVector [TypeIs (None, RInt 0); TypeIs (None, RInt 41)])])),
         1)))
   in
   assert_equal expected actual

@@ -78,3 +78,8 @@ let split3 l =
     | [] -> List.rev xs, List.rev ys, List.rev zs
   in
   split [] [] [] l
+
+let get_var_id id =
+  match id with
+  | TypeIs (_, RVar v) -> v
+  | _ -> raise (SomeError "expected RVar")
