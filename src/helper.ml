@@ -70,3 +70,11 @@ let is_vector vec =
   match vec with
   | TypeVector dt -> true
   | _ -> false
+
+let split3 l =
+  let rec split xs ys zs l =
+    match l with
+    | (x, y, z) :: t -> split (x :: xs) (y :: ys) (z :: zs) t
+    | [] -> List.rev xs, List.rev ys, List.rev zs
+  in
+  split [] [] [] l

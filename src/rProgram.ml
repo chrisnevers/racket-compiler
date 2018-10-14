@@ -13,6 +13,7 @@ and rexp =
   | RInt of int
   | RBool of bool
   | RVoid
+  | RFunctionRef of string
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type

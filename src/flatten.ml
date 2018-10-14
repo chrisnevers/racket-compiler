@@ -2,6 +2,7 @@ open CProgram
 open RProgram
 open Helper
 open Gensym
+open List
 
 exception FlattenError of string
 
@@ -19,6 +20,7 @@ let get_carg_of_rarg a : carg =
   | RVar name -> CVar name
   | RVoid -> CVoid
   | RGlobalValue label -> CGlobalValue label
+  | RFunctionRef label -> CFunctionRef label
   | _ -> flatten_error ("get_carg_of_rarg: Expected to receive CArg but received " ^ (string_of_rexp a))
 
 let get_ccmp_of_rcmp o : ccmp =
@@ -43,7 +45,7 @@ let rec flatten_typed_exp ?(v=None) exp =
   | TypeIs (None, ue) -> flatten_error ("flatten: expression is untyped: " ^ (string_of_rexp ue))
   | TypeIs (Some dt, e) -> (
     match e with
-    | RVar _ | RInt _ | RBool _ | RVoid | RGlobalValue _ ->
+    | RVar _ | RInt _ | RBool _ | RVoid | RGlobalValue _ | RFunctionRef _ ->
       flatten_arg e ~v:v
     | RAnd (l, r) ->
       let (larg, lstmts, lvars) = flatten_typed_exp l in
@@ -171,6 +173,15 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = [CAssign (var_name, CAlloc (i, ty))] in
       let var_list = if v = None then [(var_name, dt)] else [] in
       (flat_arg, stmts, var_list)
+    | RApply (id, args) ->
+      let flat_args, flat_stmts, flat_vars =
+        split3 (map (fun a -> flatten_typed_exp a) args) in
+      let var_name = get_var_name v id in
+      let flat_arg = CVar var_name in
+      let apply = CApply (CFunctionRef id, flat_args) in
+      let stmts = concat flat_stmts @ [CAssign (var_name, apply)] in
+      let var_list = if v = None then (var_name, dt) :: concat flat_vars else concat flat_vars in
+      (flat_arg, stmts, var_list)
     (* Invalid expressions *)
     | RVector _ -> flatten_error "should not have vector in flatten"
     | RVectorLength _ -> flatten_error "should not have vector-length in flatten"
@@ -179,11 +190,20 @@ let rec flatten_typed_exp ?(v=None) exp =
     | RUnless (_, _) -> flatten_error "should not have unless in flatten"
   )
 
+let rec flatten_defs defs =
+  match defs with
+  | RDefine (id, args, ret, body) :: t ->
+    let (arg, stmts, vars) = flatten_typed_exp body in
+    let var2dt = make_hashtable vars in
+    CDefine (id, args, ret, var2dt, stmts) :: flatten_defs t
+  | [] -> []
+
 let flatten program : cprogram =
   match program with
   | RProgram (Some dt, defs, e) ->
     let (arg, stmts, vars) = flatten_typed_exp e in
+    let new_defs = flatten_defs defs in
     let new_stmts = stmts @ [CReturn arg] in
     let var2dt = make_hashtable vars in
-    CProgram (var2dt, dt, new_stmts)
+    CProgram (var2dt, dt, new_defs, new_stmts)
   | _ -> flatten_error "Flatten: program does not have type"

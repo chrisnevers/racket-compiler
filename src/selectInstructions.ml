@@ -111,5 +111,5 @@ let rec select_stmts stmt : ainstr list =
 
 let select_instructions program : pprogram =
   match program with
-  | CProgram (vars, datatype, stmts) ->
+  | CProgram (vars, datatype, defs, stmts) ->
     PProgram (vars, datatype, select_stmts stmts)

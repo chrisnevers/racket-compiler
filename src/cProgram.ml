@@ -9,6 +9,7 @@ type carg =
   | CBool of bool
   | CVoid (* can be 1, so evaluates to true *)
   | CGlobalValue of string
+  | CFunctionRef of string
 
 type cexp =
   | CArg of carg
@@ -20,6 +21,7 @@ type cexp =
   | CCmp of ccmp * carg * carg
   | CAlloc of int * datatype
   | CVectorRef of carg * int
+  | CApply of carg * carg list
 
 type cstmt =
   | CAssign of string * cexp
@@ -31,8 +33,11 @@ type cstmt =
 
 type var_type = ((string, datatype) Hashtbl.t)
 
+type cdefine =
+  | CDefine of string * (string * datatype) list * datatype * var_type * cstmt list
+
 type cprogram =
-  | CProgram of var_type * datatype * cstmt list
+  | CProgram of var_type * datatype * cdefine list * cstmt list
 
 let string_of_ccmp o : string =
   match o with
@@ -100,7 +105,7 @@ let string_of_vars_list l : string =
 
 let print_cprogram program =
   match program with
-  | CProgram (vars, dt, stmts) ->
+  | CProgram (vars, dt, defs, stmts) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype dt) ^
       (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)

@@ -61,6 +61,7 @@ and expose_exp_type e =
 
 and expose_exp e =
   match e with
+  | RApply (id, args) -> RApply (id, List.map (fun a -> expose_exp_type a) args)
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
@@ -77,6 +78,12 @@ and expose_exp e =
   | RWhile (c, e) -> RWhile (expose_exp_type c, expose_exp_type e)
   | _ -> e
 
+let rec expose_defs defs =
+  match defs with
+  | RDefine (id, args, ret_type, body) :: t ->
+    RDefine (id, args, ret_type, expose_exp_type body) :: expose_defs t
+  | [] -> []
+
 let expose_allocation program =
   match program with
-  | RProgram (dt, defs, e) -> RProgram (dt, defs, expose_exp_type e)
+  | RProgram (dt, defs, e) -> RProgram (dt, expose_defs defs, expose_exp_type e)
