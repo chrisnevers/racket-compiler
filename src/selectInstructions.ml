@@ -1,6 +1,7 @@
 open AProgram
 open CProgram
 open Registers
+open Helper
 open List
 
 exception SelectInstructionError of string
@@ -15,6 +16,8 @@ let get_collect_call_count () =
 
 let select_exp e v : ainstr list =
   match e with
+  | CArg (CFunctionRef label) ->
+    [Leaq (GlobalValue label, v)]
   | CArg a ->
     let arg = get_aarg_of_carg a in
     [Movq (arg, v)]
@@ -26,10 +29,11 @@ let select_exp e v : ainstr list =
       | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
       | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
       | TypeVector l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
+      | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
     ) in
     prinstrs
   | CRead ->
-    [ACallq ("read_int", [], v)]
+    [ACallq (GlobalValue "read_int", [], v)]
   | CUnOp (o, a) ->
     let arg = get_aarg_of_carg a in
     if arg = v then [Negq v] else [Movq (arg, v); Negq v]
@@ -76,6 +80,10 @@ let select_exp e v : ainstr list =
   | CVectorRef (ve, i) ->
     let varg = get_aarg_of_carg ve in
     [Movq (varg, Reg R11); Movq (Deref (R11, 8 * (i + 1)), v)]
+  | CApply (id, args) ->
+    let aargs = map (fun a -> get_aarg_of_carg a) args in
+    let nid = get_aarg_of_carg id in
+    [ACallq (nid, aargs, v)]
 
 let rec select_stmts stmt : ainstr list =
   match stmt with
@@ -102,14 +110,29 @@ let rec select_stmts stmt : ainstr list =
     AWhile (cndinstrs, [], (cmp, larg, rarg), thninstrs, []) :: select_stmts t
   | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | CCollect i :: t ->
-    ACallq ("collect", [Reg root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
+    ACallq (GlobalValue "collect", [Reg root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in
     Movq (varg, Reg R11) :: Movq (earg, Deref (R11, 8 * (i + 1))) :: select_stmts t
 | [] -> []
 
+let rec select_defs defs =
+  match defs with
+  | CDefine (id, args, ret, vars, stmts) :: t ->
+    let num_params = length args in
+    let var_types = Hashtbl.create 10 in
+    let var_asc = remove_duplicates (tbl_to_list vars @ args) in
+    iter (fun (id, dt) -> Hashtbl.replace var_types id dt) var_asc;
+    let max_stack = 0 in  (* Calculate in assign-homes when doing callqs *)
+    let movs = mapi (fun i (a, dt) -> Movq (nth arg_locations i, nth callee_save_aregisters i)) args in
+    let map_movs = mapi (fun i (a, dt) -> Movq (nth callee_save_aregisters i, AVar a)) args in
+    let instrs = movs @ map_movs @ select_stmts stmts in
+    let new_args = map (fun (id, dt) -> AVar id) args in
+    PDefine (id, num_params, new_args, var_types, max_stack, instrs) :: select_defs t
+  | [] -> []
+
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, defs, stmts) ->
-    PProgram (vars, datatype, select_stmts stmts)
+    PProgram (vars, datatype, select_defs defs, select_stmts stmts)

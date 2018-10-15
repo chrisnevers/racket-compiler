@@ -58,7 +58,15 @@ let rec patch_instrs instrs = match instrs with
     else Cmpq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
+let rec patch_defs defs =
+  match defs with
+  | ADefine (id, num_params, vars, var_types, max_stack, vec_space, instrs) :: t ->
+    let new_def = ADefine (id, num_params, vars, var_types, max_stack, vec_space, patch_instrs instrs) in
+    new_def :: patch_defs t
+  | [] -> []
+
 let patch_instructions program = match program with
-  | AProgram (var_space, rootstack_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, defs, instrs) ->
+    let new_defs = patch_defs defs in
     let new_instrs = patch_instrs instrs in
-    AProgram (var_space, rootstack_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_defs, new_instrs)

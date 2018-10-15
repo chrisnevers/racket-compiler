@@ -41,7 +41,7 @@ let uniquify_test = (fun () ->
 
 let uniquify_def_test = (fun () ->
   Gensym.reset();
-  let program = "(program (define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2))" in
+  let program = "(define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2)" in
   let actual = run_uniquify program `String in
   let expected = RProgram (None, [RDefine ("add0", [("x1", TypeInt); ("y2", TypeInt)], TypeInt,
     TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x1"), TypeIs (None, RVar "y2"))))],
@@ -52,7 +52,7 @@ let uniquify_def_test = (fun () ->
 
 let uniquify_def2_test = (fun () ->
   Gensym.reset();
-  let program = "(program (define (map-vec [f : (Int -> Int)] [v : (Vector Int Int)]) : (Vector Int Int) (vector (f (vector-ref v 0)) (f (vector-ref v 1)))) (define (add1 [x : Int]) : Int (+ x 1)) (vector-ref (map-vec add1 (vector 0 41)) 1)) " in
+  let program = "(define (map-vec [f : (Int -> Int)] [v : (Vector Int Int)]) : (Vector Int Int) (vector (f (vector-ref v 0)) (f (vector-ref v 1)))) (define (add1 [x : Int]) : Int (+ x 1)) (vector-ref (map-vec add1 (vector 0 41)) 1)" in
   let actual = run_uniquify program `String in
   let expected = RProgram (None,
   [RDefine ("map-vec0",

@@ -83,3 +83,16 @@ let get_var_id id =
   match id with
   | TypeIs (_, RVar v) -> v
   | _ -> raise (SomeError "expected RVar")
+
+let get_avar_id id =
+  match id with
+  | AVar v -> v
+  | _ -> raise (SomeError "expected AVar")
+
+let tbl_to_list = fun h -> Hashtbl.fold (fun k v acc -> (k, v) :: acc) h []
+
+let sanitize_id id =
+  String.map (fun c -> if c = '-' then '_' else c) id
+
+let cons_uniq xs x = if List.mem x xs then xs else x :: xs
+let remove_duplicates xs = List.rev (List.fold_left cons_uniq [] xs)

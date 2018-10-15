@@ -79,3 +79,8 @@ let () =
   test "heap" "call_collect" "((1, 2, 3), (1, 2, 3))" None;
   test "heap" "nested-vec-ref" "42" None;
   test "heap" "vec-length" "2" None;
+  test "functions" "add" "3" None;
+  test "functions" "map-vec" "42" None;
+  (* This only captures first line of output *)
+  test "functions" "recursion" "-10" None;
+  test "functions" "print-type" "((Bool -> Int) -> (Int * Bool) -> Void)" None;

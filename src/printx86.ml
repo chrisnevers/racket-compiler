@@ -20,25 +20,29 @@ let dt_to_x86 dt tbl =
   | TypeInt -> "_tint"
   | TypeBool -> "_tbool"
   | TypeVoid -> "_tvoid"
-  | TypeVector l ->
-    try
-      Hashtbl.find tbl dt
-    with
-    | Not_found ->
+  | TypeVector l -> (
+    try Hashtbl.find tbl dt
+    with Not_found ->
       let label = Gensym.gen_str "_tvector" in
       let _ = Hashtbl.add tbl dt label in
-      label
+      label)
+  | TypeFunction (args, ret) -> (
+    try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = Gensym.gen_str "_tfunc" in
+      let _ = Hashtbl.add tbl dt label in
+      label)
 
 let arg_to_x86 arg =
   match arg with
-  | GlobalValue l -> os_label_prefix ^ l ^ "(%rip)"
+  | GlobalValue l -> os_label_prefix ^ sanitize_id l ^ "(%rip)"
   | AInt i -> "$" ^ (string_of_int i)
   | Reg r | ByteReg r ->
     "%" ^ string_of_register r
   | Deref (r, i) ->
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
+  | AVoid -> "$1"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
-  | AVoid -> invalid_instruction ("Cannot print void")
   | TypeRef dt-> invalid_instruction ("Did not expect typeref")
 
 let type_arg_to_x86 arg tbl =
@@ -65,7 +69,7 @@ let rec print_instrs instrs typelbls =
   | Subq (a, b) :: tl -> "\tsubq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Movq (a, b) :: tl -> "\tmovq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | Negq a :: tl -> "\tnegq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
-  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ a ^ "\n" ^ (print_instrs tl typelbls)
+  | Callq a :: tl -> "\tcallq\t" ^ os_label_prefix ^ sanitize_id a ^ "\n" ^ (print_instrs tl typelbls)
   | Pushq a :: tl -> "\tpushq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
   | Popq a :: tl -> "\tpopq\t" ^ arg_to_x86 a ^ "\n" ^ (print_instrs tl typelbls)
   | Retq :: tl -> print_instrs tl typelbls
@@ -76,7 +80,9 @@ let rec print_instrs instrs typelbls =
   | Jmp a :: tl -> "\tjmp\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
   | JmpIf (cmp, a) :: tl -> "\tj" ^ cmp_to_x86 cmp ^ "\t\t" ^ a ^ "\n" ^ (print_instrs tl typelbls)
   | Label l :: tl -> l ^ ":\n" ^ (print_instrs tl typelbls)
-  | Leaq (a, b) :: tl -> "\tleaq\t" ^ type_arg_to_x86 a typelbls ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
+  | Leaq (TypeRef a, b) :: tl -> "\tleaq\t" ^ type_arg_to_x86 (TypeRef a) typelbls ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
+  | Leaq (a, b) :: tl -> "\tleaq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
+  | IndirectCallq a :: tl -> "\tcallq\t*" ^ arg_to_x86 a ^ "\n" ^ print_instrs tl typelbls
   | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
 
 let get_x86_type_variables typetbl =
@@ -87,7 +93,10 @@ let get_x86_type_variables typetbl =
   "\n\t.globl _tvoid\n" ^
   "_tvoid:\n\t.quad	2\n" ^
   "\n\t.globl _tvector\n" ^
-  "_tvector:\n\t.quad	4\n\n" ^
+  "_tvector:\n\t.quad	4\n" ^
+  "\n\t.globl _tfunc\n" ^
+  "_tfunc:\n\t.quad	5\n" ^
+  "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
     | TypeVector dt ->
@@ -99,6 +108,12 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ string_of_int (List.length dt) ^ "\n" ^
       (* list vector datatypes *)
       List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" dt ^ "\n"
+    | TypeFunction (args, ret) ->
+      acc ^ v ^ ":\n" ^
+      "\t.quad 5\n" ^
+      "\t.quad " ^ string_of_int (List.length args) ^ "\n" ^
+      List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" args ^
+      "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
     | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
   ) typetbl ""
 
@@ -135,15 +150,44 @@ let print_result datatype typetbl =
     "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
     "\tmovq\t$1, %rdx\n" ^
     "\tcallq\t" ^ os_label_prefix ^ "print_vector\n"
+  | TypeFunction (args, ret) ->
+    "\tmovq\t%rax, %rdi\n" ^
+    "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
+    "\tmovq\t$1, %rdx\n" ^
+    "\tcallq\t" ^ os_label_prefix ^ "print_function\n"
+
+let rec print_defs defs typetbl =
+  match defs with
+  | ADefine (id, num_params, args, var_types, max_stack, vec_space, instrs) :: t ->
+    List.iter (fun a -> let _ = dt_to_x86 (Hashtbl.find var_types (get_avar_id a)) typetbl in ()) args;
+    "\n\t.globl " ^ os_label_prefix ^ sanitize_id id ^ "\n" ^
+    os_label_prefix ^ sanitize_id id ^ ":\n" ^
+    "\tpushq\t%rbp\n" ^
+    "\tmovq\t%rsp, %rbp\n" ^
+    add_save_registers callee_save_registers "pushq" ^
+    "\tsubq\t$" ^ string_of_int (max_stack + callee_save_stack_size) ^ ", %rsp\n" ^
+    offset_rootstack_ptr vec_space heap_size "addq" ^ "\n" ^
+    "\t# body start\n" ^
+    print_instrs instrs typetbl ^
+    "\t# body end\n" ^
+    offset_rootstack_ptr vec_space heap_size "subq" ^ "\n" ^
+    "\taddq\t$" ^ string_of_int (max_stack + callee_save_stack_size) ^ ", %rsp\n" ^
+    add_save_registers (List.rev callee_save_registers) "popq" ^
+    "\tpop\t\t%rbp\n" ^
+    "\tretq\n\n" ^
+    print_defs t typetbl
+  | [] -> ""
 
 let print_x86 program =
   match program with
-  | AProgram (stack_space, rootstack_space, datatype, instrs) ->
+  | AProgram (stack_space, rootstack_space, datatype, defs, instrs) ->
     let typetbl = Hashtbl.create 10 in
     let middle = print_instrs instrs typetbl in
+    let defines = print_defs defs typetbl in
     let beginning = ".data\n" ^
                     get_x86_type_variables typetbl ^
                     ".text\n" ^
+                    defines ^
                     "\t.globl " ^ os_label_prefix ^ "main\n\n" ^
                     os_label_prefix ^ "main:\n" ^
                     "\tpushq\t%rbp\n" ^

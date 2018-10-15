@@ -16,8 +16,8 @@ let rec add_to_table asc tbl =
   | [] -> ()
 
 let get_value sigma gamma id =
-  try Hashtbl.find sigma id
-  with Not_found -> try Hashtbl.find gamma id
+  try Hashtbl.find sigma id, RVar id
+  with Not_found -> try Hashtbl.find gamma id, RFunctionRef id
   with Not_found -> typecheck_error (id ^ " not found in sigma nor gamma")
 
 let get_some_func_types dt =
@@ -61,7 +61,9 @@ let rec typecheck_exp exp table sigma =
     let vdt = get_datatype nv in
     if is_vector vdt then make_tint (RInt (get_vector_length vdt))
     else typecheck_error ("typecheck_exp: Vector-length must operate on vector. Received: " ^ (string_of_datatype vdt))
-  | RVar v -> TypeIs (get_value table sigma v, RVar v)
+  | RFunctionRef id | RVar id ->
+    let dt, var = get_value table sigma id in
+    TypeIs (dt, var)
   | RAnd (l, r) ->
     let nl = typecheck_exp_type l table sigma in
     let ldt = get_datatype_option nl in
@@ -145,12 +147,13 @@ let rec typecheck_exp exp table sigma =
     TypeIs (dt, RWhile (nc, ne))
   | RApply (fun_id, args) ->
     let id = get_var_id fun_id in
-    let fun_dt = get_value sigma table id in
+    (* typecheck fun_id: if its a var its in table, else its in gamma *)
+    let nid = typecheck_exp_type fun_id table sigma in
+    let fun_dt, _ = get_value sigma table id in
     let (fun_args, fun_ret) = get_some_func_types fun_dt in
     let new_args = List.map (fun e -> typecheck_exp_type e table sigma) args in
     List.iter2 compare_args new_args fun_args;
-    let apply_fun = TypeIs (Some (TypeFunction (fun_args, fun_ret)), RFunctionRef id) in
-    TypeIs (Some fun_ret, RApply (apply_fun, new_args))
+    TypeIs (Some fun_ret, RApply (nid, new_args))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"

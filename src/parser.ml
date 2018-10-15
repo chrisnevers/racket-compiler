@@ -242,11 +242,8 @@ let rec parse_definitions tokens =
   | _ -> []
 
 let parse_program tokens : rprogram =
-  expect_token tokens TLParen;
-  expect_token tokens TProgram;
   let defs = parse_definitions tokens in
   let exp = parse_typed_exp tokens in
-  expect_token tokens TRParen;
   expect_token tokens TEOF;
   RProgram (None, defs, exp)
 

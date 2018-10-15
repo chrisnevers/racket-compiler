@@ -54,25 +54,41 @@ type ainstr =
   | AWhile of ainstr list * aarg list list * (acmp * aarg * aarg) * ainstr list * aarg list list
   | Leaq of aarg * aarg
   (* Callq (label, args, result location ) *)
-  | ACallq of string * aarg list * aarg
-
-type aprogram =
-  AProgram of int * int * datatype * ainstr list
-
-type pprogram =
-  PProgram of var_type * datatype * ainstr list
-
-type lprogram =
-  LProgram of var_type * aarg list list * datatype * ainstr list
+  | ACallq of aarg * aarg list * aarg
+  | IndirectCallq of aarg
 
 type interference = ((aarg, aarg list) Hashtbl.t)
 type colorgraph = ((aarg, int) Hashtbl.t)
 
+type pdefine =
+  | PDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * ainstr list
+
+type ldefine =
+  | LDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * ainstr list
+
+type gdefine =
+  | GDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * interference * ainstr list
+
+type gcdefine =
+  | GCDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * colorgraph * ainstr list
+
+type adefine =
+  | ADefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * int * ainstr list
+
+type aprogram =
+  AProgram of int * int * datatype * adefine list * ainstr list
+
+type pprogram =
+  PProgram of var_type * datatype * pdefine list * ainstr list
+
+type lprogram =
+  LProgram of var_type * aarg list list * datatype * ldefine list * ainstr list
+
 type gprogram =
-  GProgram of var_type * aarg list list * interference * datatype * ainstr list
+  GProgram of var_type * aarg list list * interference * datatype * gdefine list * ainstr list
 
 type gcprogram =
-    GCProgram of var_type * aarg list list * colorgraph * datatype * ainstr list
+  GCProgram of var_type * aarg list list * colorgraph * datatype * gcdefine list * ainstr list
 
 exception AVarException of string
 
@@ -89,6 +105,7 @@ let get_aarg_of_carg c : aarg =
   | CBool true -> AInt 1
   | CBool false -> AInt 0
   | CGlobalValue s -> GlobalValue s
+  | CFunctionRef s -> GlobalValue s
 
 let get_acmp_of_ccmp c : acmp =
   match c with
@@ -192,20 +209,31 @@ and string_of_ainstr a : string =
     "\nThen\t[\n\t" ^ (string_of_ainstrs thn) ^ "]"
   | Leaq (s, d) -> "Leaq " ^ string_of_aarg s ^ " " ^ string_of_aarg d
   | ACallq (l, args, res) ->
-    "Callq " ^ l ^ ", " ^ List.fold_left (fun acc e -> acc ^ " " ^ string_of_aarg e) "" args ^ ", " ^ string_of_aarg res
+    "Callq " ^ string_of_aarg l ^ ", " ^ List.fold_left (fun acc e -> acc ^ " " ^ string_of_aarg e) "" args ^ ", " ^ string_of_aarg res
+  | IndirectCallq a ->
+    "IndirectCallq " ^ string_of_aarg a
+
+(* Will be obsolete when switching to Core - sexp_of *)
+let rec string_of_adefs defs =
+  match defs with
+  | PDefine (id, _, _, _, _, instrs) :: t ->
+    "\nId\t:" ^ id ^
+    "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]" ^ string_of_adefs t
+  | [] -> ""
 
 let print_pprogram p =
   match p with
-  | PProgram (vars, datatype, instrs) ->
+  | PProgram (vars, datatype, defs, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
       (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
+      "\nDefs\t: \n\t[\n\t" ^ (string_of_adefs defs) ^ "]" ^
       "\nInstrs\t: \n\t[\n\t" ^ (string_of_ainstrs instrs) ^ "]"
     )
 
 let print_aprogram p =
   match p with
-  | AProgram (vars_space, rootstack_space, datatype, instrs) ->
+  | AProgram (vars_space, rootstack_space, datatype, defs, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
       "\nStack Space\t: " ^ (string_of_int vars_space) ^
@@ -215,7 +243,7 @@ let print_aprogram p =
 
 let print_lprogram p =
   match p with
-  | LProgram (vars, live_afters, datatype, instrs) ->
+  | LProgram (vars, live_afters, datatype, defs, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
       (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
@@ -233,9 +261,18 @@ let print_interfer graph =
   ) graph;
   print_endline "\t]"
 
+let rec print_defs_graph defs =
+  match defs with
+  | GDefine (id, num_params, args, var_types, max_stack, lives, map, instrs) :: t ->
+    print_endline ("def: " ^ id);
+    print_interfer map;
+    print_defs_graph t
+  | [] -> ()
+
 let print_gprogram p =
   match p with
-  | GProgram (vars, live_afters, graph, datatype, instrs) ->
+  | GProgram (vars, live_afters, graph, datatype, defs, instrs) ->
+    print_defs_graph defs;
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
     (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)
@@ -253,7 +290,7 @@ let print_gprogram p =
 
 let print_gcprogram p =
   match p with
-  | GCProgram (vars, live_afters, graph, datatype, instrs) ->
+  | GCProgram (vars, live_afters, graph, datatype, defs, instrs) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype datatype) ^
     (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)

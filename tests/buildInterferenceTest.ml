@@ -106,7 +106,7 @@ let build_graph_acallq_test = (fun () ->
     let var_types = Hashtbl.create 2 in
     let map = Hashtbl.create 2 in
     let live = [[AVar "a"]] in
-    let stmt = ACallq ("hey", [], AVar "b") in
+    let stmt = ACallq (GlobalValue "hey", [], AVar "b") in
     let map = build_graph [stmt] live map var_types in
     assert_equal (AVar "b" :: caller_save_aregisters) (Hashtbl.find map (AVar "a"));
     assert_equal [AVar "a"] (Hashtbl.find map (AVar "b"));

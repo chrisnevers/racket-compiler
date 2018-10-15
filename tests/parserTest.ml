@@ -42,7 +42,7 @@ let parse_var_test = (fun () ->
 )
 
 let parse_test = (fun () ->
-  let program = "(program (if (and (not #f) #t) (+ 2 3) (let ([a 4]) (- a))))" in
+  let program = "(if (and (not #f) #t) (+ 2 3) (let ([a 4]) (- a)))" in
   let tokens = run_lex program `String in
   let expected = RProgram (None, [], make_tnone (RIf
     (make_tnone (RAnd (make_tnone (RNot (make_tnone (RBool false))), make_tnone (RBool true))),
@@ -54,7 +54,7 @@ let parse_test = (fun () ->
 )
 
 let parse_define_test = (fun () ->
-    let program = "(program (define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2))" in
+    let program = "(define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2)" in
     let actual = run_parse program `String in
     let expected = RProgram (None, [RDefine ("add", [("x", TypeInt); ("y", TypeInt)], TypeInt,
                                     TypeIs (None, RBinOp ("+", TypeIs (None, RVar "x"), TypeIs (None, RVar "y"))))],
@@ -64,16 +64,16 @@ let parse_define_test = (fun () ->
 )
 
 let parse_no_arg_apply_test = (fun () ->
-  let program = "(program (foo))" in
+  let program = "(foo)" in
   let actual = run_parse program `String in
   let expected = RProgram (None, [], TypeIs (None, RApply (TypeIs (None, RVar "foo"), []))) in
   assert_equal expected actual
 )
 
 let parse_vec_and_func_args_test = (fun () ->
-    let program = "(program (define (map-vec [f : (Int -> Int)] [v : (Vector Int Int)])" ^
+    let program = "(define (map-vec [f : (Int -> Int)] [v : (Vector Int Int)])" ^
                   " : (Vector Int Int) (vector (f (vector-ref v 0)) (f (vector-ref v 1))))" ^
-                  " (define (add1 [x : Int]) : Int (+ x 1)) (vector-ref (map-vec add1 (vector 0 41)) 1))"
+                  " (define (add1 [x : Int]) : Int (+ x 1)) (vector-ref (map-vec add1 (vector 0 41)) 1)"
     in
     let actual = run_parse program `String in
     let expected = RProgram (None,
@@ -94,7 +94,7 @@ let parse_vec_and_func_args_test = (fun () ->
 )
 
 let parse_func_with_no_param_test = (fun () ->
-    let program = "(program (define (x [y: (Int)]) : (Void) 5) 5)" in
+    let program = "(define (x [y: (Int)]) : (Void) 5) 5" in
     let actual = run_parse program `String in
     let expected = RProgram (None, [RDefine ("x", [("y", TypeFunction ([], TypeInt))],
       TypeFunction ([], TypeVoid), TypeIs (None, RInt 5))], TypeIs (None, RInt 5))

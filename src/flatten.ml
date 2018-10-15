@@ -10,7 +10,8 @@ let flatten_error s = raise (FlattenError s)
 
 let get_func_id f =
   match f with
-  | TypeIs (dt, RFunctionRef label) -> label
+  | TypeIs (dt, RFunctionRef label) -> label, CFunctionRef label
+  | TypeIs (dt, RVar label) -> label, CVar label
   | _ -> flatten_error "Expected function-ref"
 
 let get_var_name v name =
@@ -181,10 +182,10 @@ let rec flatten_typed_exp ?(v=None) exp =
     | RApply (fun_id, args) ->
       let flat_args, flat_stmts, flat_vars =
         split3 (map (fun a -> flatten_typed_exp a) args) in
-      let id = get_func_id fun_id in
+      let id, carg = get_func_id fun_id in
       let var_name = get_var_name v id in
       let flat_arg = CVar var_name in
-      let apply = CApply (CFunctionRef id, flat_args) in
+      let apply = CApply (carg, flat_args) in
       let stmts = concat flat_stmts @ [CAssign (var_name, apply)] in
       let var_list = if v = None then (var_name, dt) :: concat flat_vars else concat flat_vars in
       (flat_arg, stmts, var_list)
@@ -200,8 +201,8 @@ let rec flatten_defs defs =
   match defs with
   | RDefine (id, args, ret, body) :: t ->
     let (arg, stmts, vars) = flatten_typed_exp body in
-    let var2dt = make_hashtable vars in
-    CDefine (id, args, ret, var2dt, stmts) :: flatten_defs t
+    let var2dt = make_hashtable (vars @ args) in
+    CDefine (id, args, ret, var2dt, stmts @ [CReturn arg]) :: flatten_defs t
   | [] -> []
 
 let flatten program : cprogram =

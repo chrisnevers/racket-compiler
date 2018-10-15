@@ -20,17 +20,21 @@ let get_register_offset arg homes stack_offset is_root =
 let get_arg_home arg homes stack_offset colors vars rootstack_offset =
   match arg with
   | AVar v ->
+    (try
     let index = Hashtbl.find colors arg in
     (* If no space, spill to stack *)
-    if index >= num_of_registers then
+    if index >= num_of_registers then (try
       (* If vector store to rootstack *)
-      match Hashtbl.find vars (get_avar_name arg) with
+      let ty = Hashtbl.find vars (get_avar_name arg) in
+      match ty with
       | TypeVector _ -> Deref (root_stack_register, get_register_offset arg homes rootstack_offset true)
       | _ -> Deref (Rbp, get_register_offset arg homes stack_offset false)
+      with Not_found -> assign_error "get_arg_home: index >= num_of_registers : cannot find arg")
     (* If no interference, put in any reg *)
     else if index = -1 then Reg Rbx
     (* Assign to corresponding register *)
     else Reg (List.nth registers index)
+    with Not_found -> assign_error "get_arg_home: cannot find arg")
   | TypeRef d -> arg
   | _ -> arg
 
@@ -73,16 +77,28 @@ let restore_ptr_registers registers =
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
     assign_error "too many args to function"
-  else List.mapi (fun i e -> Movq (e, List.nth arg_locations i)) registers
+  else List.mapi (fun i e ->
+    match e with
+    | GlobalValue l -> Leaq (e, List.nth arg_locations i)
+    | _ -> Movq (e, List.nth arg_locations i)
+  ) registers
 
 let get_arg_homes arg homes offset colors vars rootstack_offset=
   List.map (fun e -> get_arg_home e homes offset colors vars rootstack_offset) arg
 
 let is_atomic vars live =
-  List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> false | _ -> true) live
+  List.filter (fun v -> try
+    match Hashtbl.find vars (get_avar_name v) with
+    | TypeVector dt -> false
+    | _ -> true
+  with Not_found -> assign_error ("is_atomic: arg not found " ^ string_of_aarg v)) live
 
 let is_ptr vars live =
-  List.filter (fun v -> match Hashtbl.find vars (get_avar_name v) with | TypeVector dt -> true | _ -> false) live
+  List.filter (fun v -> try
+    match Hashtbl.find vars (get_avar_name v) with
+    | TypeVector dt -> true
+    | _ -> false
+  with Not_found -> assign_error "is_ptr: arg not found") live
 
 let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset =
   match instrs with
@@ -101,7 +117,6 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
   | Negq a :: t ->
     Negq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | ACallq (l, args, v) :: t ->
-    (* NEED HELP ... SOS PLZ SOME1 HELP ME *)
     let live_vars = hd live_afters in
     (* Get the variables that are atomic (: not vectors) and ptr (: vectors) *)
     let atomic_vars = is_atomic vars live_vars in
@@ -118,7 +133,11 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     (* Map needed args to the necessary func arg locations *)
     push_call_args (get_arg_homes args homes offset colors vars rootstack_offset) @
     (* Call the function *)
-    Callq l ::
+    (match l with
+    | GlobalValue v -> [Callq v]
+    | AVar v -> IndirectCallq (get_arg_home l homes offset colors vars rootstack_offset) :: []
+    | _ -> assign_error "ACallq: expected var or global value"
+    ) @
     (* Move result to variable *)
     Movq (Reg Rax, get_arg_home v homes offset colors vars rootstack_offset) ::
     (* Pop the needed live variables back off the stack *)
@@ -162,14 +181,28 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     let new_els_instrs = get_instrs els_instrs homes offset colors els_live_afters vars rootstack_offset in
     AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | IndirectCallq a :: t -> IndirectCallq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+
+let rec assign_defs defs =
+  match defs with
+  | GCDefine (id, num_params, vars, var_types, max_stack, lives, colors, instrs) :: t ->
+    let homes = Hashtbl.create 10 in
+    let stack_offset = ref 0 in
+    let rootstack_offset = ref 0 in
+    let new_instrs = get_instrs instrs homes stack_offset colors lives var_types rootstack_offset in
+    let max_stack = make_multiple_of_16 (- !stack_offset) in
+    let vec_space = make_multiple_of_16 (!rootstack_offset) in
+    ADefine (id, num_params, vars, var_types, max_stack, vec_space, new_instrs) :: assign_defs t
+  | [] -> []
 
 let assign_homes program =
   match program with
-  | GCProgram (vars, live_afters, colors, datatype, instrs) ->
+  | GCProgram (vars, live_afters, colors, datatype, defs, instrs) ->
+    let new_defs = assign_defs defs in
     let homes = Hashtbl.create 10 in
     let stack_offset = ref 0 in
     let rootstack_offset = ref 0 in
     let new_instrs = get_instrs instrs homes stack_offset colors live_afters vars rootstack_offset in
     let var_space = make_multiple_of_16 (- !stack_offset) in
     let vec_space = make_multiple_of_16 (!rootstack_offset) in
-    AProgram (var_space, vec_space, datatype, new_instrs)
+    AProgram (var_space, vec_space, datatype, new_defs, new_instrs)

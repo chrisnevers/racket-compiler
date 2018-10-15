@@ -3,8 +3,8 @@ open List
 
 let rec reveal_typed_exp exp =
   match exp with
-  | TypeIs (Some (TypeFunction (args, ret)), RVar label) ->
-    TypeIs (Some (TypeFunction (args, ret)), RFunctionRef label)
+  (* | TypeIs (Some (TypeFunction (args, ret)), RVar label) -> *)
+    (* TypeIs (Some (TypeFunction (args, ret)), RFunctionRef label) *)
   | TypeIs (dt, e) -> TypeIs (dt, reveal_exp e)
 
 and reveal_exp exp =
@@ -26,7 +26,7 @@ and reveal_exp exp =
   | RUnless (c, es) -> RUnless (c, map (fun e -> reveal_typed_exp e) es)
   | RPrint e -> RPrint (reveal_typed_exp e)
   | RWhile (c, e) -> RWhile (c, reveal_typed_exp e)
-  | RApply (id, es) -> RApply (id, map (fun e -> reveal_typed_exp e) es)
+  | RApply (id, es) -> RApply (reveal_typed_exp id, map (fun e -> reveal_typed_exp e) es)
   | RVar _ -> exp
   | RInt _ -> exp
   | RBool _ -> exp

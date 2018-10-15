@@ -33,7 +33,7 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
-    (* let program = "examples/basics/bad-mult.rkt" in *)
+    (* let program = "examples/functions/recursion.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -46,10 +46,10 @@ let () =
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
     let typed = typecheck uniq in
-    let reveal = reveal_functions typed in
+    (* let reveal = reveal_functions typed in *)
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
-    let exposed = expose_allocation reveal in
+    let exposed = expose_allocation typed in
     (* print_endline "\nExpose"; *)
     (* print_rprogram exposed; *)
     let flat = flatten exposed in

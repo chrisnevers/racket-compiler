@@ -55,6 +55,7 @@ let string_of_carg a : string =
   | CBool b -> "Bool " ^ (string_of_bool b)
   | CVoid -> "Void"
   | CGlobalValue s -> "GlobalValue " ^ s
+  | CFunctionRef s -> "FunctionRef " ^ s
   ) a
   ^ ")"
 
@@ -65,6 +66,7 @@ let string_of_carg_type a : string =
   | CBool _ -> "bool"
   | CVoid -> "void"
   | CGlobalValue _ -> "glbl"
+  | CFunctionRef _ -> "fun"
 
 let string_of_cexp e : string =
   "(" ^ (fun e ->
@@ -78,6 +80,7 @@ let string_of_cexp e : string =
   | CCmp (cmp, l, r) -> "Cmp " ^ (string_of_ccmp cmp) ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CAlloc (i, dt) -> "Allocate " ^ (string_of_int i) ^ " " ^ (string_of_datatype dt)
   | CVectorRef (v, i) -> "VectorRef " ^ string_of_carg v ^ " " ^ string_of_int i
+  | CApply (id, args) -> "Apply " ^ (string_of_carg id) ^ " " ^ List.fold_left (fun acc s -> acc ^ string_of_carg s ^ "\n\t") "" args
   ) e
   ^ ")"
 

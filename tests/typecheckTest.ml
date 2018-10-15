@@ -8,7 +8,7 @@ let get_var_type_test = (fun () ->
     let table = Hashtbl.create 1 in
     let sigma = Hashtbl.create 1 in
     let _ = Hashtbl.add table v TypeInt in
-    assert_equal TypeInt (get_value table sigma v);
+    assert_equal (TypeInt, RVar v) (get_value table sigma v);
   in
   let throws_exn () =
     let table = Hashtbl.create 1 in
