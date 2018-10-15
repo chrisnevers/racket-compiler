@@ -1,2 +1,3 @@
-(program
-    (begin read (print 2)))
+(begin
+    read
+    (print 2))

@@ -1,4 +1,3 @@
-(program
-    (let ([x 8])
-        (+ (let ([x 10]) x)
-            x)))
+(let ([x 8])
+    (+ (let ([x 10]) x)
+        x))

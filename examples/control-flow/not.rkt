@@ -1,1 +1,1 @@
-(program (not #t))
+(not #t)

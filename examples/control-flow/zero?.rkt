@@ -1,1 +1,1 @@
-(program (zero? read))
+(zero? read)

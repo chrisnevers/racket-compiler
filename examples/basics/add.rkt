@@ -1,3 +1,2 @@
-(program
-    (let ([a read])
-        (+ (- 10) a)))
+(let ([a read])
+    (+ (- 10) a))

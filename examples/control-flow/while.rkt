@@ -1,3 +1,2 @@
-(program
-    (while (eq? 0 read)
-        (print 0)))
+(while (eq? 0 read)
+    (print 0))

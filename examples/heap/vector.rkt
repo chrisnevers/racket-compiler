@@ -1,2 +1,1 @@
-(program
-    (vector 1 2 3))
+(vector 1 2 3)

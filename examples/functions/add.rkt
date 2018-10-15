@@ -1,1 +1,3 @@
-(program (define (add [x : Int] [y : Int]) : Int (+ x y)) (add 1 2))
+(define (add [x : Int] [y : Int]) : Int (+ x y))
+
+(let ([x add]) (x 1 2))

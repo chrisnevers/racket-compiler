@@ -1,3 +1,2 @@
-(program
-    (let ([val #t])
-        (print val)))
+(let ([val #t])
+    (print val))
