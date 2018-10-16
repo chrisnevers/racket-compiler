@@ -123,7 +123,7 @@ let rec select_defs defs =
     let num_params = length args in
     let var_types = Hashtbl.create 10 in
     let var_asc = remove_duplicates (tbl_to_list vars @ args) in
-    iter (fun (id, dt) -> Hashtbl.replace var_types id dt) var_asc;
+    List.iter (fun (id, dt) -> Hashtbl.replace var_types id dt) var_asc;
     let max_stack = 0 in  (* Calculate in assign-homes when doing callqs *)
     let movs = mapi (fun i (a, dt) -> Movq (nth arg_locations i, nth callee_save_aregisters i)) args in
     let map_movs = mapi (fun i (a, dt) -> Movq (nth callee_save_aregisters i, AVar a)) args in

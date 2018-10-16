@@ -12,7 +12,6 @@ and expand_exp exp :rexp =
   (* Expand sugars *)
   | RAnd (l, r) -> RIf (expand_exp_type l, expand_exp_type r, make_tbool (RBool false))
   | ROr (l, r) -> RIf (expand_exp_type l, make_tbool (RBool true), expand_exp_type r)
-  | RBegin es -> expand_exp (RLet ("_", hd es, begin_to_let (tl es)))
   | RWhen (cnd, es) -> RIf (expand_exp_type cnd, expand_exp_type (make_tnone (RBegin es)), make_tnone RVoid)
   | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
   (* Expand inner expressions *)
@@ -33,6 +32,7 @@ and expand_exp exp :rexp =
 
 and expand_exp_type exp :rexp_type =
   match exp with
+  | TypeIs (dt, RBegin es) -> expand_exp_type (begin_to_let es)
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e)
 
 let rec expand_defs defs =

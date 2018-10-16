@@ -1,4 +1,3 @@
-open Stream
 open Token
 
 exception LexerError of string
@@ -25,11 +24,18 @@ let get_stream src stream_type : char Stream.t =
     (* let _ = close_in channel in stream *)
   | `String -> Stream.of_string src
 
+let rec skip_line stream =
+  let nc = Stream.next stream in
+  match nc with
+  | '\n' -> next_char stream
+  | _ -> skip_line stream
+
 (* Skips white space *)
-let rec next_char stream : char =
+and next_char stream : char =
   let nc = Stream.next stream in
   match nc with
   | ' ' | '\t' | '\n' -> next_char stream
+  | ';' -> skip_line stream
   | c -> c
 
 let peek_char stream : char option = Stream.peek stream

@@ -5,4 +5,7 @@
             (print x)
             (get-ten (+ x 1)))))
 
-(get-ten (- 10))
+(begin
+    (get-ten (- 10))
+    (print 10)
+    (print get-ten))
