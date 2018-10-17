@@ -17,9 +17,10 @@ Run:
 
 1. ~~Basics~~
     - `let-in` expressions
-    - Addition and subtraction
-    - Reads numbers from stdin
-    - Prints programs result to stdout
+    - Int operators: `+`, `-`, `*`, `/`, `%`
+    - Reads numbers from stdin: `read`
+    - Prints values of any type: `print`
+    - Prints programs' result to stdout
     - Generates x86 and compiles with `GCC`
 2. ~~Register Allocation~~
     - Uncovers live variables
@@ -31,11 +32,21 @@ Run:
     - Relational operators: `eq?`, `<`, `<=`, `>`, `>=`, `pos?`, `zero?`, and `neg?`
     - Logical operators: `and`, `or`, and `not`
     - `if-else`, `when`, `unless`, and `begin` expressions
+    - `while` loops
 4. ~~Tuples & Garbage Collection~~
     - Vectors (tuples): `vector`
     - Vector operations: `vector-set!`, `vector-ref`, `vector-length`
     - Stop and Copy garbage collection
+5. ~~Functions~~
+    - First class : `(vector foo #t)`
+    - Mutually recursive
+    - Typed: `(define (add1 [x : Int]) : Int ...)`
+
 
 TODO:
-* Functions
+* Closures?
+* Pattern Matching
+* Chars
+* Arrays
+* LLVM
 * ...
