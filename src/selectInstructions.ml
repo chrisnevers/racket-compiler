@@ -37,6 +37,12 @@ let select_exp e v : ainstr list =
   | CUnOp (o, a) ->
     let arg = get_aarg_of_carg a in
     if arg = v then [Negq v] else [Movq (arg, v); Negq v]
+  | CBinOp ("-", l, r) ->
+    let larg = get_aarg_of_carg l in
+    let rarg = get_aarg_of_carg r in
+    if larg = v then [Subq (rarg, v)] else
+    if rarg = v then [Subq (larg, v)] else
+    [Movq (larg, v); Subq (rarg, v)]
   | CBinOp ("+", l, r) ->
     let larg = get_aarg_of_carg l in
     let rarg = get_aarg_of_carg r in

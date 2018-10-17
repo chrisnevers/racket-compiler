@@ -168,8 +168,10 @@ let rec parse_inner_type tokens =
     let types = parse_types tokens in
     TypeVector types
   | TTypeInt | TTypeBool | TTypeVoid ->
-    let arg_types = parse_func_types tokens in
-    TypeFunction (arg_types, token_to_type token)
+    let all_args  = token_to_type token :: parse_func_types tokens in
+    let ret_type  = last all_args in
+    let args      = rm_last all_args in
+    TypeFunction (args, ret_type)
   | TArrow ->
     let ret_type = parse_type tokens in
     TypeFunction ([], ret_type)

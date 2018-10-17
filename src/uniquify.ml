@@ -55,8 +55,10 @@ let rec uniquify_defs defs sigma =
     let arg_ids, arg_datatypes = List.split args in
     let new_arg_ids = List.map (fun a -> uniquify_name a table) arg_ids in
     let new_args = List.combine new_arg_ids arg_datatypes in
+    (* Effectively adds all function prototypes before processing bodies *)
+    let next_defs = uniquify_defs t sigma in
     let new_def = RDefine (new_id, new_args, ret_type, uniquify_exp_type body table sigma) in
-    new_def :: uniquify_defs t sigma
+    new_def :: next_defs
   | [] -> []
 
 let uniquify ast : rprogram =

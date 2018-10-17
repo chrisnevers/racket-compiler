@@ -96,3 +96,6 @@ let sanitize_id id =
 
 let cons_uniq xs x = if List.mem x xs then xs else x :: xs
 let remove_duplicates xs = List.rev (List.fold_left cons_uniq [] xs)
+
+let last l = List.hd (List.rev l)
+let rm_last l = List.rev (List.tl (List.rev l))

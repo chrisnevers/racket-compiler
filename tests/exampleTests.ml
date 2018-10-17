@@ -83,5 +83,6 @@ let () =
   test "functions" "map-vec" "42" None;
   (* This only captures first line of output *)
   test "functions" "recursion" "-10" None;
-  test "functions" "print-type" "((Bool -> Int) -> (Int * Bool) -> Void)" None;
+  test "functions" "print-type" "((Int -> Bool) -> (Int * Bool) -> Void)" None;
   test "functions" "no-args" "(Void)" None;
+  test "functions" "mutually-recursive" "5" None;
