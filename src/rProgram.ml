@@ -143,6 +143,7 @@ let rec string_of_rexp e : string =
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
   | RApply (id, args) -> string_of_rexp_type id ^ "(" ^ (string_of_rexps_type args) ^ ")"
   | RFunctionRef id -> "FunctionRef" ^ id
+  | RLambda _ -> "lambda"
   ) e
   ^ ")\n"
 

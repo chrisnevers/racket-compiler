@@ -122,10 +122,18 @@ and parse_exp tokens =
   | TInt i -> RInt i
   | TBool b -> RBool b
   | TLParen ->
-    let ie = parse_inner_exp tokens in
+    let exp = parse_inner_exp tokens in
     expect_token tokens TRParen;
-    ie
+    exp
   | _ -> parser_error "expected variable, int, bool, or ("
+
+and parse_exp_tail tokens =
+  let next = next_token tokens in
+  match next with
+  | TRParen -> expect_token tokens TRParen; []
+  | _ ->
+    let exp = parse_typed_exp tokens in
+    exp :: parse_exp_tail tokens
 
 and parse_inner_exp tokens =
   let token = get_token tokens in
@@ -224,6 +232,17 @@ and parse_inner_exp tokens =
   | TVar id ->
     let exps = parse_typed_exps tokens in
     RApply (TypeIs (None, RVar id), exps)
+  | TLParen ->
+    let next = next_token tokens in
+    begin
+    match next with
+    | TLambda ->
+      let lambda = parse_inner_exp tokens in
+      expect_token tokens TRParen;
+      let exps = parse_typed_exps tokens in
+      RApply (TypeIs (None, lambda), exps)
+    | _ -> parser_error "Expected (exp exp*): First argument must be lambda expression or variable in apply"
+    end
   | _ -> parser_error ("Error parsing exp. Did not expect " ^ string_of_token token)
 
 let parse_def tokens =

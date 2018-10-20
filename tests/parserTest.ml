@@ -22,20 +22,20 @@ let expect_token_test = (fun () ->
   let throws_exn () =
     let expect_token_fun = fun () -> expect_token tokens_list TRBracket in
     assert_raises ~msg:"Throws error if expecting wrong type of token"
-      (ParserError "Expected ] but received Program") expect_token_fun
+      (ParserError "Expected ], but received Program") expect_token_fun
   in
   works ();
   throws_exn ();
 )
 
-let parse_var_test = (fun () ->
+let parse_id_test = (fun () ->
   let tokens = ref [TVar "name"] in
-  let works () = assert_equal "name" (parse_var tokens) in
+  let works () = assert_equal "name" (parse_id tokens) in
   let throws_exn () =
     let tokens = ref [TInt 4] in
-    let parse_var_fun = fun () -> parse_var tokens in
+    let parse_id_fun = fun () -> parse_id tokens in
     assert_raises ~msg:"Throws error if passed a token that is not TVar"
-    (ParserError "Expected var but received Int 4") parse_var_fun
+    (ParserError "Expected variable, but received Int 4") parse_id_fun
   in
   works ();
   throws_exn ();
@@ -108,7 +108,7 @@ let test =
   [
     "get_token" >:: get_token_test;
     "expect_token" >:: expect_token_test;
-    "parse_var" >:: parse_var_test;
+    "parse_id" >:: parse_id_test;
     "parse" >:: parse_test;
     "parse define" >:: parse_define_test;
     "parse no arg apply" >:: parse_no_arg_apply_test;
