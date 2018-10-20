@@ -89,6 +89,7 @@ let rec scan_identifier stream acc : token =
     | "Bool"    -> TTypeBool
     | "Void"    -> TTypeVoid
     | "Vector"  -> TTypeVector
+    | "lambda"  -> TLambda
     | _         -> TVar acc
 
 let get_cmp_op c : token =

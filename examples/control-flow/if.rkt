@@ -1,4 +1,4 @@
-(let ([a read])
+(let ([a (read)])
 (let ([b (if (> a 10)
         10
         (- 10))])

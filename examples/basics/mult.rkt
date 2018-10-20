@@ -1,3 +1,3 @@
 (let ([x 32000])
-(let ([y read])
+(let ([y (read)])
 (* (* x y) 2)))

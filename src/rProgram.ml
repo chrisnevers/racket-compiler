@@ -36,6 +36,7 @@ and rexp =
   | RPrint of rexp_type
   | RWhile of rexp_type * rexp_type
   | RApply of rexp_type * rexp_type list
+  | RLambda of (string * datatype) list * datatype * rexp_type
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type

@@ -1,3 +1,3 @@
 (begin
-    read
+    (read)
     (print 2))

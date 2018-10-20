@@ -1,1 +1,1 @@
-(let ([x void]) (print x))
+(let ([x (void)]) (print x))

@@ -33,6 +33,7 @@ type token =
   | TTypeBool
   | TTypeVoid
   | TTypeVector
+  | TLambda
   | TEOF
 
 let string_of_token t =
@@ -71,6 +72,7 @@ let string_of_token t =
   | TTypeBool -> "Bool"
   | TTypeVoid -> "Void"
   | TTypeVector -> "Vector"
+  | TLambda -> "lambda"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

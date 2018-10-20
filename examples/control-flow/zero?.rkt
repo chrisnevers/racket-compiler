@@ -1,1 +1,1 @@
-(zero? read)
+(zero? (read))

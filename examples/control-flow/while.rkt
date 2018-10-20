@@ -1,2 +1,2 @@
-(while (eq? 0 read)
+(while (eq? 0 (read))
     (print 0))
