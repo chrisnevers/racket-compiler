@@ -5,7 +5,7 @@ open RProgram
 open Expand
 open Uniquify
 open Typecheck
-open RevealFunctions
+open ConvertClosures
 open ExposeAllocation
 open Flatten
 open CProgram
@@ -46,10 +46,10 @@ let () =
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
     let typed = typecheck uniq in
-    (* let reveal = reveal_functions typed in *)
+    let convert = convert_closures typed in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
-    let exposed = expose_allocation typed in
+    let exposed = expose_allocation convert in
     (* print_endline "\nExpose"; *)
     (* print_rprogram exposed; *)
     let flat = flatten exposed in

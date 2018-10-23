@@ -1,5 +1,6 @@
 open RProgram
 open Gensym
+open List
 
 exception UniquifyError of string
 
@@ -41,6 +42,11 @@ let rec uniquify_exp ast table sigma : rexp =
   | RPrint e -> RPrint (uniquify_exp_type e table sigma)
   | RWhile (c, e) -> RWhile (uniquify_exp_type c table sigma, uniquify_exp_type e table sigma)
   | RApply (id, args) -> RApply (uniquify_exp_type id table sigma, List.map (fun a -> uniquify_exp_type a table sigma) args)
+  | RLambda (args, ret, e) ->
+    let ids, dts = split args in
+    let new_ids = map (fun id -> uniquify_name id table) ids in
+    let new_args = combine new_ids dts in
+    RLambda (new_args, ret, uniquify_exp_type e table sigma)
   | _ -> ast
 
 and uniquify_exp_type ast table sigma : rexp_type =

@@ -28,6 +28,7 @@ and expand_exp exp :rexp =
   | RLet (v, i, b) -> RLet (v, expand_exp_type i, expand_exp_type b)
   | RWhile (c, e) -> RWhile (expand_exp_type c, expand_exp_type e)
   | RApply (e, args) -> RApply (expand_exp_type e, List.map (fun a -> expand_exp_type a) args)
+  | RLambda (args, ret, e) -> RLambda (args, ret, expand_exp_type e)
   | _ -> exp
 
 and expand_exp_type exp :rexp_type =

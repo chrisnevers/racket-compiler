@@ -23,7 +23,7 @@ let get_value sigma gamma id =
 let get_some_func_types dt =
   match dt with
   | Some TypeFunction (args, ret) -> (args, ret)
-  | _ -> typecheck_error "expected function type"
+  | _ -> typecheck_error ("expected function type: " ^ string_of_datatype_option dt)
 
 let rec typecheck_exp exp table sigma =
   match exp with
@@ -145,14 +145,19 @@ let rec typecheck_exp exp table sigma =
     let ne = typecheck_exp_type e table sigma in
     let dt = get_datatype_option ne in
     TypeIs (dt, RWhile (nc, ne))
-  | RApply (fun_id, args) ->
-    let id = get_var_id fun_id in
-    (* typecheck fun_id: if its a var its in table, else its in gamma *)
-    let nid = typecheck_exp_type fun_id table sigma in
-    let fun_dt, _ = get_value sigma table id in
-    let (fun_args, fun_ret) = get_some_func_types fun_dt in
-    let new_args = List.map (fun e -> typecheck_exp_type e table sigma) args in
-    List.iter2 compare_args new_args fun_args;
+  | RLambda (args, ret, e) ->
+    add_to_table args table;
+    let ne = typecheck_exp_type e table sigma in
+    let dt = get_datatype ne in
+    let ldt = TypeFunction (map (fun (id, dt) -> dt) args, ret) in
+    if dt <> ret then typecheck_error "lambda return type does not match body"
+    else TypeIs (Some ldt, RLambda (args, ret, ne))
+  | RApply (func, args) ->
+    let nid = typecheck_exp_type func table sigma in
+    let fdt = get_datatype_option nid in
+    let (fun_args, fun_ret) = get_some_func_types fdt in
+    let new_args = map (fun e -> typecheck_exp_type e table sigma) args in
+    iter2 compare_args new_args fun_args;
     TypeIs (Some fun_ret, RApply (nid, new_args))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
