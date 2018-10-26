@@ -11,10 +11,11 @@ let print_error test_name input expected actual =
 let print_success test_name input =
   print_endline (test_name ^ ": PASSED " ^ (get_input input))
 
-let run_example input =
+let run_example input = try
   match input with
   | None -> input_line (Unix.open_process_in "./output")
   | Some s -> input_line (Unix.open_process_in ("echo '" ^ s ^ "' | ./output"))
+  with End_of_file -> ""
 
 let run_test test_name expected input =
   let actual = run_example input in
@@ -80,9 +81,12 @@ let () =
   test "heap" "nested-vec-ref" "42" None;
   test "heap" "vec-length" "2" None;
   test "functions" "add" "3" None;
-  test "functions" "map-vec" "42" None;
+  test "functions" "map-vec" "(6, 10)" None;
   (* This only captures first line of output *)
   test "functions" "recursion" "-10" None;
   test "functions" "print-type" "((Int -> Bool) -> (Int * Bool) -> Void)" None;
   test "functions" "no-args" "(Void)" None;
   test "functions" "mutually-recursive" "5" None;
+  test "functions" "ex" "5" None;
+  test "closures" "lambda" "20" None;
+  test "closures" "book" "42" None;

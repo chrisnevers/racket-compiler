@@ -68,7 +68,7 @@ let save_ptr_registers registers =
 let restore_ptr_registers registers =
   let offset = ref (- 8) in
   let pushqs = List.map (fun r ->
-    offset := !offset + 8;
+    offset := !offset - 8;
     Movq (Deref (root_stack_register, !offset), r)
   ) registers
   in
@@ -113,10 +113,11 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
   | Subq (a, b) :: t ->
     Subq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Movq (a, b) :: t ->
-    Movq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+    AComment ("move " ^ string_of_aarg a ^ " to " ^ string_of_aarg b) :: Movq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Negq a :: t ->
     Negq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | ACallq (l, args, v) :: t ->
+    (* print_endline ("\n\ncalling " ^ string_of_aarg l); *)
     let live_vars = hd live_afters in
     (* Get the variables that are atomic (: not vectors) and ptr (: vectors) *)
     let atomic_vars = is_atomic vars live_vars in
@@ -124,15 +125,23 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     (* Get the corresponding assigned homes (registers or derefs) *)
     let atomic_registers = get_arg_homes atomic_vars homes offset colors vars rootstack_offset in
     let ptr_registers = get_arg_homes ptr_vars homes offset colors vars rootstack_offset in
+    (* iter2 (fun a b -> print_endline ("Var: " ^ string_of_aarg a ^ " reg: " ^ string_of_aarg b)) ptr_vars ptr_registers; *)
+    (* iter (fun a -> print_endline () ; *)
+    (* print_endline "\n"; *)
     rootstack_offset := if List.length ptr_registers > !rootstack_offset then List.length ptr_registers else !rootstack_offset;
     (* Only save atomic registers that are caller save *)
     let save_atomic_regs = List.filter (fun e -> List.mem e caller_save_aregisters) atomic_registers in
     (* Before calling label, save the atomic and ptr registers *)
+    AComment "saving atomics" ::
     save_registers save_atomic_regs @
+    AComment "saving ptrs" ::
     save_ptr_registers ptr_registers @
+    AComment "pushing call args" ::
     (* Map needed args to the necessary func arg locations *)
     push_call_args (get_arg_homes args homes offset colors vars rootstack_offset) @
     (* Call the function *)
+    AComment "calling funcs" ::
+
     (match l with
     | GlobalValue v -> [Callq v]
     | AVar v -> IndirectCallq (get_arg_home l homes offset colors vars rootstack_offset) :: []
@@ -141,8 +150,11 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     (* Move result to variable *)
     Movq (Reg Rax, get_arg_home v homes offset colors vars rootstack_offset) ::
     (* Pop the needed live variables back off the stack *)
+    AComment "restoring atomics" ::
     restore_registers save_atomic_regs @
+    AComment "restoring ptrs" ::
     restore_ptr_registers ptr_registers @
+    AComment "call done" ::
     (* Get rest of instructions *)
     get_instrs t homes offset colors (tl live_afters) vars rootstack_offset
   | Callq l :: t ->
@@ -182,6 +194,7 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     AIf ((c, ahome, bhome), new_thn_instrs, [], new_els_instrs, []) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | IndirectCallq a :: t -> IndirectCallq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | AComment s :: t -> AComment s :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
 
 let rec assign_defs defs =
   match defs with
@@ -198,10 +211,10 @@ let rec assign_defs defs =
 let assign_homes program =
   match program with
   | GCProgram (vars, live_afters, colors, datatype, defs, instrs) ->
-    let new_defs = assign_defs defs in
-    let homes = Hashtbl.create 10 in
     let stack_offset = ref 0 in
     let rootstack_offset = ref 0 in
+    let new_defs = assign_defs defs in
+    let homes = Hashtbl.create 10 in
     let new_instrs = get_instrs instrs homes stack_offset colors live_afters vars rootstack_offset in
     let var_space = make_multiple_of_16 (- !stack_offset) in
     let vec_space = make_multiple_of_16 (!rootstack_offset) in

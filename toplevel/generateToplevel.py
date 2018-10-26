@@ -1,5 +1,5 @@
 modules = ['List', 'Stream']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'revealFunctions', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'convertClosures', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -31,11 +31,11 @@ let run_uniquify program =
 let run_typecheck program =
     let uniq = run_uniquify program in
     typecheck uniq\n\n
-let run_reveal program =
+let run_convert program =
     let typed = run_typecheck program in
-    reveal_functions typed\n\n
+    convert_closures typed\n\n
 let run_expose program =
-    let reveal = run_reveal program in
+    let reveal = run_convert program in
     expose_allocation reveal\n\n
 let run_flatten program =
     let exposed = run_expose program in

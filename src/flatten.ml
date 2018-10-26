@@ -8,11 +8,11 @@ exception FlattenError of string
 
 let flatten_error s = raise (FlattenError s)
 
-let get_func_id f =
+let get_id f =
   match f with
-  | TypeIs (dt, RFunctionRef label) -> label, CFunctionRef label
-  | TypeIs (dt, RVar label) -> label, CVar label
-  | _ -> flatten_error "Expected function-ref"
+  | CFunctionRef label -> label
+  | CVar label -> label
+  | _ -> flatten_error ("Expected function-ref: " ^ string_of_carg f)
 
 let get_var_name v name =
   match v with
@@ -162,7 +162,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let (varg, vstmts, vvars) = flatten_typed_exp vec in
       let (earg, estmts, evars) = flatten_typed_exp e in
       let flat_arg = CVoid in
-      let stmts = [CVectorSet (varg, i, earg)] in
+      let stmts = vstmts @ estmts @ [CVectorSet (varg, i, earg)] in
       let var_list = vvars @ evars in
       (flat_arg, stmts, var_list)
     | RVectorRef (ve, i) ->
@@ -182,12 +182,13 @@ let rec flatten_typed_exp ?(v=None) exp =
     | RApply (fun_id, args) ->
       let flat_args, flat_stmts, flat_vars =
         split3 (map (fun a -> flatten_typed_exp a) args) in
-      let id, carg = get_func_id fun_id in
+      let fun_arg, fun_stmts, fun_vars = flatten_typed_exp fun_id in
+      let id = get_id fun_arg in
       let var_name = get_var_name v id in
       let flat_arg = CVar var_name in
-      let apply = CApply (carg, flat_args) in
-      let stmts = concat flat_stmts @ [CAssign (var_name, apply)] in
-      let var_list = if v = None then (var_name, dt) :: concat flat_vars else concat flat_vars in
+      let apply = CApply (fun_arg, flat_args) in
+      let stmts = concat flat_stmts @ fun_stmts @ [CAssign (var_name, apply)] in
+      let var_list = if v = None then (var_name, dt) :: concat flat_vars @ fun_vars else concat flat_vars @ fun_vars in
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
     | RVector _ -> flatten_error "should not have vector in flatten"

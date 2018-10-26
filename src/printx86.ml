@@ -15,7 +15,7 @@ let rec add_save_registers registers op =
   | reg :: t -> "\t" ^ op ^ "\t%" ^ reg ^ "\n" ^ (add_save_registers t op)
   | [] -> ""
 
-let dt_to_x86 dt tbl =
+let rec dt_to_x86 dt tbl =
   match dt with
   | TypeInt -> "_tint"
   | TypeBool -> "_tbool"
@@ -25,12 +25,15 @@ let dt_to_x86 dt tbl =
     with Not_found ->
       let label = Gensym.gen_str "_tvector" in
       let _ = Hashtbl.add tbl dt label in
+      List.iter (fun a -> let _ = dt_to_x86 a tbl in ()) l;
       label)
   | TypeFunction (args, ret) -> (
     try Hashtbl.find tbl dt
     with Not_found ->
       let label = Gensym.gen_str "_tfunc" in
       let _ = Hashtbl.add tbl dt label in
+      List.iter (fun a -> let _ = dt_to_x86 a tbl in ()) args;
+      let _ = dt_to_x86 ret tbl in
       label)
 
 let arg_to_x86 arg =
@@ -83,6 +86,8 @@ let rec print_instrs instrs typelbls =
   | Leaq (TypeRef a, b) :: tl -> "\tleaq\t" ^ type_arg_to_x86 (TypeRef a) typelbls ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
   | Leaq (a, b) :: tl -> "\tleaq\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ print_instrs tl typelbls
   | IndirectCallq a :: tl -> "\tcallq\t*" ^ arg_to_x86 a ^ "\n" ^ print_instrs tl typelbls
+  | AComment s :: tl -> "\t# " ^ s ^ "\n" ^ print_instrs tl typelbls
+  | XChg (a, b) :: tl -> "\txchg\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
 
 let get_x86_type_variables typetbl =
@@ -198,7 +203,7 @@ let print_x86 program =
                     store_rootstack_in_reg root_stack_register ^
                     zero_out_rootstack () ^
                     offset_rootstack_ptr rootstack_space heap_size "addq" ^ "\n" in
-    let ending =  "\n" ^ print_result datatype typetbl ^
+    let ending =  "\n" ^ (* print_result datatype typetbl ^ *)
                   offset_rootstack_ptr rootstack_space heap_size "subq" ^
                  "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^

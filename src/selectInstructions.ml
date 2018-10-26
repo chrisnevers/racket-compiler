@@ -1,5 +1,6 @@
 open AProgram
 open CProgram
+open RProgram
 open Registers
 open Helper
 open List
@@ -14,6 +15,16 @@ let get_collect_call_count () =
   collect_call_count := !collect_call_count + 1;
   AInt !collect_call_count
 
+let rec select_print_instrs dt arg =
+  match dt with
+  | TypeInt -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_int"]
+  | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
+  | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
+  | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
+  | TypeVector l -> match l with
+    | TypeFunction (args, ret) :: [] -> select_print_instrs (TypeFunction (args, ret)) arg
+    | _ -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
+
 let select_exp e v : ainstr list =
   match e with
   | CArg (CFunctionRef label) ->
@@ -23,15 +34,7 @@ let select_exp e v : ainstr list =
     [Movq (arg, v)]
   | CPrint (dt, a) ->
     let arg = get_aarg_of_carg a in
-    (* Args: value, ?tag, newline *)
-    let prinstrs = (match dt with
-      | TypeInt -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_int"]
-      | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
-      | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
-      | TypeVector l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
-      | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
-    ) in
-    prinstrs
+    select_print_instrs dt arg
   | CRead ->
     [ACallq (GlobalValue "read_int", [], v)]
   | CUnOp (o, a) ->
@@ -141,4 +144,11 @@ let rec select_defs defs =
 let select_instructions program : pprogram =
   match program with
   | CProgram (vars, datatype, defs, stmts) ->
-    PProgram (vars, datatype, select_defs defs, select_stmts stmts)
+    let new_defs = select_defs defs in
+    let new_stmts = select_stmts stmts in
+    let print_res =
+      (* if datatype <> TypeVoid then  *)
+    select_print_instrs datatype (Reg Rax)
+    (* else []  *)
+    in
+    PProgram (vars, datatype, new_defs, new_stmts @ print_res)

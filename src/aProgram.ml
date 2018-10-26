@@ -56,6 +56,8 @@ type ainstr =
   (* Callq (label, args, result location ) *)
   | ACallq of aarg * aarg list * aarg
   | IndirectCallq of aarg
+  | AComment of string
+  | XChg of aarg * aarg
 
 type interference = ((aarg, aarg list) Hashtbl.t)
 type colorgraph = ((aarg, int) Hashtbl.t)
@@ -195,6 +197,7 @@ and string_of_ainstr a : string =
   | Jmp s -> "Jmp " ^ s
   | JmpIf (cmp, s) -> "JmpIf " ^ (string_of_acmp cmp) ^ " " ^ s
   | Label s -> "Label " ^ s
+  | XChg (l, r) -> "XChg " ^ (string_of_aarg l) ^ " " ^  (string_of_aarg r)
   | AIf ((cmp, l, r), thn, thn_live_afters, els, els_live_afters) ->
     "If " ^ (string_of_acmp cmp) ^ " " ^ (string_of_aarg l) ^ " " ^ (string_of_aarg r) ^
     "\nThnLA\t[\n\t" ^ (List.fold_left (fun acc e -> acc ^ (string_of_aarg_list e)) "" thn_live_afters) ^ "\n\t]\n" ^
