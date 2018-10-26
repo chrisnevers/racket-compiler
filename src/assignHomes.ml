@@ -9,10 +9,13 @@ let assign_error msg = raise (AssignHomesError msg)
 
 let get_register_offset arg homes stack_offset is_root =
   try
-    Hashtbl.find homes arg
+    let ret = Hashtbl.find homes arg in
+    (* print_endline ("register offset : " ^ string_of_aarg arg ^ " : " ^ string_of_int ret); *)
+    ret
   with
   | Not_found ->
-    stack_offset := if is_root then !stack_offset + 8 else !stack_offset - 8;
+    stack_offset := if is_root then !stack_offset - 8 else !stack_offset - 8;
+    (* print_endline ("is root: " ^ string_of_bool is_root ^ " : new register offset : " ^ string_of_aarg arg ^ " : " ^ string_of_int !stack_offset); *)
     Hashtbl.replace homes arg !stack_offset;
     !stack_offset
 
@@ -52,27 +55,27 @@ let restore_registers registers =
   let popqs = List.map (fun r ->
     offset := !offset + 8;
     Popq (r)
-  ) registers
+  ) (rev registers)
   in
   if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
 
 let save_ptr_registers registers =
-  let offset = ref (- 8) in
+  let offset = ref 0 in
   let pushqs = List.map (fun r ->
     offset := !offset + 8;
     Movq (r, Deref (root_stack_register, !offset))
   ) registers
   in
-  if !offset > (- 8) then pushqs else []
+  if !offset > 0 then pushqs else []
 
 let restore_ptr_registers registers =
-  let offset = ref (- 8) in
+  let offset = ref 0 in
   let pushqs = List.map (fun r ->
-    offset := !offset - 8;
+    offset := !offset + 8;
     Movq (Deref (root_stack_register, !offset), r)
-  ) registers
+  ) (rev registers)
   in
-  if !offset > (- 8) then pushqs else []
+  if !offset > 0 then pushqs else []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then
@@ -124,11 +127,11 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     let ptr_vars = is_ptr vars live_vars in
     (* Get the corresponding assigned homes (registers or derefs) *)
     let atomic_registers = get_arg_homes atomic_vars homes offset colors vars rootstack_offset in
-    let ptr_registers = get_arg_homes ptr_vars homes offset colors vars rootstack_offset in
-    (* iter2 (fun a b -> print_endline ("Var: " ^ string_of_aarg a ^ " reg: " ^ string_of_aarg b)) ptr_vars ptr_registers; *)
+    let ptr_registers = filter (fun a -> match a with | Reg _ -> true | _ -> false) (get_arg_homes ptr_vars homes offset colors vars rootstack_offset) in
+    (* iter (fun a -> print_endline ("Var: " ^ string_of_aarg a)) ptr_registers; *)
     (* iter (fun a -> print_endline () ; *)
     (* print_endline "\n"; *)
-    rootstack_offset := if List.length ptr_registers > !rootstack_offset then List.length ptr_registers else !rootstack_offset;
+    (* rootstack_offset := if List.length ptr_registers > !rootstack_offset then List.length ptr_registers else !rootstack_offset; *)
     (* Only save atomic registers that are caller save *)
     let save_atomic_regs = List.filter (fun e -> List.mem e caller_save_aregisters) atomic_registers in
     (* Before calling label, save the atomic and ptr registers *)
@@ -141,7 +144,6 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
     push_call_args (get_arg_homes args homes offset colors vars rootstack_offset) @
     (* Call the function *)
     AComment "calling funcs" ::
-
     (match l with
     | GlobalValue v -> [Callq v]
     | AVar v -> IndirectCallq (get_arg_home l homes offset colors vars rootstack_offset) :: []
@@ -204,7 +206,7 @@ let rec assign_defs defs =
     let rootstack_offset = ref 0 in
     let new_instrs = get_instrs instrs homes stack_offset colors lives var_types rootstack_offset in
     let max_stack = make_multiple_of_16 (- !stack_offset) in
-    let vec_space = make_multiple_of_16 (!rootstack_offset) in
+    let vec_space = make_multiple_of_16 (- !rootstack_offset) in
     ADefine (id, num_params, vars, var_types, max_stack, vec_space, new_instrs) :: assign_defs t
   | [] -> []
 
@@ -217,5 +219,5 @@ let assign_homes program =
     let homes = Hashtbl.create 10 in
     let new_instrs = get_instrs instrs homes stack_offset colors live_afters vars rootstack_offset in
     let var_space = make_multiple_of_16 (- !stack_offset) in
-    let vec_space = make_multiple_of_16 (!rootstack_offset) in
+    let vec_space = make_multiple_of_16 (- !rootstack_offset) in
     AProgram (var_space, vec_space, datatype, new_defs, new_instrs)
