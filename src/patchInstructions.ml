@@ -56,6 +56,10 @@ let rec patch_instrs instrs = match instrs with
     else if is_int b then
       Movq (b, Reg Rax) :: Cmpq (Reg Rax, a) :: patch_instrs tl
     else Cmpq (a, b) :: patch_instrs tl
+  | Leaq (a, b) :: tl ->
+    if is_deref b then
+      Leaq (a, Reg Rax) :: Movq (Reg Rax, b) :: patch_instrs tl
+    else Leaq (a, b) :: patch_instrs tl
   | h :: tl -> h :: patch_instrs tl
 
 let rec patch_defs defs =

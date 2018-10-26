@@ -42,40 +42,28 @@ let get_arg_home arg homes stack_offset colors vars rootstack_offset =
   | _ -> arg
 
 let save_registers registers =
-  let offset = ref 0 in
-  let pushqs = List.map (fun r ->
-    offset := !offset + 8;
-    Pushq (r)
-  ) registers
-  in
-  if !offset > 0 then pushqs @ [Subq (AInt !offset, Reg Rsp)] else []
+  let pushs = List.map (fun r -> Pushq r) registers in
+  let len = List.length pushs in
+  if len = 0 then [] else
+  pushs @ Subq (AInt (len * 8), Reg Rsp) :: []
 
 let restore_registers registers =
-  let offset = ref 0 in
-  let popqs = List.map (fun r ->
-    offset := !offset + 8;
-    Popq (r)
-  ) (rev registers)
-  in
-  if !offset > 0 then Addq (AInt !offset, Reg Rsp) :: popqs else []
+  let pops = List.map (fun r -> Popq r) (rev registers) in
+  let len = List.length pops in
+  if len = 0 then [] else
+  Addq (AInt (len * 8), Reg Rsp) :: pops @ []
 
 let save_ptr_registers registers =
-  let offset = ref 0 in
-  let pushqs = List.map (fun r ->
-    offset := !offset + 8;
-    Movq (r, Deref (root_stack_register, !offset))
-  ) registers
-  in
-  if !offset > 0 then pushqs else []
+  let pushs = List.map (fun r -> Pushq r) registers in
+  let len = List.length pushs in
+  if len = 0 then [] else
+  XChg (Reg Rsp, Reg root_stack_register) :: Addq (AInt (len * 8), Reg Rsp) :: pushs @ XChg (Reg Rsp, Reg root_stack_register) :: []
 
 let restore_ptr_registers registers =
-  let offset = ref 0 in
-  let pushqs = List.map (fun r ->
-    offset := !offset + 8;
-    Movq (Deref (root_stack_register, !offset), r)
-  ) (rev registers)
-  in
-  if !offset > 0 then pushqs else []
+  let pops = List.map (fun r -> Popq r) (rev registers) in
+  let len = List.length pops in
+  if len = 0 then [] else
+  XChg (Reg Rsp, Reg root_stack_register) :: pops @ Subq (AInt (len * 8), Reg Rsp) :: XChg (Reg Rsp, Reg root_stack_register) :: []
 
 let push_call_args registers =
   if List.length registers >= List.length arg_locations then

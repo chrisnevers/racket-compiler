@@ -83,10 +83,12 @@ let () =
   test "functions" "add" "3" None;
   test "functions" "map-vec" "(6, 10)" None;
   (* This only captures first line of output *)
-  test "functions" "recursion" "-10" None;
+  test "functions" "recursion" "10" None;
   test "functions" "print-type" "((Int -> Bool) -> (Int * Bool) -> Void)" None;
   test "functions" "no-args" "(Void)" None;
   test "functions" "mutually-recursive" "5" None;
   test "functions" "ex" "5" None;
+  test "functions" "save-atomics" "28" None;
+  test "functions" "save-ptrs" "28" None;
   test "closures" "lambda" "20" None;
   test "closures" "book" "42" None;

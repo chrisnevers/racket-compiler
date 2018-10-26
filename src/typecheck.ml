@@ -157,8 +157,10 @@ let rec typecheck_exp exp table sigma =
     let fdt = get_datatype_option nid in
     let (fun_args, fun_ret) = get_some_func_types fdt in
     let new_args = map (fun e -> typecheck_exp_type e table sigma) args in
-    iter2 compare_args new_args fun_args;
-    TypeIs (Some fun_ret, RApply (nid, new_args))
+    (try
+      iter2 compare_args new_args fun_args;
+      TypeIs (Some fun_ret, RApply (nid, new_args))
+    with Invalid_argument _ -> typecheck_error "function arguments do not match parameters")
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
