@@ -70,3 +70,76 @@ let is_vector vec =
   match vec with
   | TypeVector dt -> true
   | _ -> false
+
+let split3 l =
+  let rec split xs ys zs l =
+    match l with
+    | (x, y, z) :: t -> split (x :: xs) (y :: ys) (z :: zs) t
+    | [] -> List.rev xs, List.rev ys, List.rev zs
+  in
+  split [] [] [] l
+
+let get_var_id id =
+  match id with
+  | TypeIs (_, RVar v) -> v
+  | _ -> raise (SomeError "expected RVar")
+
+let get_avar_id id =
+  match id with
+  | AVar v -> v
+  | _ -> raise (SomeError "expected AVar")
+
+let tbl_to_list = fun h -> Hashtbl.fold (fun k v acc -> (k, v) :: acc) h []
+
+let sanitize_id id =
+  String.map (fun c -> if c = '-' then '_' else c) id
+
+let cons_uniq xs x = if List.mem x xs then xs else x :: xs
+let remove_duplicates xs = List.rev (List.fold_left cons_uniq [] xs)
+
+let last l = List.hd (List.rev l)
+let rm_last l = List.rev (List.tl (List.rev l))
+
+let get_free_vars args exp =
+  let rec rm_bindings tbl free typed_exp =
+  match typed_exp with
+  | TypeIs (dt, exp) ->
+    match exp with
+    | RLet (id, ie, be) ->
+      Hashtbl.replace tbl id None;
+      rm_bindings tbl free ie;
+      rm_bindings tbl free be
+    | RLambda (args, ret, e) ->
+      List.iter (fun (a,_) -> Hashtbl.replace tbl a None) args;
+      rm_bindings tbl free e
+    | RVectorLength e | RVectorRef (e, _)
+    | RPrint e | RWhile (_, e)
+    | RNot e | RUnOp (_, e) ->
+      rm_bindings tbl free e
+    | RAnd (l, r) | ROr (l, r) | RCmp (_, l, r)
+    | RBinOp (_, l, r) | RVectorSet (l, _, r) ->
+      rm_bindings tbl free l;
+      rm_bindings tbl free r
+    | RIf (c, t, e) ->
+      rm_bindings tbl free c;
+      rm_bindings tbl free t;
+      rm_bindings tbl free e;
+    | RBegin es | RWhen (_, es)
+    | RUnless (_, es) | RVector es ->
+      List.iter (fun e -> rm_bindings tbl free e) es
+    | RApply (id, es) ->
+      rm_bindings tbl free id;
+      List.iter (fun e -> rm_bindings tbl free e) es
+    | RVar v ->
+      (try let _ = Hashtbl.find tbl v in ()
+      with Not_found -> Hashtbl.add free v (get_some dt))
+    | RInt _ | RBool _ | RVoid
+    | RFunctionRef _ | RCollect _
+    | RAllocate _ | RGlobalValue _
+    | RRead -> ()
+  in
+  let tbl   = Hashtbl.create 10 in
+  let free  = Hashtbl.create 10 in
+  List.iter (fun (a, dt) -> Hashtbl.replace tbl a None) args;
+  rm_bindings tbl free exp;
+  tbl_to_list free

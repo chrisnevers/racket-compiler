@@ -1,1 +1,1 @@
-(program (>= read 10))
+(>= (read) 10)

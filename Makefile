@@ -8,7 +8,7 @@ TEST_FLAGS=-use-ocamlfind -pkgs ${TEST_PKGS} -Is src
 # ^: add -build-dir _build to put .native in _build/
 # add -- after .native below to run immediately
 
-default: build repl
+default: build
 
 build:
 	ocamlbuild ${BUILD_FLAGS} src/main.native
@@ -32,6 +32,8 @@ output:
 test:
 	ocamlbuild ${BUILD_FLAGS} ${TEST_FLAGS} ${DEBUG_FLAGS} tests/test.d.byte
 	ocamlbuild ${TEST_FLAGS} tests/test.native --
+
+ex:
 	ocamlbuild ${TEST_FLAGS} tests/exampleTests.native --
 
 clean:

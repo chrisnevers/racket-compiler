@@ -9,6 +9,7 @@ type carg =
   | CBool of bool
   | CVoid (* can be 1, so evaluates to true *)
   | CGlobalValue of string
+  | CFunctionRef of string
 
 type cexp =
   | CArg of carg
@@ -20,6 +21,7 @@ type cexp =
   | CCmp of ccmp * carg * carg
   | CAlloc of int * datatype
   | CVectorRef of carg * int
+  | CApply of carg * carg list
 
 type cstmt =
   | CAssign of string * cexp
@@ -31,8 +33,11 @@ type cstmt =
 
 type var_type = ((string, datatype) Hashtbl.t)
 
+type cdefine =
+  | CDefine of string * (string * datatype) list * datatype * var_type * cstmt list
+
 type cprogram =
-  | CProgram of var_type * datatype * cstmt list
+  | CProgram of var_type * datatype * cdefine list * cstmt list
 
 let string_of_ccmp o : string =
   match o with
@@ -50,6 +55,7 @@ let string_of_carg a : string =
   | CBool b -> "Bool " ^ (string_of_bool b)
   | CVoid -> "Void"
   | CGlobalValue s -> "GlobalValue " ^ s
+  | CFunctionRef s -> "FunctionRef " ^ s
   ) a
   ^ ")"
 
@@ -60,6 +66,7 @@ let string_of_carg_type a : string =
   | CBool _ -> "bool"
   | CVoid -> "void"
   | CGlobalValue _ -> "glbl"
+  | CFunctionRef _ -> "fun"
 
 let string_of_cexp e : string =
   "(" ^ (fun e ->
@@ -73,6 +80,7 @@ let string_of_cexp e : string =
   | CCmp (cmp, l, r) -> "Cmp " ^ (string_of_ccmp cmp) ^ " " ^ (string_of_carg l) ^ " " ^ (string_of_carg r)
   | CAlloc (i, dt) -> "Allocate " ^ (string_of_int i) ^ " " ^ (string_of_datatype dt)
   | CVectorRef (v, i) -> "VectorRef " ^ string_of_carg v ^ " " ^ string_of_int i
+  | CApply (id, args) -> "Apply " ^ (string_of_carg id) ^ " " ^ List.fold_left (fun acc s -> acc ^ string_of_carg s ^ "\n\t") "" args
   ) e
   ^ ")"
 
@@ -100,7 +108,7 @@ let string_of_vars_list l : string =
 
 let print_cprogram program =
   match program with
-  | CProgram (vars, dt, stmts) ->
+  | CProgram (vars, dt, defs, stmts) ->
     print_endline (
       "Program\t: " ^ (string_of_datatype dt) ^
       (* "\nVars\t: [" ^ (string_of_vars_list vars) ^ "]" ^ *)

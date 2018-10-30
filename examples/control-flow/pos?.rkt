@@ -1,1 +1,1 @@
-(program (not (pos? (- 1))))
+(not (pos? (- 1)))

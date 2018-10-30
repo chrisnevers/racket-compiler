@@ -18,7 +18,7 @@ let get_written_vars_test = (fun () ->
   assert_equal [AVar "v"] (get_written_vars (Xorq (AVar "x", AVar "v")));
   assert_equal [AVar "v"] (get_written_vars (Set (AE, AVar "v")));
   assert_equal [AVar "v"] (get_written_vars (Negq (AVar "v")));
-  assert_equal [AVar "y"] (get_written_vars (ACallq ("label", [AVar "x"], AVar "y")));
+  assert_equal [AVar "y"] (get_written_vars (ACallq (GlobalValue "label", [AVar "x"], AVar "y")));
 )
 
 
@@ -29,7 +29,7 @@ let get_read_vars_test = (fun () ->
   assert_equal [AVar "x"; AVar "v"] (get_read_vars (Xorq (AVar "x", AVar "v")));
   assert_equal [AVar "x"] (get_read_vars (Movq (AVar "x", AVar "v")));
   assert_equal [AVar "x"] (get_read_vars (Movzbq (AVar "x", AVar "v")));
-  assert_equal [AVar "x"] (get_read_vars (ACallq ("label", [AVar "x"], AVar "y")));
+  assert_equal [AVar "x"] (get_read_vars (ACallq (GlobalValue "label", [AVar "x"], AVar "y")));
 )
 
 let uncover_stmt_test = (fun () ->
@@ -49,14 +49,14 @@ let uncover_if_test = (fun () ->
 
 let uncover_while_test = (fun () ->
   let instrs = [Movq (AVoid, AVar "x0");
-                AWhile ([ACallq ("read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
+                AWhile ([ACallq (GlobalValue "read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
                         Set (AG, ByteReg Al); Movzbq (ByteReg Al, AVar "cmp2")],
                         [], (AE, AInt 1, AVar "cmp2"), [Movq (AInt 5, AVar "x0")], []);
                 Movq (AVar "x0", Reg Rax)]
   in
   let actual = List.rev (uncover (List.rev instrs) []) in
   let expected = [(Movq (AVoid, AVar "x0"), []);
-                  (AWhile ([ACallq ("read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
+                  (AWhile ([ACallq (GlobalValue "read_int", [], AVar "read1"); Cmpq (AInt 0, AVar "read1");
                         Set (AG, ByteReg Al); Movzbq (ByteReg Al, AVar "cmp2")],
                         [[AVar "x0"]; [AVar "read1"; AVar "x0"]; [AVar "x0"]; [AVar "x0"]], (AE, AInt 1, AVar "cmp2"), [Movq (AInt 5, AVar "x0")], [[]]), [AVar "x0"]);
                   (Movq (AVar "x0", Reg Rax), [AVar "x0"])]

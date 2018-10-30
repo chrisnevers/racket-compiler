@@ -49,6 +49,13 @@ let rec build_graph stmts live_afters map var_types : interference =
     (* add the edge (d, v) for every v of Lafter(k) unless v = d. *)
     add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
     build_graph t (tail live_afters) map var_types
+  | IMulq (s, d) :: t ->
+    add_bidirected_edges_if (fun v -> v <> d) d live_vars map;
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
+  | Cqto :: t | IDivq _ :: t ->
+    add_directed_edges live_vars [Reg Rdx] map;
+    build_graph t (tail live_afters) map var_types
   | Callq _ :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
     add_directed_edges live_vars caller_save_aregisters map;
@@ -64,11 +71,19 @@ let rec build_graph stmts live_afters map var_types : interference =
 
   (* if a vector-typed variable is live during a call to the collector, it must be spilled to ensure it is visible to the collector. *)
   (* handled by adding interference edges between the call-live vector-typed variables and all the callee-save registers *)
-  | ACallq ("collect", _, _) :: t ->
+  | ACallq (GlobalValue "collect", _, _) :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_directed_edges live_vars caller_save_aregisters map;
     let vec_live = get_live_vectors live_vars var_types in
     add_directed_edges vec_live callee_save_aregisters map;
+    build_graph t (tail live_afters) map var_types
+
+  | ACallq (AVar l as fp, args, v) :: t ->
+    (* Add an interference between all the live vars and the function pointer, args, and return variable *)
+    add_bidirected_edges_if (fun e -> true) fp live_vars map;
+    iter (fun v -> add_bidirected_edges_if (fun e -> e <> v) v live_vars map) args;
+    add_bidirected_edges_if (fun e -> true) v live_vars map;
+    (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k) : *)
+    add_directed_edges live_vars caller_save_aregisters map;
     build_graph t (tail live_afters) map var_types
 
   (* Generic calls *)
@@ -82,8 +97,20 @@ let rec build_graph stmts live_afters map var_types : interference =
   | h :: t -> build_graph t (tail live_afters) map var_types
   | [] -> map
 
+let rec build_defs defs =
+  match defs with
+  | LDefine (id, num_params, args, var_types, max_stack, lives, instrs) :: t ->
+    let tbl = Hashtbl.create 10 in
+    add_directed_edges args callee_save_aregisters tbl;
+    let map = build_graph instrs lives tbl var_types in
+    GDefine (id, num_params, args, var_types, max_stack, lives, map, instrs) :: build_defs t
+  | [] -> []
+
+
 let build_interference program : gprogram =
   match program with
-  | LProgram (var_types, live_afters, datatype, stmts) ->
+  | LProgram (var_types, live_afters, datatype, defs, stmts) ->
+    let new_defs = build_defs defs in
     let map = build_graph stmts live_afters (Hashtbl.create 10) var_types in
-    GProgram (var_types, live_afters, map, datatype, stmts)
+    (* print_interfer map; *)
+    GProgram (var_types, live_afters, map, datatype, new_defs, stmts)

@@ -1,4 +1,3 @@
-open Stream
 open Token
 
 exception LexerError of string
@@ -25,11 +24,18 @@ let get_stream src stream_type : char Stream.t =
     (* let _ = close_in channel in stream *)
   | `String -> Stream.of_string src
 
+let rec skip_line stream =
+  let nc = Stream.next stream in
+  match nc with
+  | '\n' -> next_char stream
+  | _ -> skip_line stream
+
 (* Skips white space *)
-let rec next_char stream : char =
+and next_char stream : char =
   let nc = Stream.next stream in
   match nc with
   | ' ' | '\t' | '\n' -> next_char stream
+  | ';' -> skip_line stream
   | c -> c
 
 let peek_char stream : char option = Stream.peek stream
@@ -78,6 +84,12 @@ let rec scan_identifier stream acc : token =
     | "unless"  -> TUnless
     | "print"   -> TPrint
     | "while"   -> TWhile
+    | "define"  -> TDefine
+    | "Int"     -> TTypeInt
+    | "Bool"    -> TTypeBool
+    | "Void"    -> TTypeVoid
+    | "Vector"  -> TTypeVector
+    | "lambda"  -> TLambda
     | _         -> TVar acc
 
 let get_cmp_op c : token =
@@ -94,12 +106,20 @@ let scan_token stream : token = try
     if is_alpha c then scan_identifier stream (Char.escaped c)
     else if is_digit c then scan_literal stream (Char.escaped c)
     else match c with
+    | '*' -> TArithOp "*"
+    | '/' -> TArithOp "/"
+    | '%' -> TArithOp "%"
     | '+' -> TArithOp "+"
-    | '-' -> TArithOp "-"
+    | '-' ->
+      let next = peek_char stream in
+      if next = Some '>' then
+        let _ = next_char stream in TArrow
+      else TArithOp "-"
     | '(' -> TLParen
     | ')' -> TRParen
     | '[' -> TLBracket
     | ']' -> TRBracket
+    | ':' -> TColon
     | '>' ->
       let next = peek_char stream in
       if next = Some '=' then let _ = next_char stream in TCmpOp ">=" else TCmpOp ">"

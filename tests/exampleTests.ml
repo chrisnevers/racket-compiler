@@ -11,10 +11,11 @@ let print_error test_name input expected actual =
 let print_success test_name input =
   print_endline (test_name ^ ": PASSED " ^ (get_input input))
 
-let run_example input =
+let run_example input = try
   match input with
   | None -> input_line (Unix.open_process_in "./output")
   | Some s -> input_line (Unix.open_process_in ("echo '" ^ s ^ "' | ./output"))
+  with End_of_file -> ""
 
 let run_test test_name expected input =
   let actual = run_example input in
@@ -38,6 +39,9 @@ let () =
   test "basics" "add" "-10" (Some "0");
   test "basics" "neg" "-45" None;
   test "basics" "uniquify" "18" None;
+  test "basics" "mult" "192000" (Some "3");
+  test "basics" "div" "35" None;
+  test "basics" "modulo" "21" None;
   test "reg-alloc" "liveness" "42" None;
   test "control-flow" "and" "#t" (Some "10");
   test "control-flow" "and" "#f" (Some "5");
@@ -76,3 +80,16 @@ let () =
   test "heap" "call_collect" "((1, 2, 3), (1, 2, 3))" None;
   test "heap" "nested-vec-ref" "42" None;
   test "heap" "vec-length" "2" None;
+  test "functions" "add" "3" None;
+  test "functions" "map-vec" "(6, 10)" None;
+  (* This only captures first line of output *)
+  test "functions" "recursion" "10" None;
+  test "functions" "print-type" "((Int -> Bool) -> (Int * Bool) -> Void)" None;
+  test "functions" "no-args" "(Void)" None;
+  test "functions" "mutually-recursive" "5" None;
+  test "functions" "ex" "5" None;
+  test "functions" "save-atomics" "28" None;
+  test "functions" "save-ptrs" "28" None;
+  test "closures" "lambda" "20" None;
+  test "closures" "book" "42" None;
+  test "closures" "print-lambda" "((Int * Int) -> Bool)" None;

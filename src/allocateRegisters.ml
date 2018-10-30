@@ -62,7 +62,8 @@ let rec get_colors graph saturations colors move =
     (* Find its neighboring nodes *)
     let adjacents = Hashtbl.find graph max_saturated in
     (* Find what its neighboring nodes are already assigned *)
-    let adjacent_colors = get_adjacent_colors colors adjacents in
+    (* Get lowest color using saturations not adjacents. This way registers are put into account *)
+    let adjacent_colors = Hashtbl.find saturations max_saturated in
     (* Find its move bias neighboring nodes *)
     let move_adjacents = find_in_map max_saturated move in
     (* Find whats its move bias neighbors are already assigned *)
@@ -140,17 +141,23 @@ let rec create_move_bias_graph instrs tbl =
   | _ :: tl -> create_move_bias_graph tl tbl
   | [] -> tbl
 
+let rec allocate_defs defs =
+  match defs with
+  | GDefine (id, num_params, args, var_types, max_stack, lives, graph, instrs) :: t ->
+    let all_vars = map (fun (id, dt) -> id) (tbl_to_list var_types) in
+    let move = create_move_bias_graph instrs (Hashtbl.create 10) in
+    let colors = color_graph graph all_vars move in
+    GCDefine (id, num_params, args, var_types, max_stack, lives, colors, instrs) :: allocate_defs t
+  | [] -> []
+
 let allocate_registers program : gcprogram =
   match program with
-  | GProgram (vars, live_afters, graph, datatype, instrs) ->
+  | GProgram (vars, live_afters, graph, datatype, defs, instrs) ->
+    let new_defs = allocate_defs defs in
     let jvars = get_hashtable_keys vars in
     (* Create move bias graph to doc which vars are movq'd to other vars *)
     let move = create_move_bias_graph instrs (Hashtbl.create 10) in
     (* Assign each var a color unique to its adjacent nodes *)
-    (* print_gprogram (GProgram (vars, live_afters, remove_registers (Hashtbl.copy graph), datatype, instrs)); *)
     let colors = color_graph graph jvars move in
-    (* Reiterate over instructions & replace vars with registers *)
-    (* print_gprogram (GProgram (vars, live_afters, graph, datatype, instrs)); *)
     (* print_color_graph colors; *)
-    (* let new_instrs = get_new_instrs instrs colors in *)
-    GCProgram (vars, live_afters, colors, datatype, instrs)
+    GCProgram (vars, live_afters, colors, datatype, new_defs, instrs)

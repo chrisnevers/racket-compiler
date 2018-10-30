@@ -3,6 +3,7 @@ open BuildInterference
 open RProgram
 open AProgram
 open Registers
+open List
 
 let find_in_map_test = (fun () ->
   (* Not found *)
@@ -93,6 +94,28 @@ let build_graph_addq_test = (fun () ->
     assert_equal [AVar "a"; AVar "c"] (Hashtbl.find map (AVar "b"))
 )
 
+let build_graph_mulq_test = (fun () ->
+  let var_types = Hashtbl.create 2 in
+  let map = Hashtbl.create 2 in
+  let live = [[AVar "a"; AVar "b"; AVar "c"]] in
+  let stmt = IMulq (AVar "c", AVar "b") in
+  let map = build_graph [stmt] live map var_types in
+  assert_equal [AVar "b"; Reg Rdx] (Hashtbl.find map (AVar "a"));
+  assert_equal [AVar "b"; Reg Rdx] (Hashtbl.find map (AVar "c"));
+  assert_equal [AVar "a"; AVar "c"; Reg Rdx] (Hashtbl.find map (AVar "b"));
+)
+
+let build_graph_divq_test = (fun () ->
+  let var_types = Hashtbl.create 2 in
+  let map = Hashtbl.create 2 in
+  let live = [[AVar "a"; AVar "b"; AVar "c"]] in
+  let stmt = IDivq (AVar "a") in
+  let map = build_graph [stmt] live map var_types in
+  assert_equal [Reg Rdx] (Hashtbl.find map (AVar "a"));
+  assert_equal [Reg Rdx] (Hashtbl.find map (AVar "c"));
+  assert_equal [Reg Rdx] (Hashtbl.find map (AVar "b"));
+)
+
 let build_graph_callq_test = (fun () ->
     let var_types = Hashtbl.create 2 in
     let map = Hashtbl.create 2 in
@@ -102,14 +125,49 @@ let build_graph_callq_test = (fun () ->
     assert_equal caller_save_aregisters (Hashtbl.find map (AVar "a"));
 )
 
-let build_graph_acallq_test = (fun () ->
+let build_graph_acallq_general_test = (fun () ->
     let var_types = Hashtbl.create 2 in
     let map = Hashtbl.create 2 in
     let live = [[AVar "a"]] in
-    let stmt = ACallq ("hey", [], AVar "b") in
+    let stmt = ACallq (GlobalValue "hey", [], AVar "b") in
     let map = build_graph [stmt] live map var_types in
     assert_equal (AVar "b" :: caller_save_aregisters) (Hashtbl.find map (AVar "a"));
     assert_equal [AVar "a"] (Hashtbl.find map (AVar "b"));
+)
+
+let build_graph_acallq_collect_test = (fun () ->
+    let var_types = Hashtbl.create 2 in
+    let map = Hashtbl.create 2 in
+    Hashtbl.add var_types "a" (TypeVector [TypeInt]);
+    let live = [[AVar "a"]] in
+    let stmt = ACallq (GlobalValue "collect", [], AVar "_") in
+    let map = build_graph [stmt] live map var_types in
+    let res = Hashtbl.find map (AVar "a") in
+    assert_equal callee_save_aregisters res;
+)
+
+let build_graph_acallq_var_test = (fun () ->
+    let var_types = Hashtbl.create 2 in
+    let map = Hashtbl.create 2 in
+    let live = [[AVar "l"]] in
+    let stmt = ACallq (AVar "a", [AVar "b"; AVar "c"], AVar "d") in
+    let map = build_graph [stmt] live map var_types in
+    let actual = Hashtbl.find map (AVar "l") in
+    let expected = [AVar "a"; AVar "b"; AVar "c"; AVar "d"] @ caller_save_aregisters in
+    assert_equal expected actual;
+)
+
+let build_defs_test = (fun () ->
+  let instrs = [Addq (AInt 1, AVar "x")] in
+  let lives = [[AVar "x"]] in
+  let types = Hashtbl.create 1 in
+  Hashtbl.add types "x" TypeInt;
+  let defs = [LDefine ("foo", 1, [AVar "x"], types, 0, lives, instrs)] in
+  let actual = hd (build_defs defs) in
+  match actual with
+  | GDefine (id, param, args, types, stack, lives, map, instrs) ->
+    let arg_inter = Hashtbl.find map (AVar "x") in
+    assert_equal callee_save_aregisters arg_inter
 )
 
 let test =
@@ -123,8 +181,13 @@ let test =
     "get_live_vectors test" >:: get_live_vectors_test;
     "build_graph_movq test" >:: build_graph_movq_test;
     "build_graph_addq test" >:: build_graph_addq_test;
+    "build_graph_divq test" >:: build_graph_divq_test;
+    "build_graph_mulq test" >:: build_graph_mulq_test;
     "build_graph_callq test" >:: build_graph_callq_test;
-    "build_graph_acallq test" >:: build_graph_acallq_test;
+    "build_graph_acallq_general test" >:: build_graph_acallq_general_test;
+    "build_graph_acallq_collect test" >:: build_graph_acallq_collect_test;
+    "build_graph_acallq_var test" >:: build_graph_acallq_var_test;
+    "build_defs test" >:: build_defs_test;
   ]
 
 let build_interference_tests =

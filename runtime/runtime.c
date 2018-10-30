@@ -15,7 +15,9 @@ void print_int(int64_t i, short newline);
 void print_bool(int64_t i, short newline);
 void print_void(short newline);
 void print_vector(int64_t* v, int64_t* tag, short newline);
+void print_function(int64_t* tag, short newline);
 void print_any(int64_t val, int64_t* tag, short newline);
+void print_any_type (int64_t* tag, short newline);
 
 void show_space (int64_t* start, int64_t* end, char* label);
 
@@ -24,6 +26,7 @@ extern int64_t tint;
 extern int64_t tbool;
 extern int64_t tvoid;
 extern int64_t tvector;
+extern int64_t tfunc;
 
 int64_t* rootstack_ptr      = NULL;
 int64_t* rootstack_begin    = NULL;
@@ -359,6 +362,63 @@ void print_vector(int64_t* v, int64_t* tag, short newline) {
     printf(")%s", newline ? "\n" : "");
 }
 
+void print_function(int64_t* tag, short newline) {
+    int64_t  arg_count  = tag[1];
+    int64_t* ret        = (int64_t*) tag[arg_count + 2];
+
+    printf("(");
+    for (uint64_t i = 0; i < arg_count; i++) {
+        print_any_type((int64_t*) tag[2 + i], 0);
+        printf (" -> ");
+    }
+    print_any_type (ret, 0);
+    printf(")%s", newline ? "\n" : "");
+}
+
+
+void print_type_int (short newline) {
+    printf("Int%s", newline ? "\n" : "");
+}
+
+
+void print_type_bool (short newline) {
+    printf("Bool%s", newline ? "\n" : "");
+}
+
+
+void print_type_void (short newline) {
+    printf("Void%s", newline ? "\n" : "");
+}
+
+
+void print_type_vector (int64_t* tag, short newline) {
+    printf("(");
+    for (uint64_t i = 0; i < tag[1]; i++) {
+        print_any_type((int64_t*) tag[2 + i], 0);
+        if (i + 1 < tag[1]) {
+            printf (" * ");
+        }
+    }
+    printf(")%s", newline ? "\n" : "");
+}
+
+
+void print_any_type (int64_t* tag, short newline) {
+    if (tag[0] == tint) {
+        print_type_int (newline);
+    } else if (tag[0] == tbool) {
+        print_type_bool (newline);
+    } else if (tag[0] == tvoid) {
+        print_type_void (newline);
+    } else if (tag[0] == tvector) {
+        print_type_vector (tag, newline);
+    } else if (tag[0] == tfunc) {
+        print_function (tag, newline);
+    } else {
+        fprintf(stderr, "Error: print_any_type() - Unknown type in tag[0]: %lld\n", tag[0]);
+    }
+}
+
 
 void print_any(int64_t val, int64_t* tag, short newline) {
     if (tag[0] == tint) {
@@ -369,6 +429,8 @@ void print_any(int64_t val, int64_t* tag, short newline) {
         print_void(newline);
     } else if (tag[0] == tvector) {
         print_vector((int64_t*)val, tag, newline);
+    } else if (tag[0] == tfunc) {
+        print_function (tag, newline);
     } else {
         fprintf(stderr, "Error: print_any() - Unknown type in tag[0]: %lld\n", tag[0]);
     }

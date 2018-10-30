@@ -26,6 +26,14 @@ type token =
   | TUnless
   | TPrint
   | TWhile
+  | TDefine
+  | TColon
+  | TArrow
+  | TTypeInt
+  | TTypeBool
+  | TTypeVoid
+  | TTypeVector
+  | TLambda
   | TEOF
 
 let string_of_token t =
@@ -57,6 +65,14 @@ let string_of_token t =
   | TUnless -> "unless"
   | TPrint -> "print"
   | TWhile -> "while"
+  | TDefine -> "define"
+  | TColon -> ":"
+  | TArrow -> "->"
+  | TTypeInt -> "Int"
+  | TTypeBool -> "Bool"
+  | TTypeVoid -> "Void"
+  | TTypeVector -> "Vector"
+  | TLambda -> "lambda"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

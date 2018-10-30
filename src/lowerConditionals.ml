@@ -4,10 +4,6 @@ open Registers
 open AssignHomes
 open List
 
-exception LowerConditionalsException of string
-
-let lower_conditional_error s = raise (LowerConditionalsException s)
-
 let gen_unique label cnt =
   cnt := !cnt + 1;
   label ^ (string_of_int !cnt)
@@ -29,9 +25,17 @@ let rec lower_instructions instrs uniq_cnt =
     :: Label end_label :: lower_instructions t uniq_cnt
   | h :: t -> h :: lower_instructions t uniq_cnt
 
+let rec lower_defs defs uniq_count =
+  match defs with
+  | ADefine (id, num_params, vars, var_types, max_stack, vec_space, instrs) :: t ->
+    let new_instrs = lower_instructions instrs uniq_count in
+    ADefine (id, num_params, vars, var_types, max_stack, vec_space, new_instrs) :: lower_defs t uniq_count
+  | [] -> []
+
 let lower_conditionals program =
   match program with
-  | AProgram (var_space, rootstack_space, datatype, instrs) ->
+  | AProgram (var_space, rootstack_space, datatype, defs, instrs) ->
     let uniq_count = ref 0 in
+    let new_defs = lower_defs defs uniq_count in
     let new_instrs = lower_instructions instrs uniq_count in
-    AProgram (var_space, rootstack_space, datatype, new_instrs)
+    AProgram (var_space, rootstack_space, datatype, new_defs, new_instrs)

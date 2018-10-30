@@ -3,6 +3,7 @@ type datatype =
   | TypeBool
   | TypeVoid
   | TypeVector of datatype list
+  | TypeFunction of datatype list * datatype
 
 type rexp_type =
   | TypeIs of datatype option * rexp
@@ -12,6 +13,7 @@ and rexp =
   | RInt of int
   | RBool of bool
   | RVoid
+  | RFunctionRef of string
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
@@ -33,9 +35,14 @@ and rexp =
   | RUnless of rexp_type * rexp_type list
   | RPrint of rexp_type
   | RWhile of rexp_type * rexp_type
+  | RApply of rexp_type * rexp_type list
+  | RLambda of (string * datatype) list * datatype * rexp_type
+
+type rdefine =
+  | RDefine of string * (string * datatype) list * datatype * rexp_type
 
 type rprogram =
-  | RProgram of datatype option * rexp_type
+  | RProgram of datatype option * rdefine list * rexp_type
 
 let get_datatype_option et : datatype option =
   match et with
@@ -72,6 +79,7 @@ let rec string_of_datatype dt =
   | TypeBool -> "bool"
   | TypeVoid -> "void"
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
+  | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
 
 and string_of_datatypes dt =
   match dt with
@@ -133,6 +141,9 @@ let rec string_of_rexp e : string =
   | RUnless (cnd, es) -> "Unless (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexps_type es ^ ")"
   | RPrint e -> "Print (" ^ string_of_rexp_type e ^ ")"
   | RWhile (cnd, e) -> "While (" ^ string_of_rexp_type cnd ^ ") (" ^ string_of_rexp_type e ^ ")"
+  | RApply (id, args) -> string_of_rexp_type id ^ "(" ^ (string_of_rexps_type args) ^ ")"
+  | RFunctionRef id -> "FunctionRef" ^ id
+  | RLambda _ -> "lambda"
   ) e
   ^ ")\n"
 
@@ -155,4 +166,4 @@ and string_of_rexps_type e : string =
 
 let print_rprogram p =
   match p with
-  | RProgram (dt, e) -> print_endline ("Program :\nDatatype: " ^ (string_of_datatype_option dt) ^ "\nExp:" ^ (string_of_rexp_type e))
+  | RProgram (dt, defs, e) -> print_endline ("Program :\nDatatype: " ^ (string_of_datatype_option dt) ^ "\nExp:" ^ (string_of_rexp_type e))
