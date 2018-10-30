@@ -92,3 +92,4 @@ let () =
   test "functions" "save-ptrs" "28" None;
   test "closures" "lambda" "20" None;
   test "closures" "book" "42" None;
+  test "closures" "print-lambda" "((Int * Int) -> Bool)" None;

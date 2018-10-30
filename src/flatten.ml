@@ -191,6 +191,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let var_list = if v = None then (var_name, dt) :: concat flat_vars @ fun_vars else concat flat_vars @ fun_vars in
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
+    | RLambda _ -> flatten_error "should not have lambda in vector"
     | RVector _ -> flatten_error "should not have vector in flatten"
     | RVectorLength _ -> flatten_error "should not have vector-length in flatten"
     | RBegin _ -> flatten_error "should not have begin in flatten"

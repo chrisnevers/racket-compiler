@@ -12,6 +12,15 @@ Run:
 
         ./main.native {file_name}
 
+## Testing The Project
+
+Run unit tests:
+
+        make test
+
+Run example tests:
+
+        make ex
 
 ## Implementation List
 
@@ -41,10 +50,10 @@ Run:
     - First class : `(vector foo #t)`
     - Mutually recursive
     - Typed: `(define (add1 [x : Int]) : Int ...)`
-
+6. ~~Closures~~
+    - Typed: `(let ([y 4]) (lambda ([z : Int]) : Int (+ y z)))`
 
 TODO:
-* Closures?
 * Pattern Matching
 * Chars
 * Arrays

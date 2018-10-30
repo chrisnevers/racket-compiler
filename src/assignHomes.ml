@@ -185,6 +185,7 @@ let rec get_instrs instrs homes offset colors live_afters vars rootstack_offset 
   | Leaq (a, b) :: t -> Leaq (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | IndirectCallq a :: t -> IndirectCallq (get_arg_home a homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
   | AComment s :: t -> AComment s :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
+  | XChg (a, b) :: t -> XChg (get_arg_home a homes offset colors vars rootstack_offset, get_arg_home b homes offset colors vars rootstack_offset) :: (get_instrs t homes offset colors (tl live_afters) vars rootstack_offset)
 
 let rec assign_defs defs =
   match defs with

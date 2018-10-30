@@ -213,8 +213,8 @@ and string_of_ainstr a : string =
   | Leaq (s, d) -> "Leaq " ^ string_of_aarg s ^ " " ^ string_of_aarg d
   | ACallq (l, args, res) ->
     "Callq " ^ string_of_aarg l ^ ", " ^ List.fold_left (fun acc e -> acc ^ " " ^ string_of_aarg e) "" args ^ ", " ^ string_of_aarg res
-  | IndirectCallq a ->
-    "IndirectCallq " ^ string_of_aarg a
+  | IndirectCallq a -> "IndirectCallq " ^ string_of_aarg a
+  | AComment s -> "Comment " ^ s
 
 (* Will be obsolete when switching to Core - sexp_of *)
 let rec string_of_adefs defs =

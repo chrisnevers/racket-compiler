@@ -73,7 +73,6 @@ let rec build_graph stmts live_afters map var_types : interference =
   (* handled by adding interference edges between the call-live vector-typed variables and all the callee-save registers *)
   | ACallq (GlobalValue "collect", _, _) :: t ->
     (* add an edge (r, v) for every caller-save register r and every variable v of Lafter(k). *)
-    add_directed_edges live_vars caller_save_aregisters map;
     let vec_live = get_live_vectors live_vars var_types in
     add_directed_edges vec_live callee_save_aregisters map;
     build_graph t (tail live_afters) map var_types

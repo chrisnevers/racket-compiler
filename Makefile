@@ -30,8 +30,10 @@ output:
 	gcc output.o runtime/runtime.o -o output
 
 test:
-	# ocamlbuild ${BUILD_FLAGS} ${TEST_FLAGS} ${DEBUG_FLAGS} tests/test.d.byte
-	# ocamlbuild ${TEST_FLAGS} tests/test.native --
+	ocamlbuild ${BUILD_FLAGS} ${TEST_FLAGS} ${DEBUG_FLAGS} tests/test.d.byte
+	ocamlbuild ${TEST_FLAGS} tests/test.native --
+
+ex:
 	ocamlbuild ${TEST_FLAGS} tests/exampleTests.native --
 
 clean:
