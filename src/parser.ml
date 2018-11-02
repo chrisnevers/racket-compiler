@@ -66,6 +66,9 @@ and parse_type tokens =
 and parse_inner_type tokens =
   let token = get_token tokens in
   match token with
+  | TTypeArray ->
+    let atype = parse_type tokens in
+    TypeArray atype
   | TTypeVector ->
     let types = parse_types tokens in
     TypeVector types
@@ -161,6 +164,14 @@ and parse_inner_exp tokens =
     let cnd = parse_typed_exp tokens in
     let exps = parse_typed_exps tokens in
     RUnless (cnd, exps)
+  | TArray ->
+    let exps = parse_typed_exps tokens in
+    RArray exps
+  | TArraySet ->
+    let arr = parse_typed_exp tokens in
+    let index = parse_typed_exp tokens in
+    let exp = parse_typed_exp tokens in
+    RArraySet (arr, index, exp)
   | TVector ->
     let exps = parse_typed_exps tokens in
     RVector exps

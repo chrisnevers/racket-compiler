@@ -75,6 +75,8 @@ let rec scan_identifier stream acc : token =
     | "neg?"    -> TNeg
     | "zero?"   -> TZero
     | "void"    -> TVoid
+    | "array"   -> TArray
+    | "array-set!"  -> TArraySet
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
@@ -88,6 +90,7 @@ let rec scan_identifier stream acc : token =
     | "Int"     -> TTypeInt
     | "Bool"    -> TTypeBool
     | "Void"    -> TTypeVoid
+    | "Array"   -> TTypeArray
     | "Vector"  -> TTypeVector
     | "lambda"  -> TLambda
     | _         -> TVar acc
@@ -120,6 +123,7 @@ let scan_token stream : token = try
     | '[' -> TLBracket
     | ']' -> TRBracket
     | ':' -> TColon
+    | '_' -> TVar "_"
     | '>' ->
       let next = peek_char stream in
       if next = Some '=' then let _ = next_char stream in TCmpOp ">=" else TCmpOp ">"

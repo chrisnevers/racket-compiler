@@ -30,6 +30,7 @@ type cstmt =
   | CWhile of cstmt list * cexp * cstmt list
   | CCollect of int
   | CVectorSet of carg * int * carg
+  | CArraySet of carg * carg * carg
 
 type var_type = ((string, datatype) Hashtbl.t)
 
@@ -96,6 +97,7 @@ and string_of_cstmt a : string =
   | CWhile (cnds, cnda, thn) -> "While " ^ string_of_cstmts cnds ^ "\n\t\t" ^ string_of_cexp cnda ^ "\n\t\t" ^ string_of_cstmts thn
   | CCollect i -> "Collect " ^ string_of_int i
   | CVectorSet (v, i, e) -> "VectorSet " ^ string_of_carg v ^ " " ^ string_of_int i ^ " " ^ string_of_carg e
+  | CArraySet (v, i, e) -> "ArraySet " ^ string_of_carg v ^ " " ^ string_of_carg i ^ " " ^ string_of_carg e
   ) a
   ^ ")"
 

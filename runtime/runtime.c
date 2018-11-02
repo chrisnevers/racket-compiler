@@ -14,6 +14,7 @@ void copy (int64_t** rp);
 void print_int(int64_t i, short newline);
 void print_bool(int64_t i, short newline);
 void print_void(short newline);
+void print_array(int64_t* v, int64_t* tag, short newline);
 void print_vector(int64_t* v, int64_t* tag, short newline);
 void print_function(int64_t* tag, short newline);
 void print_any(int64_t val, int64_t* tag, short newline);
@@ -21,12 +22,16 @@ void print_any_type (int64_t* tag, short newline);
 
 void show_space (int64_t* start, int64_t* end, char* label);
 
+// Error methods
+void array_access_error (int64_t array_length, int64_t index);
+
 // Compiler determines number associated with type
 extern int64_t tint;
 extern int64_t tbool;
 extern int64_t tvoid;
 extern int64_t tvector;
 extern int64_t tfunc;
+extern int64_t tarray;
 
 int64_t* rootstack_ptr      = NULL;
 int64_t* rootstack_begin    = NULL;
@@ -350,6 +355,20 @@ void print_void(short newline) {
     printf("%s", newline ? "\n" : "");
 }
 
+void print_array(int64_t* v, int64_t* tag, short newline) {
+    int64_t len  = v[1];
+    int64_t* arr = (int64_t*) v[2];
+
+    printf("#[");
+    for (uint64_t i = 0; i < len; i++) {
+        print_any(arr[1 + i], (int64_t*) tag[1], 0);
+        if (i + 1 < len) {
+            printf (", ");
+        }
+    }
+    printf("]%s", newline ? "\n" : "");
+}
+
 
 void print_vector(int64_t* v, int64_t* tag, short newline) {
     printf("(");
@@ -402,6 +421,12 @@ void print_type_vector (int64_t* tag, short newline) {
     printf(")%s", newline ? "\n" : "");
 }
 
+void print_type_array (int64_t* tag, short newline) {
+    printf("(Array ");
+    print_any_type((int64_t*) tag[1], 0);
+    printf(")%s", newline ? "\n" : "");
+}
+
 
 void print_any_type (int64_t* tag, short newline) {
     if (tag[0] == tint) {
@@ -414,6 +439,8 @@ void print_any_type (int64_t* tag, short newline) {
         print_type_vector (tag, newline);
     } else if (tag[0] == tfunc) {
         print_function (tag, newline);
+    } else if (tag[0] == tarray) {
+        print_type_array (tag, newline);
     } else {
         fprintf(stderr, "Error: print_any_type() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -431,6 +458,8 @@ void print_any(int64_t val, int64_t* tag, short newline) {
         print_vector((int64_t*)val, tag, newline);
     } else if (tag[0] == tfunc) {
         print_function (tag, newline);
+    } else if (tag[0] == tarray) {
+        print_array((int64_t*)val, tag, newline);
     } else {
         fprintf(stderr, "Error: print_any() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -441,4 +470,9 @@ int64_t read_int() {
     int64_t i;
     scanf("%lld", &i);
     return i;
+}
+
+void array_access_error (int64_t array_length, int64_t index) {
+    fprintf(stderr, "Array Index Error: Array has %lld elements, cannot access index %lld\n", array_length, index);
+    abort();
 }

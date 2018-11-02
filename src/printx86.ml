@@ -20,6 +20,13 @@ let rec dt_to_x86 dt tbl =
   | TypeInt -> "_tint"
   | TypeBool -> "_tbool"
   | TypeVoid -> "_tvoid"
+  | TypeArray l | TypeVector [TypeInt; TypeArray l] -> (
+    try Hashtbl.find tbl (TypeArray l)
+    with Not_found ->
+      let label = Gensym.gen_str "_tarray" in
+      let _ = Hashtbl.add tbl (TypeArray l) label in
+      dt_to_x86 l tbl;
+      label)
   | TypeVector l -> (
     try Hashtbl.find tbl dt
     with Not_found ->
@@ -44,6 +51,8 @@ let arg_to_x86 arg =
     "%" ^ string_of_register r
   | Deref (r, i) ->
     (string_of_int i) ^ "(%" ^ string_of_register r ^ ")"
+  | DerefVar (r, off) ->
+    "(%" ^ (string_of_register r) ^ ", %" ^ string_of_register off ^ ")"
   | AVoid -> "$1"
   | AVar v -> invalid_instruction ("Cannot print vars: " ^ v)
   | TypeRef dt-> invalid_instruction ("Did not expect typeref")
@@ -101,9 +110,15 @@ let get_x86_type_variables typetbl =
   "_tvector:\n\t.quad	4\n" ^
   "\n\t.globl _tfunc\n" ^
   "_tfunc:\n\t.quad	5\n" ^
+  "\n\t.globl _tarray\n" ^
+  "_tarray:\n\t.quad 6\n" ^
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
+    | TypeArray dt | TypeVector [TypeInt; TypeArray dt] ->
+      acc ^ v ^ ":\n" ^
+      "\t.quad 6\n" ^
+      "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
     | TypeVector dt ->
       (* label: *)
       acc ^ v ^ ":\n" ^

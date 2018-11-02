@@ -21,7 +21,9 @@ let rec select_print_instrs dt arg =
   | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
   | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
   | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
+  | TypeArray l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_array"]
   | TypeVector l -> match l with
+    | TypeInt :: TypeArray adt :: [] -> select_print_instrs (TypeArray adt) arg
     | TypeFunction (args, ret) :: [] -> select_print_instrs (TypeFunction (args, ret)) arg
     | _ -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
 
@@ -120,6 +122,28 @@ let rec select_stmts stmt : ainstr list =
   | CWhile (cnd, _, thn) :: t -> select_instruction_error "select_stmt: While statement must use compare to true in condition"
   | CCollect i :: t ->
     ACallq (GlobalValue "collect", [Reg root_stack_register; AInt i; get_collect_call_count ()], AVoid) :: select_stmts t
+  (* Handles array-sets generated from expose-allocation where we have an actual int for i *)
+  | CArraySet (ve, CInt i, ne) :: t ->
+    let varg = get_aarg_of_carg ve in
+    let earg = get_aarg_of_carg ne in
+    (* Move array to R11 *)
+    Movq (varg, Reg Rax) :: Movq (Reg Rax, Reg R11) ::
+    (* Update array index with new value *)
+    Movq (earg, Deref (R11, 8 + (8 * i))) :: select_stmts t
+  (* Handles array-sets for indexs unknown at compile-time *)
+  | CArraySet (ve, i, ne) :: t ->
+    let varg = get_aarg_of_carg ve in
+    let iarg = get_aarg_of_carg i in
+    let earg = get_aarg_of_carg ne in
+    (* Move array to R11 *)
+    Movq (varg, Reg Rax) ::
+    Movq (Reg Rax, Reg R11) ::
+    (* Calculate array offset - i.e. index to update *)
+    Movq (iarg, Reg Rcx) ::
+    IMulq (AInt 8, Reg Rcx) ::
+    Addq (AInt 8, Reg Rcx) ::
+    (* Update array index with new value *)
+    Movq (earg, DerefVar (R11, Rcx)) :: select_stmts t
   | CVectorSet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
     let earg = get_aarg_of_carg ne in

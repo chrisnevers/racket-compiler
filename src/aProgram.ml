@@ -27,6 +27,7 @@ type aarg =
   | AVar of string
   | Reg of aregister
   | Deref of aregister * int
+  | DerefVar of aregister * aregister
   | ByteReg of aregister
   | GlobalValue of string
   | TypeRef of datatype
@@ -163,6 +164,7 @@ let string_of_aarg a : string =
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)
   | Deref (r, i) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_int i)
+  | DerefVar (r, off) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_register off)
   | ByteReg r -> "ByteReg " ^ (string_of_register r)
   | GlobalValue s -> "GlobalVal " ^ s
   | TypeRef dt -> "TypeRef " ^ string_of_datatype dt

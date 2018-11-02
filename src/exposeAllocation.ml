@@ -3,6 +3,20 @@ open Registers
 open Gensym
 open List
 
+exception ExposeAllocation of string
+let expose_error msg = raise (ExposeAllocation msg)
+
+let rec length_of_datatype e =
+  match e with
+  | TypeIs (Some TypeInt, _) | TypeIs (Some TypeBool, _)
+  | TypeIs (Some TypeVoid, _) | TypeIs (Some TypeFunction (_, _), _) -> 8
+  | TypeIs (Some TypeVector es, _) -> 8 + (length es * 8)
+  | TypeIs (Some TypeArray dt, RArray es) ->
+    let size = length_of_datatype (hd es) in
+    let len = length es in
+    8 + (size * len)
+  | _ -> expose_error "expected int, bool, void, fun, vector, or array datatype"
+
 (*
 Generates:
 (let ([_ (vector-set! v 0 x0)]) ... (let ([_ (vector-set! v n-1 xn-1)])
@@ -19,6 +33,19 @@ let rec gen_vec_sets v vdt xdts xs =
 
 (*
 Generates:
+(let ([_ (array-set! v 0 x0)]) ... (let ([_ (array-set! v n-1 xn-1)])
+  v) ... ))))
+*)
+let rec gen_arr_sets v dt xs =
+  match xs with
+  | [] -> TypeIs (Some (TypeArray dt), RVar v)
+  | (index, x) :: t ->
+    TypeIs (Some (TypeArray dt), RLet (Gensym.gen_str "_",
+          make_tvoid (RArraySet (TypeIs (Some (TypeArray dt), RVar v), TypeIs (Some TypeInt, RInt index), TypeIs (Some dt, RVar x))),
+          gen_arr_sets v dt t))
+
+(*
+Generates:
 (let ([_ (if (< (+ (global-value free_ptr) bytes)
              (global-value fromspace_end))
          (void)
@@ -26,7 +53,7 @@ Generates:
 (let ([v (allocate len type)])
 *)
 let gen_if_expr vecsets dt vec_name =
-  let len = List.length dt in
+  let len = length dt in
   let bytes = 8 + (len * 8) in
   let if_expr = make_tvoid (
     RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue free_ptr), make_tint (RInt bytes))), make_tint (RGlobalValue fromspace_end))),
@@ -37,6 +64,18 @@ let gen_if_expr vecsets dt vec_name =
   in
   make_tvec dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
 
+
+let gen_arr_if_expr array_sets dt arr_name e len =
+  let bytes = length_of_datatype e in
+  let if_expr = make_tvoid (
+    RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue free_ptr), make_tint (RInt bytes))), make_tint (RGlobalValue fromspace_end))),
+    make_tvoid RVoid, make_tvoid (RCollect bytes)))
+  in
+  let allocate_expr = make_tarr dt (
+    RLet (arr_name, make_tarr dt (RAllocate (len, TypeArray dt)), array_sets))
+  in
+  make_tarr dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
+
 (*
 Generates:
 (let([x0 e0])...(let([xn-1 en-1])
@@ -45,23 +84,33 @@ let rec gen_exp_sets xs2es ifexp dt =
   match xs2es with
   | [] -> ifexp
   | ((i, x), e) :: t ->
-    make_tvec dt (RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
+    TypeIs (dt, RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
 
 and expose_exp_type e =
   match e with
   | TypeIs (Some TypeVector dt, RVector es) ->
-    let xs = List.mapi (fun index e -> (index, Gensym.gen_str "x")) es in
-    let xs2es = List.combine xs es in
+    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) es in
+    let xs2es = combine xs es in
     let vec_name = Gensym.gen_str "v" in
     let vector_sets = gen_vec_sets vec_name (Some (TypeVector dt)) dt xs in
     let if_expr = gen_if_expr vector_sets dt vec_name in
-    let exp_sets = gen_exp_sets xs2es if_expr dt in
+    let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeVector dt)) in
+    exp_sets
+  | TypeIs (Some TypeArray dt, RArray es) ->
+    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) es in
+    let xs2es = combine xs es in
+    let arr_name = Gensym.gen_str "v" in
+    let array_sets = gen_arr_sets arr_name dt xs in
+    let if_expr = gen_arr_if_expr array_sets dt arr_name e (length es) in
+    let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeArray dt)) in
     exp_sets
   | TypeIs (dt, e) -> TypeIs (dt, expose_exp e)
 
 and expose_exp e =
   match e with
   | RApply (id, args) -> RApply (id, List.map (fun a -> expose_exp_type a) args)
+  | RArray a -> RArray (List.map (fun ve -> expose_exp_type ve) a)
+  | RArraySet (a, i, e) -> RArraySet (expose_exp_type a, expose_exp_type i, expose_exp_type e)
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)

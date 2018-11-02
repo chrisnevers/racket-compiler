@@ -25,11 +25,54 @@ let get_some_func_types dt =
   | Some TypeFunction (args, ret) -> (args, ret)
   | _ -> typecheck_error ("expected function type: " ^ string_of_datatype_option dt)
 
+let get_arity exp =
+  match exp with
+  | TypeIs (_, RArray es) -> Some (length es)
+  | TypeIs (_, RVector [TypeIs (_, RInt len); TypeIs (_, RArray _)]) -> Some len
+  | _ -> None
+
+(* Uses first element as expected datatype and arity of array *)
+let typecheck_array_elements exps =
+  let datatype = match hd exps with TypeIs (Some dt, e) -> dt in
+  let arity = get_arity (hd exps) in
+  let _ = iter (fun e ->
+    if get_datatype e = datatype then
+    if get_arity e = arity then ()
+    else typecheck_error "all elements in array must have same arity"
+    else typecheck_error "all elements in array must have same type"
+  ) exps
+  in datatype
+
 let rec typecheck_exp exp table sigma =
   match exp with
   | RInt i  -> make_tint (RInt i)
   | RBool b -> make_tbool (RBool b)
   | RVoid   -> make_tvoid RVoid
+  | RArray exps ->
+    let typed_exps = map (fun t -> typecheck_exp_type t table sigma) exps in
+    (* Do not allow empty arrays while there is no 'any' type support *)
+    if length typed_exps < 1 then typecheck_error "array must have one element"
+    else
+      let datatype = typecheck_array_elements typed_exps in
+      TypeIs (Some (TypeArray datatype), RArray typed_exps)
+  | RArraySet (v, i, e) ->
+    (* Ensure array index is of type int *)
+    let ni = typecheck_exp_type i table sigma in
+    let idt = get_datatype ni in
+    begin match idt with
+    | TypeInt -> ()
+    | _ -> typecheck_error "typecheck_exp: array index must be type int." end;
+    (* Ensure new value's type matches array's type *)
+    let nv = typecheck_exp_type v table sigma in
+    let dt = get_datatype nv in (
+    match dt with
+    | TypeVector [TypeInt; TypeArray datatype] ->
+      let ne = typecheck_exp_type e table sigma in
+      let edt = get_datatype ne in
+      if datatype = edt then
+        make_tvoid (RArraySet (nv, ni, ne))
+      else typecheck_error ("typecheck_exp: array-set! must operate on same type. Expected " ^ (string_of_datatype datatype) ^ " but received " ^ (string_of_datatype edt))
+    | _ -> typecheck_error ("typecheck_exp: array-set! must operate on array. Received: " ^ (string_of_datatype dt)))
   | RVector exps ->
     let typed_exps = List.map (fun t -> typecheck_exp_type t table sigma) exps in
     let datatypes = get_datatypes typed_exps in

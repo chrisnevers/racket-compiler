@@ -16,6 +16,8 @@ type token =
   | TPos
   | TNeg
   | TZero
+  | TArray
+  | TArraySet
   | TVector
   | TVectorSet
   | TVectorRef
@@ -32,6 +34,7 @@ type token =
   | TTypeInt
   | TTypeBool
   | TTypeVoid
+  | TTypeArray
   | TTypeVector
   | TLambda
   | TEOF
@@ -55,6 +58,8 @@ let string_of_token t =
   | TPos -> "pos?"
   | TNeg -> "neg?"
   | TZero -> "zero?"
+  | TArray -> "array"
+  | TArraySet -> "array-set!"
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
@@ -71,6 +76,7 @@ let string_of_token t =
   | TTypeInt -> "Int"
   | TTypeBool -> "Bool"
   | TTypeVoid -> "Void"
+  | TTypeArray -> "Array"
   | TTypeVector -> "Vector"
   | TLambda -> "lambda"
   | TEOF -> "EOF"

@@ -1,6 +1,11 @@
 open RProgram
 open List
 
+let rec array_to_vector_type dt =
+  match dt with
+  | TypeArray a -> TypeVector [TypeInt; TypeArray (array_to_vector_type a)]
+  | _ -> dt
+
 let rec begin_to_let es =
   match es with
   | h :: [] -> h
@@ -16,6 +21,11 @@ and expand_exp exp :rexp =
   | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
   (* Expand inner expressions *)
   | RPrint e -> RPrint (expand_exp_type e)
+  | RArray es ->
+    let len = make_tint (RInt (length es)) in
+    let arr = make_tnone (RArray (map expand_exp_type es)) in
+    RVector [len; arr]
+  | RArraySet (a, i, e) -> RArraySet (expand_exp_type a, expand_exp_type i, expand_exp_type e)
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)
@@ -39,7 +49,9 @@ and expand_exp_type exp :rexp_type =
 let rec expand_defs defs =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
-    let new_def = RDefine (id, args, ret_type, expand_exp_type body) in
+    let new_args = map (fun (id, dt) -> (id, array_to_vector_type dt)) args in
+    let new_ret = array_to_vector_type ret_type in
+    let new_def = RDefine (id, new_args, new_ret, expand_exp_type body) in
     new_def :: expand_defs t
   | [] -> []
 
