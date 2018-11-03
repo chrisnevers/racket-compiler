@@ -52,10 +52,13 @@ Run example tests:
     - Typed: `(define (add1 [x : Int]) : Int ...)`
 6. ~~Closures~~
     - Typed: `(let ([y 4]) (lambda ([z : Int]) : Int (+ y z)))`
+7. ~~Arrays~~
+    - `(array 1 2 3)`
+    - `(array-set! {array} {index} {exp})`
+    - Runtime bound checking
 
 TODO:
 * Pattern Matching
 * Chars
-* Arrays
 * LLVM
 * ...

@@ -75,6 +75,7 @@ let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
 let make_tvec dt e = TypeIs (Some (TypeVector dt), e)
 let make_tarr dt e = TypeIs (Some (TypeArray dt), e)
+let make_tfun args ret e = TypeIs (Some (TypeFunction (args, ret)), e)
 let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =

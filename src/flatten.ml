@@ -158,34 +158,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = estmts @ [CAssign (var_name, CPrint (edt, earg))] in
       let var_list = if v = None then (var_name, dt) :: evars else evars in
       (flat_arg, stmts, var_list)
-    | RArraySet (TypeIs (Some (TypeVector [TypeInt; TypeArray adt]) as dt, vec), i, e) ->
-      (*
-        All arrays created by users will be wrapped in a tuple. (vector length arrayptr)
-        1. Check to see if index is within bounds of array.
-        2. Pass the bare array to array-set.
-      *)
-      let (varg, vstmts, vvars) = flatten_typed_exp (TypeIs (dt, vec)) in
-      let (iarg, istmts, ivars) = flatten_typed_exp i in
-      let (earg, estmts, evars) = flatten_typed_exp e in
-      (* Stores bare array from vector *)
-      let tmp = get_var_name v "arr" in
-      let tmp_arg = CVar tmp in
-      (* Stores array length from vector *)
-      let len = Gensym.gen_str "len" in
-      let len_arg = CVar len in
-      (* Calls runtime error that aborts program *)
-      let call_error  = [CAssign ("_", CApply (CGlobalValue "array_access_error", [len_arg; iarg]))] in
-      let get_and_set = [CAssign (tmp, CVectorRef (varg, 1)); CArraySet (tmp_arg, iarg, earg)] in
-      let pos_check   = CIf (CCmp (CL, iarg, CInt 0), call_error, get_and_set) in
-      let bound_check = CIf (CCmp (CLE, iarg, len_arg), call_error, [pos_check]) in
-      let stmts = vstmts @ istmts @ estmts @ [CAssign (len, CVectorRef (varg, 0)); bound_check] in
-      let var_list = (tmp, adt) :: (len, TypeInt) :: vvars @ ivars @ evars in
-      (CVoid, stmts, var_list)
     | RArraySet (arr, i, e) ->
-      (*
-        Expose-allocations creates array-sets. We do not need to
-        check array bounds
-      *)
       let (ararg, arstmts, arvars) = flatten_typed_exp arr in
       let (iarg, istmts, ivars) = flatten_typed_exp i in
       let (earg, estmts, evars) = flatten_typed_exp e in
