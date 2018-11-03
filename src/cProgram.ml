@@ -21,6 +21,7 @@ type cexp =
   | CCmp of ccmp * carg * carg
   | CAlloc of int * datatype
   | CVectorRef of carg * int
+  | CArrayRef of carg * carg
   | CApply of carg * carg list
 
 type cstmt =

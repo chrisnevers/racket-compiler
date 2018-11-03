@@ -76,7 +76,8 @@ let rec scan_identifier stream acc : token =
     | "zero?"   -> TZero
     | "void"    -> TVoid
     | "array"   -> TArray
-    | "array-set!"  -> TArraySet
+    | "array-set!" -> TArraySet
+    | "array-ref"  -> TArrayRef
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef

@@ -172,6 +172,10 @@ and parse_inner_exp tokens =
     let index = parse_typed_exp tokens in
     let exp = parse_typed_exp tokens in
     RArraySet (arr, index, exp)
+  | TArrayRef ->
+    let arr = parse_typed_exp tokens in
+    let index = parse_typed_exp tokens in
+    RArrayRef (arr, index)
   | TVector ->
     let exps = parse_typed_exps tokens in
     RVector exps

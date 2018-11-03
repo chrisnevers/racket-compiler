@@ -26,6 +26,7 @@ and expand_exp exp :rexp =
     let arr = make_tnone (RArray (map expand_exp_type es)) in
     RVector [len; arr]
   | RArraySet (a, i, e) -> RArraySet (expand_exp_type a, expand_exp_type i, expand_exp_type e)
+  | RArrayRef (a, i) -> RArrayRef (expand_exp_type a, expand_exp_type i)
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)

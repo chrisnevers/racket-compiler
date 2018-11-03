@@ -18,6 +18,7 @@ type token =
   | TZero
   | TArray
   | TArraySet
+  | TArrayRef
   | TVector
   | TVectorSet
   | TVectorRef
@@ -60,6 +61,7 @@ let string_of_token t =
   | TZero -> "zero?"
   | TArray -> "array"
   | TArraySet -> "array-set!"
+  | TArrayRef -> "array-ref"
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"

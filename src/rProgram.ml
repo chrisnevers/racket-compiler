@@ -17,6 +17,7 @@ and rexp =
   | RFunctionRef of string
   | RArray of rexp_type list
   | RArraySet of rexp_type * rexp_type * rexp_type
+  | RArrayRef of rexp_type * rexp_type
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
@@ -139,6 +140,7 @@ let rec string_of_rexp e : string =
   | RVector e -> "(vector " ^ string_of_rexps_type e ^ ")"
   | RArray e -> "(array " ^ string_of_rexps_type e ^ ")"
   | RArraySet (e, i, n) -> "array-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RArrayRef (e, i) -> "array-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
   | RVectorLength e -> "Vector-length " ^ (string_of_rexp_type e)

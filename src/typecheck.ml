@@ -73,6 +73,18 @@ let rec typecheck_exp exp table sigma =
         make_tvoid (RArraySet (nv, ni, ne))
       else typecheck_error ("typecheck_exp: array-set! must operate on same type. Expected " ^ (string_of_datatype datatype) ^ " but received " ^ (string_of_datatype edt))
     | _ -> typecheck_error ("typecheck_exp: array-set! must operate on array. Received: " ^ (string_of_datatype dt)))
+  | RArrayRef (v, i) ->
+    let ni = typecheck_exp_type i table sigma in
+    let idt = get_datatype ni in
+    begin match idt with
+    | TypeInt -> ()
+    | _ -> typecheck_error "typecheck_exp: array index must be type int." end;
+    let nv = typecheck_exp_type v table sigma in
+    let dt = get_datatype nv in (
+      match dt with
+      | TypeVector [TypeInt; TypeArray datatype] -> TypeIs (Some datatype, RArrayRef (nv, ni))
+      | _ -> typecheck_error ("typecheck_exp: Array-ref must operate on array. Received: " ^ (string_of_datatype dt))
+    )
   | RVector exps ->
     let typed_exps = List.map (fun t -> typecheck_exp_type t table sigma) exps in
     let datatypes = get_datatypes typed_exps in

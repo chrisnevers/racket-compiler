@@ -91,6 +91,18 @@ let select_exp e v : ainstr list =
   | CVectorRef (ve, i) ->
     let varg = get_aarg_of_carg ve in
     [Movq (varg, Reg R11); Movq (Deref (R11, 8 * (i + 1)), v)]
+  | CArrayRef (a, i) ->
+    let varg = get_aarg_of_carg a in
+    let iarg = get_aarg_of_carg i in
+    (* Move array to R11 *)
+    Movq (varg, Reg Rax) ::
+    Movq (Reg Rax, Reg R11) ::
+    (* Calculate array offset - i.e. index to update *)
+    Movq (iarg, Reg Rcx) ::
+    IMulq (AInt 8, Reg Rcx) ::
+    Addq (AInt 8, Reg Rcx) ::
+    (* Update array index with new value *)
+    Movq (DerefVar (R11, Rcx), v) :: []
   | CApply (id, args) ->
     let aargs = map (fun a -> get_aarg_of_carg a) args in
     let nid = get_aarg_of_carg id in

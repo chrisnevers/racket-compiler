@@ -32,6 +32,7 @@ let rec uniquify_exp ast table sigma : rexp =
   | RVar v -> RVar (get_var_name v table sigma)
   | RArray es -> RArray (List.map (fun e -> uniquify_exp_type e table sigma) es)
   | RArraySet (a, i, e) -> RArraySet (uniquify_exp_type a table sigma, uniquify_exp_type i table sigma, uniquify_exp_type e table sigma)
+  | RArrayRef (a, i) -> RArrayRef (uniquify_exp_type a table sigma, uniquify_exp_type i table sigma)
   | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table sigma) es)
   | RVectorRef (e, i) -> RVectorRef (uniquify_exp_type e table sigma, i)
   | RVectorSet (v, i, e) -> RVectorSet (uniquify_exp_type v table sigma, i, uniquify_exp_type e table sigma)

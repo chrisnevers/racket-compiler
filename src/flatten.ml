@@ -166,6 +166,14 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = arstmts @ istmts @ estmts @ [CArraySet (ararg, iarg, earg)] in
       let var_list = arvars @ ivars @ evars in
       (flat_arg, stmts, var_list)
+    | RArrayRef (arr, i) ->
+      let (ararg, arstmts, arvars) = flatten_typed_exp arr in
+      let (iarg, istmts, ivars) = flatten_typed_exp i in
+      let var_name = get_var_name v "ref" in
+      let flat_arg = CVar var_name in
+      let stmts = arstmts @ istmts @ [CAssign (var_name, CArrayRef (ararg, iarg))] in
+      let var_list = (var_name, dt) :: arvars @ ivars in
+      (flat_arg, stmts, var_list)
     | RVectorSet (vec, i, e) ->
       let (varg, vstmts, vvars) = flatten_typed_exp vec in
       let (earg, estmts, evars) = flatten_typed_exp e in
