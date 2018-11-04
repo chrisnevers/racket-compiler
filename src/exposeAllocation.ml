@@ -85,55 +85,28 @@ let get_array_datatype vec =
   Arrays are wrapped in a vector (vector array-length array-ptr)
   Ensure requested index is valid, then access the bare array before setting.
  *)
-let gen_array_set wrapped_array index exp =
-  let adt   = get_array_datatype wrapped_array in
-  let tmp1  = Gensym.gen_str "len" in
-  let tmp2  = Gensym.gen_str "arr" in
-  let indx  = Gensym.gen_str "index" in
-  let indx_var  = make_tint (RVar indx) in
-  let tmp1_var    = make_tint   (RVar tmp1) in
+let gen_array_op wrapped_array index expr =
+  let adt = get_array_datatype wrapped_array in
+  let tmp1 = Gensym.gen_str "len" in
+  let tmp2 = Gensym.gen_str "arr" in
+  let indx = Gensym.gen_str "index" in
+  let indx_var = make_tint (RVar indx) in
+  let tmp1_var = make_tint   (RVar tmp1) in
   (* Array index must be less than length of array *)
   let bound_check = make_tbool  (RCmp (">=", indx_var, tmp1_var)) in
   (* Array index must be greater or equal than zero *)
-  let pos_check   = make_tbool  (RCmp ("<", indx_var, make_tint (RInt 0))) in
+  let pos_check = make_tbool  (RCmp ("<", indx_var, make_tint (RInt 0))) in
   (* Check both bound conditions *)
-  let cond        = make_tbool  (ROr  (bound_check, pos_check)) in
+  let cond = make_tbool  (ROr  (bound_check, pos_check)) in
   (* Throws an unrecoverable runtime error *)
-  let error_func  = make_tfun [TypeInt; TypeInt] TypeVoid
-                    (RFunctionRef "array_access_error")
-  in
+  let error_func = make_tfun [TypeInt; TypeInt] TypeVoid (RFunctionRef "array_access_error") in
   let throw_error = make_tvoid  (RApply (error_func, [tmp1_var; indx_var])) in
   (* Accesses bare array and sets the index to the new expression *)
-  let set         = make_tvoid  (RLet (tmp2,
-                    make_tarr adt (RVectorRef (wrapped_array, 1)),
-                    make_tvoid (RArraySet (make_tarr adt (RVar tmp2), indx_var, exp))))
-  in
-  let check_set   = make_tvoid  (RIf  (cond, throw_error, set)) in
-  RLet (tmp1, make_tint (RVectorRef (wrapped_array, 0)), make_tvoid (RLet (indx, index, check_set)))
-
-let gen_array_ref wrapped_array index =
-  let adt   = get_array_datatype wrapped_array in
-  let tmp1  = Gensym.gen_str "len" in
-  let tmp2  = Gensym.gen_str "arr" in
-  let indx  = Gensym.gen_str "index" in
-  let indx_var  = make_tint (RVar indx) in
-  let tmp1_var    = make_tint   (RVar tmp1) in
-  (* Array index must be less than length of array *)
-  let bound_check = make_tbool  (RCmp (">=", indx_var, tmp1_var)) in
-  (* Array index must be greater or equal than zero *)
-  let pos_check   = make_tbool  (RCmp ("<", indx_var, make_tint (RInt 0))) in
-  (* Check both bound conditions *)
-  let cond        = make_tbool  (ROr  (bound_check, pos_check)) in
-  (* Throws an unrecoverable runtime error *)
-  let error_func  = make_tfun [TypeInt; TypeInt] TypeVoid
-                    (RFunctionRef "array_access_error")
-  in
-  let throw_error = make_tvoid  (RApply (error_func, [tmp1_var; indx_var])) in
-  (* Accesses bare array and sets the index to the new expression *)
-  let succ         = make_tvoid  (RLet (tmp2,
-                    make_tarr adt (RVectorRef (wrapped_array, 1)),
-                    make_tvoid (RArrayRef (make_tarr adt (RVar tmp2), indx_var))))
-  in
+  let succ = make_tvoid  (RLet (tmp2, make_tarr adt (RVectorRef (wrapped_array, 1)),
+  match expr with
+  | `Ref -> make_tvoid (RArrayRef (make_tarr adt (RVar tmp2), indx_var))
+  | `Set exp -> make_tvoid (RArraySet (make_tarr adt (RVar tmp2), indx_var, exp))
+  )) in
   let check_set   = make_tvoid  (RIf  (cond, throw_error, succ)) in
   RLet (tmp1, make_tint (RVectorRef (wrapped_array, 0)), make_tvoid (RLet (indx, index, check_set)))
 
@@ -172,8 +145,8 @@ and expose_exp e =
   | RApply (id, args) -> RApply (id, List.map (fun a -> expose_exp_type a) args)
   | RArray a -> RArray (List.map (fun ve -> expose_exp_type ve) a)
   (* These array-sets are from the programmer. So the array is wrapped in a tuple *)
-  | RArraySet (a, i, e) -> gen_array_set (expose_exp_type a) (expose_exp_type i) (expose_exp_type e)
-  | RArrayRef (a, i) -> gen_array_ref (expose_exp_type a) (expose_exp_type i)
+  | RArraySet (a, i, e) -> gen_array_op (expose_exp_type a) (expose_exp_type i) (`Set (expose_exp_type e))
+  | RArrayRef (a, i) -> gen_array_op (expose_exp_type a) (expose_exp_type i) `Ref
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)
