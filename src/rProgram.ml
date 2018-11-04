@@ -1,5 +1,6 @@
 type datatype =
   | TypeInt
+  | TypeChar
   | TypeBool
   | TypeVoid
   | TypeArray of datatype
@@ -12,6 +13,7 @@ type rexp_type =
 and rexp =
   | RVar of string
   | RInt of int
+  | RChar of char
   | RBool of bool
   | RVoid
   | RFunctionRef of string
@@ -72,6 +74,7 @@ let rec get_datatypes l : datatype list =
   | _ -> datatype_error "datatype is none"
 
 let make_tint e = TypeIs (Some TypeInt, e)
+let make_tchar e = TypeIs (Some TypeChar, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
 let make_tvec dt e = TypeIs (Some (TypeVector dt), e)
@@ -82,6 +85,7 @@ let make_tnone e = TypeIs (None, e)
 let rec string_of_datatype dt =
   match dt with
   | TypeInt -> "int"
+  | TypeChar -> "char"
   | TypeBool -> "bool"
   | TypeVoid -> "void"
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
@@ -114,6 +118,7 @@ let rec string_of_rvector_values e =
 and string_of_rexp_value e : string =
   match e with
   | RInt i -> string_of_int i
+  | RChar c -> Char.escaped c
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RVector ve -> "(" ^ string_of_rvector_values ve ^ ")"
@@ -126,6 +131,7 @@ let rec string_of_rexp e : string =
   match e with
   | RVar v -> "Var " ^ v
   | RInt i -> "Int " ^ string_of_int i
+  | RChar c -> "Char " ^ Char.escaped c
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RAnd (l, r) -> "And " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)

@@ -23,6 +23,7 @@ let get_carg_of_rarg a : carg =
   match a with
   | RBool b -> CBool b
   | RInt i -> CInt i
+  | RChar c -> CChar c
   | RVar name -> CVar name
   | RVoid -> CVoid
   | RGlobalValue label -> CGlobalValue label
@@ -51,7 +52,7 @@ let rec flatten_typed_exp ?(v=None) exp =
   | TypeIs (None, ue) -> flatten_error ("flatten: expression is untyped: " ^ (string_of_rexp ue))
   | TypeIs (Some dt, e) -> (
     match e with
-    | RVar _ | RInt _ | RBool _ | RVoid | RGlobalValue _ | RFunctionRef _ ->
+    | RVar _ | RInt _ | RChar _ | RBool _ | RVoid | RGlobalValue _ | RFunctionRef _ ->
       flatten_arg e ~v:v
     | RAnd (l, r) ->
       let (larg, lstmts, lvars) = flatten_typed_exp l in

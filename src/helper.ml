@@ -133,7 +133,7 @@ let get_free_vars args exp =
     | RVar v ->
       (try let _ = Hashtbl.find tbl v in ()
       with Not_found -> Hashtbl.add free v (get_some dt))
-    | RInt _ | RBool _ | RVoid
+    | RInt _ | RChar _ | RBool _ | RVoid
     | RFunctionRef _ | RCollect _
     | RAllocate _ | RGlobalValue _
     | RRead -> ()

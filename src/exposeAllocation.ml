@@ -8,7 +8,7 @@ let expose_error msg = raise (ExposeAllocation msg)
 
 let rec length_of_datatype e =
   match e with
-  | TypeIs (Some TypeInt, _) | TypeIs (Some TypeBool, _)
+  | TypeIs (Some TypeInt, _) | TypeIs (Some TypeChar, _) | TypeIs (Some TypeBool, _)
   | TypeIs (Some TypeVoid, _) | TypeIs (Some TypeFunction (_, _), _) -> 8
   | TypeIs (Some TypeVector dt, RVector es) -> 8 + (fold_left (fun acc e -> acc + length_of_datatype e) 0 es)
   | TypeIs (Some TypeArray dt, RArray es) ->

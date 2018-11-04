@@ -18,6 +18,7 @@ let rec add_save_registers registers op =
 let rec dt_to_x86 dt tbl =
   match dt with
   | TypeInt -> "_tint"
+  | TypeChar -> "_tchar"
   | TypeBool -> "_tbool"
   | TypeVoid -> "_tvoid"
   | TypeArray l | TypeVector [TypeInt; TypeArray l] -> (
@@ -46,7 +47,7 @@ let rec dt_to_x86 dt tbl =
 let arg_to_x86 arg =
   match arg with
   | GlobalValue l -> os_label_prefix ^ sanitize_id l ^ "(%rip)"
-  | AInt i -> "$" ^ (string_of_int i)
+  | AInt i | AChar i -> "$" ^ (string_of_int i)
   | Reg r | ByteReg r ->
     "%" ^ string_of_register r
   | Deref (r, i) ->
@@ -112,6 +113,8 @@ let get_x86_type_variables typetbl =
   "_tfunc:\n\t.quad	5\n" ^
   "\n\t.globl _tarray\n" ^
   "_tarray:\n\t.quad 6\n" ^
+  "\n\t.globl _tchar\n" ^
+  "_tchar:\n\t.quad 7\n" ^
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
@@ -151,30 +154,6 @@ let offset_rootstack_ptr rootstack_space heap_size op =
   (* If no rootstack space, use 1/4 of heap_size *)
   let space = if rootstack_space = 0 then heap_size else rootstack_space in
   "\t" ^ op ^ "\t$" ^ string_of_int space ^ ", " ^ arg_to_x86 (Reg root_stack_register) ^ "\n"
-
-let print_result datatype typetbl =
-  match datatype with
-  | TypeInt ->
-    "\tmovq\t%rax, %rdi\n" ^
-    "\tmovq\t$1, %rsi\n" ^
-    "\tcallq\t" ^ os_label_prefix ^ "print_int\n"
-  | TypeBool ->
-    "\tmovq\t%rax, %rdi\n" ^
-    "\tmovq\t$1, %rsi\n" ^
-    "\tcallq\t" ^ os_label_prefix ^ "print_bool\n"
-  | TypeVoid ->
-    "\tmovq\t$1, %rdi\n" ^
-    "\tcallq\t" ^ os_label_prefix ^ "print_void\n"
-  | TypeVector l ->
-    "\tmovq\t%rax, %rdi\n" ^
-    "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
-    "\tmovq\t$1, %rdx\n" ^
-    "\tcallq\t" ^ os_label_prefix ^ "print_vector\n"
-  | TypeFunction (args, ret) ->
-    "\tmovq\t%rax, %rdi\n" ^
-    "\tleaq\t" ^ dt_to_x86 datatype typetbl ^ "(%rip), %rsi\n" ^
-    "\tmovq\t$1, %rdx\n" ^
-    "\tcallq\t" ^ os_label_prefix ^ "print_function\n"
 
 let rec print_defs defs typetbl =
   match defs with
@@ -218,8 +197,7 @@ let print_x86 program =
                     store_rootstack_in_reg root_stack_register ^
                     zero_out_rootstack () ^
                     offset_rootstack_ptr rootstack_space heap_size "addq" ^ "\n" in
-    let ending =  "\n" ^ (* print_result datatype typetbl ^ *)
-                  offset_rootstack_ptr rootstack_space heap_size "subq" ^
+    let ending =  "\n" ^ offset_rootstack_ptr rootstack_space heap_size "subq" ^
                  "\taddq\t$" ^ string_of_int (stack_space + callee_save_stack_size) ^ ",\t%rsp\n" ^
                  "\tmovq\t$0,\t%rax\n" ^
                  (add_save_registers (List.rev callee_save_registers) "popq") ^

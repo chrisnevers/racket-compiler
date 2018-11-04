@@ -18,6 +18,7 @@ let get_collect_call_count () =
 let rec select_print_instrs dt arg =
   match dt with
   | TypeInt -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_int"]
+  | TypeChar -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_char"]
   | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
   | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
   | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]

@@ -12,6 +12,7 @@ void copy (int64_t** rp);
 
 // Print methods
 void print_int(int64_t i, short newline);
+void print_char(int64_t i, short newline);
 void print_bool(int64_t i, short newline);
 void print_void(short newline);
 void print_array(int64_t* v, int64_t* tag, short newline);
@@ -27,6 +28,7 @@ void array_access_error (int64_t array_length, int64_t index);
 
 // Compiler determines number associated with type
 extern int64_t tint;
+extern int64_t tchar;
 extern int64_t tbool;
 extern int64_t tvoid;
 extern int64_t tvector;
@@ -345,6 +347,10 @@ void print_int(int64_t i, short newline) {
     printf("%lld%s", i, newline ? "\n" : "");
 }
 
+void print_char(int64_t i, short newline) {
+    printf("%c%s", (char)i, newline ? "\n" : "");
+}
+
 
 void print_bool(int64_t i, short newline) {
     printf("#%c%s", i ? 't' : 'f', newline ? "\n" : "");
@@ -399,6 +405,10 @@ void print_type_int (short newline) {
     printf("Int%s", newline ? "\n" : "");
 }
 
+void print_type_char (short newline) {
+    printf("Char%s", newline ? "\n" : "");
+}
+
 
 void print_type_bool (short newline) {
     printf("Bool%s", newline ? "\n" : "");
@@ -431,6 +441,8 @@ void print_type_array (int64_t* tag, short newline) {
 void print_any_type (int64_t* tag, short newline) {
     if (tag[0] == tint) {
         print_type_int (newline);
+    } else if (tag[0] == tchar) {
+        print_type_char (newline);
     } else if (tag[0] == tbool) {
         print_type_bool (newline);
     } else if (tag[0] == tvoid) {
@@ -450,6 +462,8 @@ void print_any_type (int64_t* tag, short newline) {
 void print_any(int64_t val, int64_t* tag, short newline) {
     if (tag[0] == tint) {
         print_int(val, newline);
+    } else if (tag[0] == tchar) {
+        print_char(val, newline);
     } else if (tag[0] == tbool) {
         print_bool(val, newline);
     } else if (tag[0] == tvoid) {

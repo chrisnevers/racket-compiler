@@ -5,6 +5,7 @@ type ccmp =
 
 type carg =
   | CInt of int
+  | CChar of char
   | CVar of string
   | CBool of bool
   | CVoid (* can be 1, so evaluates to true *)
@@ -53,6 +54,7 @@ let string_of_carg a : string =
   "(" ^ (fun e ->
   match a with
   | CInt i -> "Int " ^ (string_of_int i)
+  | CChar c -> "Char " ^ (Char.escaped c)
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
   | CVoid -> "Void"
@@ -64,6 +66,7 @@ let string_of_carg a : string =
 let string_of_carg_type a : string =
   match a with
   | CInt _ -> "int"
+  | CChar _ -> "char"
   | CVar _ -> "var"
   | CBool _ -> "bool"
   | CVoid -> "void"

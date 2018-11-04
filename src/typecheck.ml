@@ -46,6 +46,7 @@ let typecheck_array_elements exps =
 let rec typecheck_exp exp table sigma =
   match exp with
   | RInt i  -> make_tint (RInt i)
+  | RChar c -> make_tchar (RChar c)
   | RBool b -> make_tbool (RBool b)
   | RVoid   -> make_tvoid RVoid
   | RArray exps ->

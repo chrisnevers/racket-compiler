@@ -97,3 +97,4 @@ let () =
   test "arrays" "array-arg" "((Array (Array Int)) -> (Array Int))" None;
   test "arrays" "array-set" "#[#[1, 2, 3], #[42]]" None;
   test "arrays" "array-ref" "1" (Some "0");
+  test "char" "char" "#[a,  , c]" None;
