@@ -10,7 +10,7 @@ let rec length_of_datatype e =
   match e with
   | TypeIs (Some TypeInt, _) | TypeIs (Some TypeBool, _)
   | TypeIs (Some TypeVoid, _) | TypeIs (Some TypeFunction (_, _), _) -> 8
-  | TypeIs (Some TypeVector es, _) -> 8 + (length es * 8)
+  | TypeIs (Some TypeVector dt, RVector es) -> 8 + (fold_left (fun acc e -> acc + length_of_datatype e) 0 es)
   | TypeIs (Some TypeArray dt, RArray es) ->
     let size = length_of_datatype (hd es) in
     let len = length es in
