@@ -11,10 +11,10 @@ let rec length_of_datatype e =
   | TypeIs (Some TypeInt, _) | TypeIs (Some TypeChar, _) | TypeIs (Some TypeBool, _)
   | TypeIs (Some TypeVoid, _) | TypeIs (Some TypeFunction (_, _), _) -> 8
   | TypeIs (Some TypeVector dt, RVector es) -> 8 + (fold_left (fun acc e -> acc + length_of_datatype e) 0 es)
-  | TypeIs (Some TypeArray dt, RArray es) ->
+  | TypeIs (Some TypeArray dt, RArray (len, es)) ->
     let size = length_of_datatype (hd es) in
-    let len = length es in
-    8 + (size * len)
+    (* tag + array-length + (num-of-elements * size-of-elements) *)
+    8 + 8 + (size * len)
   | _ -> expose_error "expected int, bool, void, fun, vector, or array datatype"
 
 (*
@@ -41,7 +41,7 @@ let rec gen_arr_sets v dt xs =
   | [] -> TypeIs (Some (TypeArray dt), RVar v)
   | (index, x) :: t ->
     TypeIs (Some (TypeArray dt), RLet (Gensym.gen_str "_",
-          make_tvoid (RArraySet (TypeIs (Some (TypeArray dt), RVar v), TypeIs (Some TypeInt, RInt index), TypeIs (Some dt, RVar x))),
+          make_tvoid (RArraySet (TypeIs (Some (TypeArray dt), RVar v), TypeIs (Some TypeInt, RInt (index - 1)), TypeIs (Some dt, RVar x))),
           gen_arr_sets v dt t))
 
 (*
@@ -76,22 +76,16 @@ let gen_arr_if_expr array_sets dt arr_name e len =
   in
   make_tarr dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
 
-let get_array_datatype vec =
-  match vec with
-  | TypeIs (Some (TypeVector [TypeInt; TypeArray adt]), _) -> adt
-  | _ -> expose_error ("Expected wrapped array, but received: " ^ string_of_rexp_type vec)
-
 (*
-  Arrays are wrapped in a vector (vector array-length array-ptr)
-  Ensure requested index is valid, then access the bare array before setting.
+  Ensure requested index is valid.
+  Also since the array will essentially have an extra element at the front (its length)
+  offset all array-sets by (- 1).
  *)
-let gen_array_op wrapped_array index expr =
-  let adt = get_array_datatype wrapped_array in
+let gen_array_op array index expr =
   let tmp1 = Gensym.gen_str "len" in
-  let tmp2 = Gensym.gen_str "arr" in
   let indx = Gensym.gen_str "index" in
   let indx_var = make_tint (RVar indx) in
-  let tmp1_var = make_tint   (RVar tmp1) in
+  let tmp1_var = make_tint (RVar tmp1) in
   (* Array index must be less than length of array *)
   let bound_check = make_tbool  (RCmp (">=", indx_var, tmp1_var)) in
   (* Array index must be greater or equal than zero *)
@@ -101,14 +95,12 @@ let gen_array_op wrapped_array index expr =
   (* Throws an unrecoverable runtime error *)
   let error_func = make_tfun [TypeInt; TypeInt] TypeVoid (RFunctionRef "array_access_error") in
   let throw_error = make_tvoid  (RApply (error_func, [tmp1_var; indx_var])) in
-  (* Accesses bare array and sets the index to the new expression *)
-  let succ = make_tvoid  (RLet (tmp2, make_tarr adt (RVectorRef (wrapped_array, 1)),
-  match expr with
-  | `Ref -> make_tvoid (RArrayRef (make_tarr adt (RVar tmp2), indx_var))
-  | `Set exp -> make_tvoid (RArraySet (make_tarr adt (RVar tmp2), indx_var, exp))
-  )) in
+  let succ = match expr with
+  | `Ref -> make_tvoid (RArrayRef (array, indx_var))
+  | `Set exp -> make_tvoid (RArraySet (array, indx_var, exp))
+  in
   let check_set   = make_tvoid  (RIf  (cond, throw_error, succ)) in
-  RLet (tmp1, make_tint (RVectorRef (wrapped_array, 0)), make_tvoid (RLet (indx, index, check_set)))
+  RLet (tmp1, make_tint (RArrayRef (array, make_tint (RInt (- 1)))), make_tvoid (RLet (indx, index, check_set)))
 
 (*
 Generates:
@@ -130,12 +122,14 @@ and expose_exp_type e =
     let if_expr = gen_if_expr vector_sets dt vec_name in
     let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeVector dt)) in
     exp_sets
-  | TypeIs (Some TypeArray dt, RArray es) ->
-    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) es in
-    let xs2es = combine xs es in
-    let arr_name = Gensym.gen_str "v" in
+  | TypeIs (Some TypeArray dt, RArray (len, es)) ->
+    (* Prepend array length to elements *)
+    let nes = (make_tint (RInt len) :: es) in
+    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) nes in
+    let xs2es = combine xs nes in
+    let arr_name = Gensym.gen_str "arr" in
     let array_sets = gen_arr_sets arr_name dt xs in
-    let if_expr = gen_arr_if_expr array_sets dt arr_name e (length es) in
+    let if_expr = gen_arr_if_expr array_sets dt arr_name e (len + 1) in
     let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeArray dt)) in
     exp_sets
   | TypeIs (dt, e) -> TypeIs (dt, expose_exp e)
@@ -143,7 +137,7 @@ and expose_exp_type e =
 and expose_exp e =
   match e with
   | RApply (id, args) -> RApply (id, List.map (fun a -> expose_exp_type a) args)
-  | RArray a -> RArray (List.map (fun ve -> expose_exp_type ve) a)
+  | RArray (len, a) -> RArray (len, List.map (fun ve -> expose_exp_type ve) a)
   (* These array-sets are from the programmer. So the array is wrapped in a tuple *)
   | RArraySet (a, i, e) -> gen_array_op (expose_exp_type a) (expose_exp_type i) (`Set (expose_exp_type e))
   | RArrayRef (a, i) -> gen_array_op (expose_exp_type a) (expose_exp_type i) `Ref

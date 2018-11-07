@@ -30,7 +30,7 @@ let rec uniquify_exp ast table sigma : rexp =
   | RUnOp (o, e) -> RUnOp (o, uniquify_exp_type e table sigma)
   | RBinOp (o, l, r) -> RBinOp (o, uniquify_exp_type l table sigma, uniquify_exp_type r table sigma)
   | RVar v -> RVar (get_var_name v table sigma)
-  | RArray es -> RArray (List.map (fun e -> uniquify_exp_type e table sigma) es)
+  | RArray (len, es) -> RArray (len, List.map (fun e -> uniquify_exp_type e table sigma) es)
   | RArraySet (a, i, e) -> RArraySet (uniquify_exp_type a table sigma, uniquify_exp_type i table sigma, uniquify_exp_type e table sigma)
   | RArrayRef (a, i) -> RArrayRef (uniquify_exp_type a table sigma, uniquify_exp_type i table sigma)
   | RVector es -> RVector (List.map (fun e -> uniquify_exp_type e table sigma) es)

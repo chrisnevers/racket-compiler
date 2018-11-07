@@ -81,6 +81,7 @@ let is_atomic vars live =
   List.filter (fun v -> try
     match Hashtbl.find vars (get_avar_name v) with
     | TypeVector dt -> false
+    | TypeArray dt -> false
     | _ -> true
   with Not_found -> assign_error ("is_atomic: arg not found " ^ string_of_aarg v)) live
 
@@ -88,6 +89,7 @@ let is_ptr vars live =
   List.filter (fun v -> try
     match Hashtbl.find vars (get_avar_name v) with
     | TypeVector dt -> true
+    | TypeArray dt -> true
     | _ -> false
   with Not_found -> assign_error "is_ptr: arg not found") live
 

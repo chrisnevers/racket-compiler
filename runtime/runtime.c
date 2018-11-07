@@ -362,12 +362,12 @@ void print_void(short newline) {
 }
 
 void print_array(int64_t* v, int64_t* tag, short newline) {
-    int64_t len  = v[1];
-    int64_t* arr = (int64_t*) v[2];
+    int64_t len     = v[1];
+    int64_t* type   = (int64_t*) tag[2];
 
     printf("#[");
     for (uint64_t i = 0; i < len; i++) {
-        print_any(arr[1 + i], (int64_t*) tag[1], 0);
+        print_any(v[2 + i], (int64_t*) tag[1], 0);
         if (i + 1 < len) {
             printf (", ");
         }

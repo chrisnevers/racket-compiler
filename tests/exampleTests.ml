@@ -93,7 +93,7 @@ let () =
   test "closures" "lambda" "20" None;
   test "closures" "book" "42" None;
   test "closures" "print-lambda" "((Int * Int) -> Bool)" None;
-  test "arrays" "init" "#[#[1, 2], #[2, 3], #[0, 5]]" (Some "5");
+  test "arrays" "init" "#[#[1, 2], #[3, 4], #[5, 6]]" None;
   test "arrays" "array-arg" "((Array (Array Int)) -> (Array Int))" None;
   test "arrays" "array-set" "#[#[1, 2, 3], #[42]]" None;
   test "arrays" "array-ref" "1" (Some "0");

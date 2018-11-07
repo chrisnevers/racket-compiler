@@ -24,7 +24,6 @@ let rec select_print_instrs dt arg =
   | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
   | TypeArray l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_array"]
   | TypeVector l -> match l with
-    | TypeInt :: TypeArray adt :: [] -> select_print_instrs (TypeArray adt) arg
     | TypeFunction (args, ret) :: [] -> select_print_instrs (TypeFunction (args, ret)) arg
     | _ -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
 
@@ -101,7 +100,8 @@ let select_exp e v : ainstr list =
     (* Calculate array offset - i.e. index to update *)
     Movq (iarg, Reg Rcx) ::
     IMulq (AInt 8, Reg Rcx) ::
-    Addq (AInt 8, Reg Rcx) ::
+    (* 8 for tag, 8 for array-length that's prepended to elements *)
+    Addq (AInt 16, Reg Rcx) ::
     (* Update array index with new value *)
     Movq (DerefVar (R11, Rcx), v) :: []
   | CApply (id, args) ->
@@ -142,7 +142,7 @@ let rec select_stmts stmt : ainstr list =
     (* Move array to R11 *)
     Movq (varg, Reg Rax) :: Movq (Reg Rax, Reg R11) ::
     (* Update array index with new value *)
-    Movq (earg, Deref (R11, 8 + (8 * i))) :: select_stmts t
+    Movq (earg, Deref (R11, 8 + 8 + (8 * i))) :: select_stmts t
   (* Handles array-sets for indexs unknown at compile-time *)
   | CArraySet (ve, i, ne) :: t ->
     let varg = get_aarg_of_carg ve in
@@ -154,7 +154,7 @@ let rec select_stmts stmt : ainstr list =
     (* Calculate array offset - i.e. index to update *)
     Movq (iarg, Reg Rcx) ::
     IMulq (AInt 8, Reg Rcx) ::
-    Addq (AInt 8, Reg Rcx) ::
+    Addq (AInt 16, Reg Rcx) ::
     (* Update array index with new value *)
     Movq (earg, DerefVar (R11, Rcx)) :: select_stmts t
   | CVectorSet (ve, i, ne) :: t ->

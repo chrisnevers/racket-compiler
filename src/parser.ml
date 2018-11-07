@@ -169,7 +169,7 @@ and parse_inner_exp tokens =
     RUnless (cnd, exps)
   | TArray ->
     let exps = parse_typed_exps tokens in
-    RArray exps
+    RArray (length exps, exps)
   | TArraySet ->
     let arr = parse_typed_exp tokens in
     let index = parse_typed_exp tokens in

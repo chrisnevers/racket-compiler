@@ -17,7 +17,7 @@ and rexp =
   | RBool of bool
   | RVoid
   | RFunctionRef of string
-  | RArray of rexp_type list
+  | RArray of int * rexp_type list
   | RArraySet of rexp_type * rexp_type * rexp_type
   | RArrayRef of rexp_type * rexp_type
   | RVector of rexp_type list
@@ -122,7 +122,7 @@ and string_of_rexp_value e : string =
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RVector ve -> "(" ^ string_of_rvector_values ve ^ ")"
-  | RArray ve -> "(array " ^ string_of_rvector_values ve ^ ")"
+  | RArray (len, ve) -> "(array (len " ^ string_of_int len ^ ") " ^ string_of_rvector_values ve ^ ")"
   | _ -> ""
 
 let rec string_of_rexp e : string =
@@ -144,7 +144,7 @@ let rec string_of_rexp e : string =
   | RLet (v, i, b) -> "Let ([Var " ^ v ^ " " ^ (string_of_rexp_type i) ^ "]) " ^ (string_of_rexp_type b)
   | RRead -> "Read"
   | RVector e -> "(vector " ^ string_of_rexps_type e ^ ")"
-  | RArray e -> "(array " ^ string_of_rexps_type e ^ ")"
+  | RArray (len, e) -> "(array (len " ^ string_of_int len ^ ") " ^ string_of_rexps_type e ^ ")"
   | RArraySet (e, i, n) -> "array-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
   | RArrayRef (e, i) -> "array-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"

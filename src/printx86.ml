@@ -21,28 +21,28 @@ let rec dt_to_x86 dt tbl =
   | TypeChar -> "_tchar"
   | TypeBool -> "_tbool"
   | TypeVoid -> "_tvoid"
-  | TypeArray l | TypeVector [TypeInt; TypeArray l] -> (
-    try Hashtbl.find tbl (TypeArray l)
+  | TypeArray l -> begin try Hashtbl.find tbl dt
     with Not_found ->
       let label = Gensym.gen_str "_tarray" in
-      let _ = Hashtbl.add tbl (TypeArray l) label in
-      dt_to_x86 l tbl;
-      label)
-  | TypeVector l -> (
-    try Hashtbl.find tbl dt
+      let _ = Hashtbl.add tbl dt label in
+      (* dt_to_x86 l tbl; *)
+      label
+    end
+  | TypeVector l -> begin try Hashtbl.find tbl dt
     with Not_found ->
       let label = Gensym.gen_str "_tvector" in
       let _ = Hashtbl.add tbl dt label in
       List.iter (fun a -> let _ = dt_to_x86 a tbl in ()) l;
-      label)
-  | TypeFunction (args, ret) -> (
-    try Hashtbl.find tbl dt
+      label
+    end
+  | TypeFunction (args, ret) -> begin try Hashtbl.find tbl dt
     with Not_found ->
       let label = Gensym.gen_str "_tfunc" in
       let _ = Hashtbl.add tbl dt label in
       List.iter (fun a -> let _ = dt_to_x86 a tbl in ()) args;
       let _ = dt_to_x86 ret tbl in
-      label)
+      label
+    end
 
 let arg_to_x86 arg =
   match arg with
@@ -118,8 +118,9 @@ let get_x86_type_variables typetbl =
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
-    | TypeArray dt | TypeVector [TypeInt; TypeArray dt] ->
+    | TypeArray dt ->
       acc ^ v ^ ":\n" ^
+      (* type array *)
       "\t.quad 6\n" ^
       "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
     | TypeVector dt ->

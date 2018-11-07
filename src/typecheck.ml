@@ -27,7 +27,7 @@ let get_some_func_types dt =
 
 let get_arity exp =
   match exp with
-  | TypeIs (_, RArray es) -> Some (length es)
+  | TypeIs (_, RArray (len, es)) -> Some len
   | TypeIs (_, RVector [TypeIs (_, RInt len); TypeIs (_, RArray _)]) -> Some len
   | _ -> None
 
@@ -49,13 +49,13 @@ let rec typecheck_exp exp table sigma =
   | RChar c -> make_tchar (RChar c)
   | RBool b -> make_tbool (RBool b)
   | RVoid   -> make_tvoid RVoid
-  | RArray exps ->
+  | RArray (len, exps) ->
     let typed_exps = map (fun t -> typecheck_exp_type t table sigma) exps in
     (* Do not allow empty arrays while there is no 'any' type support *)
-    if length typed_exps < 1 then typecheck_error "array must have one element"
+    if len < 1 then typecheck_error "array must have one element"
     else
       let datatype = typecheck_array_elements typed_exps in
-      TypeIs (Some (TypeArray datatype), RArray typed_exps)
+      TypeIs (Some (TypeArray datatype), RArray (len, typed_exps))
   | RArraySet (v, i, e) ->
     (* Ensure array index is of type int *)
     let ni = typecheck_exp_type i table sigma in
@@ -67,7 +67,7 @@ let rec typecheck_exp exp table sigma =
     let nv = typecheck_exp_type v table sigma in
     let dt = get_datatype nv in (
     match dt with
-    | TypeVector [TypeInt; TypeArray datatype] ->
+    | TypeArray datatype ->
       let ne = typecheck_exp_type e table sigma in
       let edt = get_datatype ne in
       if datatype = edt then
@@ -83,7 +83,7 @@ let rec typecheck_exp exp table sigma =
     let nv = typecheck_exp_type v table sigma in
     let dt = get_datatype nv in (
       match dt with
-      | TypeVector [TypeInt; TypeArray datatype] -> TypeIs (Some datatype, RArrayRef (nv, ni))
+      | TypeArray datatype -> TypeIs (Some datatype, RArrayRef (nv, ni))
       | _ -> typecheck_error ("typecheck_exp: Array-ref must operate on array. Received: " ^ (string_of_datatype dt))
     )
   | RVector exps ->

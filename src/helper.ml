@@ -125,7 +125,7 @@ let get_free_vars args exp =
       rm_bindings tbl free t;
       rm_bindings tbl free e;
     | RBegin es | RWhen (_, es)
-    | RUnless (_, es) | RVector es | RArray es ->
+    | RUnless (_, es) | RVector es | RArray (_, es) ->
       List.iter (fun e -> rm_bindings tbl free e) es
     | RApply (id, es) ->
       rm_bindings tbl free id;
