@@ -126,24 +126,29 @@ void process(int64_t** qp) {
         printf ("tag: %lld\n", tag[0]);
     }
 
-    // If its not a pointer or it has already been copied then skip
-    if (tag[0] != tvector) {
+    int64_t length = 0;
+    if (tag[0] == tvector) {
+        length = tag[1] + 1;    // Length of contents, including the tag
+    } else if (tag[0] == tarray) {
+        length = node[1] + 2;   // Length of contents, including tag and size
+    } else {
+        // If its not a pointer or it has already been copied then skip
         if (debug) {
-            printf ("is not vector\n");
+            printf ("is not a pointer\n");
             show_space(fromspace_begin, fromspace_end, "fromspace");
             show_space(tospace_begin, tospace_end, "tospace");
             show_space(queue_head, queue_tail, "queue");
             char c = getchar();
         }
+        queue_head += 1;
         return;
     }
 
-    // Iterate over tuple: If there is a tuple in from-space: copy
-    int64_t length = tag[1] + 1;   // Length of contents, including the tag
     int64_t* q_ptr = queue_head;
 
     if (debug) { printf ("Length of node: %lld\n", length); }
 
+    // Iterate over pointer: If there is an element in from-space: copy
     for (int i = 0; i < length; ++i) {
         if (is_fromspace_ptr (q_ptr[i])) {
             if (debug) { printf ("%lld is_fromspace ptr\n", q_ptr[i]); }
@@ -181,13 +186,15 @@ void copy (int64_t** rp) {
         return;
     }
 
-    // If its not a pointer
-    if (tag[0] != tvector) {
-        if (debug) { printf ("is not vector\n"); }
+    int64_t length = 0;
+    if (tag[0] == tvector) {
+        length = tag[1] + 1;       // Length of contents, including the tag
+    } else if (tag[0] == tarray) {
+        length = from_ptr[1] + 2;  // Add one to length to copy over the length element
+    } else {
+        if (debug) { printf ("is not a pointer\n"); }
         return;
     }
-
-    int64_t length  = tag[1] + 1;       // Length of contents, including the tag
     int64_t* to_ptr = queue_tail;       // Start copying to the to-space
 
     if (debug) { printf ("Ptr Length: %lld\n", length); }
