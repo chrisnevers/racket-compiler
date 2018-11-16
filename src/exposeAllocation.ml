@@ -3,6 +3,20 @@ open Registers
 open Gensym
 open List
 
+exception ExposeAllocation of string
+let expose_error msg = raise (ExposeAllocation msg)
+
+let rec length_of_datatype e =
+  match e with
+  | TypeIs (Some TypeInt, _) | TypeIs (Some TypeChar, _) | TypeIs (Some TypeBool, _)
+  | TypeIs (Some TypeVoid, _) | TypeIs (Some TypeFunction (_, _), _) -> 8
+  | TypeIs (Some TypeVector dt, RVector es) -> 8 + (fold_left (fun acc e -> acc + length_of_datatype e) 0 es)
+  | TypeIs (Some TypeArray dt, RArray (len, es)) ->
+    let size = length_of_datatype (hd es) in
+    (* tag + array-length + (num-of-elements * size-of-elements) *)
+    8 + 8 + (size * len)
+  | _ -> expose_error "expected int, bool, void, fun, vector, or array datatype"
+
 (*
 Generates:
 (let ([_ (vector-set! v 0 x0)]) ... (let ([_ (vector-set! v n-1 xn-1)])
@@ -19,6 +33,19 @@ let rec gen_vec_sets v vdt xdts xs =
 
 (*
 Generates:
+(let ([_ (array-set! v 0 x0)]) ... (let ([_ (array-set! v n-1 xn-1)])
+  v) ... ))))
+*)
+let rec gen_arr_sets v dt xs =
+  match xs with
+  | [] -> TypeIs (Some (TypeArray dt), RVar v)
+  | (index, x) :: t ->
+    TypeIs (Some (TypeArray dt), RLet (Gensym.gen_str "_",
+          make_tvoid (RArraySet (TypeIs (Some (TypeArray dt), RVar v), TypeIs (Some TypeInt, RInt (index - 1)), TypeIs (Some dt, RVar x))),
+          gen_arr_sets v dt t))
+
+(*
+Generates:
 (let ([_ (if (< (+ (global-value free_ptr) bytes)
              (global-value fromspace_end))
          (void)
@@ -26,7 +53,7 @@ Generates:
 (let ([v (allocate len type)])
 *)
 let gen_if_expr vecsets dt vec_name =
-  let len = List.length dt in
+  let len = length dt in
   let bytes = 8 + (len * 8) in
   let if_expr = make_tvoid (
     RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue free_ptr), make_tint (RInt bytes))), make_tint (RGlobalValue fromspace_end))),
@@ -37,6 +64,44 @@ let gen_if_expr vecsets dt vec_name =
   in
   make_tvec dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
 
+
+let gen_arr_if_expr array_sets dt arr_name e len =
+  let bytes = length_of_datatype e in
+  let if_expr = make_tvoid (
+    RIf (make_tbool (RCmp ("<", make_tint (RBinOp ("+", make_tint (RGlobalValue free_ptr), make_tint (RInt bytes))), make_tint (RGlobalValue fromspace_end))),
+    make_tvoid RVoid, make_tvoid (RCollect bytes)))
+  in
+  let allocate_expr = make_tarr dt (
+    RLet (arr_name, make_tarr dt (RAllocate (len, TypeArray dt)), array_sets))
+  in
+  make_tarr dt (RLet (Gensym.gen_str "_", if_expr, allocate_expr))
+
+(*
+  Ensure requested index is valid.
+  Also since the array will essentially have an extra element at the front (its length)
+  offset all array-sets by (- 1).
+ *)
+let gen_array_op array index expr =
+  let tmp1 = Gensym.gen_str "len" in
+  let indx = Gensym.gen_str "index" in
+  let indx_var = make_tint (RVar indx) in
+  let tmp1_var = make_tint (RVar tmp1) in
+  (* Array index must be less than length of array *)
+  let bound_check = make_tbool  (RCmp (">=", indx_var, tmp1_var)) in
+  (* Array index must be greater or equal than zero *)
+  let pos_check = make_tbool  (RCmp ("<", indx_var, make_tint (RInt 0))) in
+  (* Check both bound conditions *)
+  let cond = make_tbool  (ROr  (bound_check, pos_check)) in
+  (* Throws an unrecoverable runtime error *)
+  let error_func = make_tfun [TypeInt; TypeInt] TypeVoid (RFunctionRef "array_access_error") in
+  let throw_error = make_tvoid  (RApply (error_func, [tmp1_var; indx_var])) in
+  let succ = match expr with
+  | `Ref -> make_tvoid (RArrayRef (array, indx_var))
+  | `Set exp -> make_tvoid (RArraySet (array, indx_var, exp))
+  in
+  let check_set   = make_tvoid  (RIf  (cond, throw_error, succ)) in
+  RLet (tmp1, make_tint (RArrayRef (array, make_tint (RInt (- 1)))), make_tvoid (RLet (indx, index, check_set)))
+
 (*
 Generates:
 (let([x0 e0])...(let([xn-1 en-1])
@@ -45,23 +110,37 @@ let rec gen_exp_sets xs2es ifexp dt =
   match xs2es with
   | [] -> ifexp
   | ((i, x), e) :: t ->
-    make_tvec dt (RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
+    TypeIs (dt, RLet (x, expose_exp_type e, gen_exp_sets t ifexp dt))
 
 and expose_exp_type e =
   match e with
   | TypeIs (Some TypeVector dt, RVector es) ->
-    let xs = List.mapi (fun index e -> (index, Gensym.gen_str "x")) es in
-    let xs2es = List.combine xs es in
+    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) es in
+    let xs2es = combine xs es in
     let vec_name = Gensym.gen_str "v" in
     let vector_sets = gen_vec_sets vec_name (Some (TypeVector dt)) dt xs in
     let if_expr = gen_if_expr vector_sets dt vec_name in
-    let exp_sets = gen_exp_sets xs2es if_expr dt in
+    let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeVector dt)) in
+    exp_sets
+  | TypeIs (Some TypeArray dt, RArray (len, es)) ->
+    (* Prepend array length to elements *)
+    let nes = (make_tint (RInt len) :: es) in
+    let xs = mapi (fun index e -> (index, Gensym.gen_str "x")) nes in
+    let xs2es = combine xs nes in
+    let arr_name = Gensym.gen_str "arr" in
+    let array_sets = gen_arr_sets arr_name dt xs in
+    let if_expr = gen_arr_if_expr array_sets dt arr_name e (len + 1) in
+    let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeArray dt)) in
     exp_sets
   | TypeIs (dt, e) -> TypeIs (dt, expose_exp e)
 
 and expose_exp e =
   match e with
   | RApply (id, args) -> RApply (id, List.map (fun a -> expose_exp_type a) args)
+  | RArray (len, a) -> RArray (len, List.map (fun ve -> expose_exp_type ve) a)
+  (* These array-sets are from the programmer. So the array is wrapped in a tuple *)
+  | RArraySet (a, i, e) -> gen_array_op (expose_exp_type a) (expose_exp_type i) (`Set (expose_exp_type e))
+  | RArrayRef (a, i) -> gen_array_op (expose_exp_type a) (expose_exp_type i) `Ref
   | RVector v -> RVector (List.map (fun ve -> expose_exp_type ve) v)
   | RVectorRef (v, i) -> RVectorRef (expose_exp_type v, i)
   | RVectorSet (v, i, e) -> RVectorSet (expose_exp_type v, i, expose_exp_type e)

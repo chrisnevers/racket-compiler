@@ -1,7 +1,9 @@
 type datatype =
   | TypeInt
+  | TypeChar
   | TypeBool
   | TypeVoid
+  | TypeArray of datatype
   | TypeVector of datatype list
   | TypeFunction of datatype list * datatype
 
@@ -11,9 +13,13 @@ type rexp_type =
 and rexp =
   | RVar of string
   | RInt of int
+  | RChar of char
   | RBool of bool
   | RVoid
   | RFunctionRef of string
+  | RArray of int * rexp_type list
+  | RArraySet of rexp_type * rexp_type * rexp_type
+  | RArrayRef of rexp_type * rexp_type
   | RVector of rexp_type list
   | RVectorRef of rexp_type * int
   | RVectorSet of rexp_type * int * rexp_type
@@ -68,17 +74,22 @@ let rec get_datatypes l : datatype list =
   | _ -> datatype_error "datatype is none"
 
 let make_tint e = TypeIs (Some TypeInt, e)
+let make_tchar e = TypeIs (Some TypeChar, e)
 let make_tbool e = TypeIs (Some TypeBool, e)
 let make_tvoid e = TypeIs (Some TypeVoid, e)
 let make_tvec dt e = TypeIs (Some (TypeVector dt), e)
+let make_tarr dt e = TypeIs (Some (TypeArray dt), e)
+let make_tfun args ret e = TypeIs (Some (TypeFunction (args, ret)), e)
 let make_tnone e = TypeIs (None, e)
 
 let rec string_of_datatype dt =
   match dt with
   | TypeInt -> "int"
+  | TypeChar -> "char"
   | TypeBool -> "bool"
   | TypeVoid -> "void"
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
+  | TypeArray datatype -> "[" ^ string_of_datatype datatype ^ "]"
   | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
 
 and string_of_datatypes dt =
@@ -107,9 +118,11 @@ let rec string_of_rvector_values e =
 and string_of_rexp_value e : string =
   match e with
   | RInt i -> string_of_int i
+  | RChar c -> Char.escaped c
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RVector ve -> "(" ^ string_of_rvector_values ve ^ ")"
+  | RArray (len, ve) -> "(array (len " ^ string_of_int len ^ ") " ^ string_of_rvector_values ve ^ ")"
   | _ -> ""
 
 let rec string_of_rexp e : string =
@@ -118,6 +131,7 @@ let rec string_of_rexp e : string =
   match e with
   | RVar v -> "Var " ^ v
   | RInt i -> "Int " ^ string_of_int i
+  | RChar c -> "Char " ^ Char.escaped c
   | RBool b -> if b then "#t" else "#f"
   | RVoid -> "void"
   | RAnd (l, r) -> "And " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
@@ -129,7 +143,10 @@ let rec string_of_rexp e : string =
   | RBinOp (o, l, r) -> o ^ " " ^ (string_of_rexp_type l) ^ " " ^ (string_of_rexp_type r)
   | RLet (v, i, b) -> "Let ([Var " ^ v ^ " " ^ (string_of_rexp_type i) ^ "]) " ^ (string_of_rexp_type b)
   | RRead -> "Read"
-  | RVector e -> "(" ^ string_of_rexps_type e ^ ")"
+  | RVector e -> "(vector " ^ string_of_rexps_type e ^ ")"
+  | RArray (len, e) -> "(array (len " ^ string_of_int len ^ ") " ^ string_of_rexps_type e ^ ")"
+  | RArraySet (e, i, n) -> "array-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
+  | RArrayRef (e, i) -> "array-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_rexp_type i) ^ ")"
   | RVectorRef (e, i) -> "Vector-ref (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ")"
   | RVectorSet (e, i, n) -> "Vector-set! (" ^ (string_of_rexp_type e) ^ ", " ^ (string_of_int i) ^ ", " ^ (string_of_rexp_type n) ^ ")"
   | RVectorLength e -> "Vector-length " ^ (string_of_rexp_type e)

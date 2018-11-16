@@ -39,6 +39,7 @@ let parse_int tokens =
 let token_to_datatype token =
   match token with
   | TTypeInt -> TypeInt
+  | TTypeChar -> TypeChar
   | TTypeBool -> TypeBool
   | TTypeVoid -> TypeVoid
   | _ -> parser_error "expected int, bool, or void"
@@ -55,6 +56,7 @@ and parse_type tokens =
   let token = get_token tokens in
   match token with
   | TTypeInt -> TypeInt
+  | TTypeChar -> TypeChar
   | TTypeBool -> TypeBool
   | TTypeVoid -> TypeVoid
   | TLParen ->
@@ -66,6 +68,9 @@ and parse_type tokens =
 and parse_inner_type tokens =
   let token = get_token tokens in
   match token with
+  | TTypeArray ->
+    let atype = parse_type tokens in
+    TypeArray atype
   | TTypeVector ->
     let types = parse_types tokens in
     TypeVector types
@@ -120,6 +125,7 @@ and parse_exp tokens =
   match token with
   | TVar v -> RVar v
   | TInt i -> RInt i
+  | TChar c -> RChar c
   | TBool b -> RBool b
   | TLParen ->
     let exp = parse_inner_exp tokens in
@@ -161,6 +167,18 @@ and parse_inner_exp tokens =
     let cnd = parse_typed_exp tokens in
     let exps = parse_typed_exps tokens in
     RUnless (cnd, exps)
+  | TArray ->
+    let exps = parse_typed_exps tokens in
+    RArray (length exps, exps)
+  | TArraySet ->
+    let arr = parse_typed_exp tokens in
+    let index = parse_typed_exp tokens in
+    let exp = parse_typed_exp tokens in
+    RArraySet (arr, index, exp)
+  | TArrayRef ->
+    let arr = parse_typed_exp tokens in
+    let index = parse_typed_exp tokens in
+    RArrayRef (arr, index)
   | TVector ->
     let exps = parse_typed_exps tokens in
     RVector exps

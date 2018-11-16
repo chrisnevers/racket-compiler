@@ -120,12 +120,12 @@ let get_free_vars args exp =
     | RBinOp (_, l, r) | RVectorSet (l, _, r) ->
       rm_bindings tbl free l;
       rm_bindings tbl free r
-    | RIf (c, t, e) ->
+    | RIf (c, t, e) | RArraySet (c, t, e) ->
       rm_bindings tbl free c;
       rm_bindings tbl free t;
       rm_bindings tbl free e;
     | RBegin es | RWhen (_, es)
-    | RUnless (_, es) | RVector es ->
+    | RUnless (_, es) | RVector es | RArray (_, es) ->
       List.iter (fun e -> rm_bindings tbl free e) es
     | RApply (id, es) ->
       rm_bindings tbl free id;
@@ -133,7 +133,7 @@ let get_free_vars args exp =
     | RVar v ->
       (try let _ = Hashtbl.find tbl v in ()
       with Not_found -> Hashtbl.add free v (get_some dt))
-    | RInt _ | RBool _ | RVoid
+    | RInt _ | RChar _ | RBool _ | RVoid
     | RFunctionRef _ | RCollect _
     | RAllocate _ | RGlobalValue _
     | RRead -> ()

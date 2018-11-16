@@ -12,8 +12,10 @@ void copy (int64_t** rp);
 
 // Print methods
 void print_int(int64_t i, short newline);
+void print_char(int64_t i, short newline);
 void print_bool(int64_t i, short newline);
 void print_void(short newline);
+void print_array(int64_t* v, int64_t* tag, short newline);
 void print_vector(int64_t* v, int64_t* tag, short newline);
 void print_function(int64_t* tag, short newline);
 void print_any(int64_t val, int64_t* tag, short newline);
@@ -21,12 +23,17 @@ void print_any_type (int64_t* tag, short newline);
 
 void show_space (int64_t* start, int64_t* end, char* label);
 
+// Error methods
+void array_access_error (int64_t array_length, int64_t index);
+
 // Compiler determines number associated with type
 extern int64_t tint;
+extern int64_t tchar;
 extern int64_t tbool;
 extern int64_t tvoid;
 extern int64_t tvector;
 extern int64_t tfunc;
+extern int64_t tarray;
 
 int64_t* rootstack_ptr      = NULL;
 int64_t* rootstack_begin    = NULL;
@@ -119,24 +126,29 @@ void process(int64_t** qp) {
         printf ("tag: %lld\n", tag[0]);
     }
 
-    // If its not a pointer or it has already been copied then skip
-    if (tag[0] != tvector) {
+    int64_t length = 0;
+    if (tag[0] == tvector) {
+        length = tag[1] + 1;    // Length of contents, including the tag
+    } else if (tag[0] == tarray) {
+        length = node[1] + 2;   // Length of contents, including tag and size
+    } else {
+        // If its not a pointer or it has already been copied then skip
         if (debug) {
-            printf ("is not vector\n");
+            printf ("is not a pointer\n");
             show_space(fromspace_begin, fromspace_end, "fromspace");
             show_space(tospace_begin, tospace_end, "tospace");
             show_space(queue_head, queue_tail, "queue");
             char c = getchar();
         }
+        queue_head += 1;
         return;
     }
 
-    // Iterate over tuple: If there is a tuple in from-space: copy
-    int64_t length = tag[1] + 1;   // Length of contents, including the tag
     int64_t* q_ptr = queue_head;
 
     if (debug) { printf ("Length of node: %lld\n", length); }
 
+    // Iterate over pointer: If there is an element in from-space: copy
     for (int i = 0; i < length; ++i) {
         if (is_fromspace_ptr (q_ptr[i])) {
             if (debug) { printf ("%lld is_fromspace ptr\n", q_ptr[i]); }
@@ -174,13 +186,15 @@ void copy (int64_t** rp) {
         return;
     }
 
-    // If its not a pointer
-    if (tag[0] != tvector) {
-        if (debug) { printf ("is not vector\n"); }
+    int64_t length = 0;
+    if (tag[0] == tvector) {
+        length = tag[1] + 1;       // Length of contents, including the tag
+    } else if (tag[0] == tarray) {
+        length = from_ptr[1] + 2;  // Add one to length to copy over the length element
+    } else {
+        if (debug) { printf ("is not a pointer\n"); }
         return;
     }
-
-    int64_t length  = tag[1] + 1;       // Length of contents, including the tag
     int64_t* to_ptr = queue_tail;       // Start copying to the to-space
 
     if (debug) { printf ("Ptr Length: %lld\n", length); }
@@ -340,6 +354,10 @@ void print_int(int64_t i, short newline) {
     printf("%lld%s", i, newline ? "\n" : "");
 }
 
+void print_char(int64_t i, short newline) {
+    printf("%c%s", (char)i, newline ? "\n" : "");
+}
+
 
 void print_bool(int64_t i, short newline) {
     printf("#%c%s", i ? 't' : 'f', newline ? "\n" : "");
@@ -348,6 +366,20 @@ void print_bool(int64_t i, short newline) {
 
 void print_void(short newline) {
     printf("%s", newline ? "\n" : "");
+}
+
+void print_array(int64_t* v, int64_t* tag, short newline) {
+    int64_t len     = v[1];
+    int64_t* type   = (int64_t*) tag[2];
+
+    printf("#[");
+    for (uint64_t i = 0; i < len; i++) {
+        print_any(v[2 + i], (int64_t*) tag[1], 0);
+        if (i + 1 < len) {
+            printf (", ");
+        }
+    }
+    printf("]%s", newline ? "\n" : "");
 }
 
 
@@ -380,6 +412,10 @@ void print_type_int (short newline) {
     printf("Int%s", newline ? "\n" : "");
 }
 
+void print_type_char (short newline) {
+    printf("Char%s", newline ? "\n" : "");
+}
+
 
 void print_type_bool (short newline) {
     printf("Bool%s", newline ? "\n" : "");
@@ -402,10 +438,18 @@ void print_type_vector (int64_t* tag, short newline) {
     printf(")%s", newline ? "\n" : "");
 }
 
+void print_type_array (int64_t* tag, short newline) {
+    printf("(Array ");
+    print_any_type((int64_t*) tag[1], 0);
+    printf(")%s", newline ? "\n" : "");
+}
+
 
 void print_any_type (int64_t* tag, short newline) {
     if (tag[0] == tint) {
         print_type_int (newline);
+    } else if (tag[0] == tchar) {
+        print_type_char (newline);
     } else if (tag[0] == tbool) {
         print_type_bool (newline);
     } else if (tag[0] == tvoid) {
@@ -414,6 +458,8 @@ void print_any_type (int64_t* tag, short newline) {
         print_type_vector (tag, newline);
     } else if (tag[0] == tfunc) {
         print_function (tag, newline);
+    } else if (tag[0] == tarray) {
+        print_type_array (tag, newline);
     } else {
         fprintf(stderr, "Error: print_any_type() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -423,6 +469,8 @@ void print_any_type (int64_t* tag, short newline) {
 void print_any(int64_t val, int64_t* tag, short newline) {
     if (tag[0] == tint) {
         print_int(val, newline);
+    } else if (tag[0] == tchar) {
+        print_char(val, newline);
     } else if (tag[0] == tbool) {
         print_bool(val, newline);
     } else if (tag[0] == tvoid) {
@@ -431,6 +479,8 @@ void print_any(int64_t val, int64_t* tag, short newline) {
         print_vector((int64_t*)val, tag, newline);
     } else if (tag[0] == tfunc) {
         print_function (tag, newline);
+    } else if (tag[0] == tarray) {
+        print_array((int64_t*)val, tag, newline);
     } else {
         fprintf(stderr, "Error: print_any() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -441,4 +491,9 @@ int64_t read_int() {
     int64_t i;
     scanf("%lld", &i);
     return i;
+}
+
+void array_access_error (int64_t array_length, int64_t index) {
+    fprintf(stderr, "Array Index Error: Array has %lld elements, cannot access index %lld\n", array_length, index);
+    abort();
 }

@@ -1,6 +1,7 @@
 type token =
   | TProgram
   | TInt of int
+  | TChar of char
   | TBool of bool
   | TVar of string
   | TArithOp of string
@@ -16,6 +17,9 @@ type token =
   | TPos
   | TNeg
   | TZero
+  | TArray
+  | TArraySet
+  | TArrayRef
   | TVector
   | TVectorSet
   | TVectorRef
@@ -30,8 +34,10 @@ type token =
   | TColon
   | TArrow
   | TTypeInt
+  | TTypeChar
   | TTypeBool
   | TTypeVoid
+  | TTypeArray
   | TTypeVector
   | TLambda
   | TEOF
@@ -40,6 +46,7 @@ let string_of_token t =
   match t with
   | TProgram -> "Program"
   | TInt i -> "Int " ^ (string_of_int i)
+  | TChar c -> "Char " ^ (Char.escaped c)
   | TBool b -> "Bool " ^ (string_of_bool b)
   | TVar v -> "Var " ^ v
   | TArithOp o -> "ArithOp " ^ o
@@ -55,6 +62,9 @@ let string_of_token t =
   | TPos -> "pos?"
   | TNeg -> "neg?"
   | TZero -> "zero?"
+  | TArray -> "array"
+  | TArraySet -> "array-set!"
+  | TArrayRef -> "array-ref"
   | TVector -> "vector"
   | TVectorSet -> "vector-set!"
   | TVectorRef -> "vector-ref"
@@ -69,8 +79,10 @@ let string_of_token t =
   | TColon -> ":"
   | TArrow -> "->"
   | TTypeInt -> "Int"
+  | TTypeChar -> "Char"
   | TTypeBool -> "Bool"
   | TTypeVoid -> "Void"
+  | TTypeArray -> "Array"
   | TTypeVector -> "Vector"
   | TLambda -> "lambda"
   | TEOF -> "EOF"

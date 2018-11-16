@@ -1,6 +1,11 @@
 open RProgram
 open List
 
+let rec array_to_vector_type dt =
+  match dt with
+  | TypeArray a -> TypeVector [TypeInt; TypeArray (array_to_vector_type a)]
+  | _ -> dt
+
 let rec begin_to_let es =
   match es with
   | h :: [] -> h
@@ -16,6 +21,9 @@ and expand_exp exp :rexp =
   | RUnless (cnd, es) -> expand_exp (RWhen (make_tnone (RNot (cnd)), es))
   (* Expand inner expressions *)
   | RPrint e -> RPrint (expand_exp_type e)
+  | RArray (len, es) -> RArray (len, map expand_exp_type es)
+  | RArraySet (a, i, e) -> RArraySet (expand_exp_type a, expand_exp_type i, expand_exp_type e)
+  | RArrayRef (a, i) -> RArrayRef (expand_exp_type a, expand_exp_type i)
   | RVector es -> RVector (List.map expand_exp_type es)
   | RVectorRef (e, i) -> RVectorRef (expand_exp_type e, i)
   | RVectorSet (v, i, e) -> RVectorSet (expand_exp_type v, i, expand_exp_type e)

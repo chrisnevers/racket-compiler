@@ -4,6 +4,9 @@ open Registers
 open Helper
 open List
 
+exception BuildError of string
+let build_error msg = raise (BuildError msg)
+
 let find_in_map key map : aarg list =
   try Hashtbl.find map key
   with Not_found -> []
@@ -32,10 +35,12 @@ let rec add_directed_edges nodes targets map =
   | [] -> ()
 
 let get_live_vectors live_vars var_types =
-  List.filter (fun v ->
+  List.filter (fun v -> try
     match Hashtbl.find var_types (get_avar_name v) with
     | TypeVector _ -> true
+    | TypeArray _ -> true
     | _ -> false
+    with Not_found -> build_error ("variable not in var_type table: " ^ (get_avar_name v))
   ) live_vars
 
 let rec build_graph stmts live_afters map var_types : interference =

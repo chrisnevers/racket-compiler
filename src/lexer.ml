@@ -1,4 +1,5 @@
 open Token
+open Helper
 
 exception LexerError of string
 
@@ -14,6 +15,8 @@ let is_alpha c : bool =
   let code = Char.code c in
   (code >= Char.code('A') && code <= Char.code('Z')) ||
   (code >= Char.code('a') && code <= Char.code('z'))
+
+let is_space c = c = ' ' || c = '\n' || c = '\t'
 
 (* Construct a stream from a file or a string. Valid types are File or String *)
 let get_stream src stream_type : char Stream.t =
@@ -34,9 +37,11 @@ let rec skip_line stream =
 and next_char stream : char =
   let nc = Stream.next stream in
   match nc with
-  | ' ' | '\t' | '\n' -> next_char stream
+  | s when is_space nc -> next_char stream
   | ';' -> skip_line stream
   | c -> c
+
+and next_char_with_space stream : char = Stream.next stream
 
 let peek_char stream : char option = Stream.peek stream
 
@@ -75,6 +80,9 @@ let rec scan_identifier stream acc : token =
     | "neg?"    -> TNeg
     | "zero?"   -> TZero
     | "void"    -> TVoid
+    | "array"   -> TArray
+    | "array-set!" -> TArraySet
+    | "array-ref"  -> TArrayRef
     | "vector"  -> TVector
     | "vector-set!" -> TVectorSet
     | "vector-ref"  -> TVectorRef
@@ -86,16 +94,41 @@ let rec scan_identifier stream acc : token =
     | "while"   -> TWhile
     | "define"  -> TDefine
     | "Int"     -> TTypeInt
+    | "Char"    -> TTypeChar
     | "Bool"    -> TTypeBool
     | "Void"    -> TTypeVoid
+    | "Array"   -> TTypeArray
     | "Vector"  -> TTypeVector
     | "lambda"  -> TLambda
     | _         -> TVar acc
 
-let get_cmp_op c : token =
+let is_closing c = c = ')' || c = ']'
+let is_char_delim c = is_space c || is_closing c
+
+let rec scan_char acc stream =
+  let next = peek_char stream in
+  match next with
+  | Some c when not (is_char_delim c) ->
+    let _ = next_char stream in
+    scan_char (acc ^ (Char.escaped c)) stream
+  | _ -> match acc with
+    | "space"   -> TChar ' '
+    | "newline" -> TChar '\n'
+    | "tab"     -> TChar '\t'
+    | _ -> match String.length acc with
+      | 1 -> TChar acc.[0]
+      | _ -> lexer_error "unexpected char sequence"
+
+
+let lex_hash c stream : token =
   match c with
   | 't' -> TBool true
   | 'f' -> TBool false
+  | '\\' -> try
+    let c = next_char_with_space stream in
+    if is_closing c then TChar c
+    else scan_char (Char.escaped c) stream
+    with Stream.Failure -> lexer_error "expected character after #\\"
   | _ -> lexer_error ("scan_token: Expected #t or #f but received #" ^ (Char.escaped c))
 
 let scan_token stream : token = try
@@ -120,6 +153,7 @@ let scan_token stream : token = try
     | '[' -> TLBracket
     | ']' -> TRBracket
     | ':' -> TColon
+    | '_' -> TVar "_"
     | '>' ->
       let next = peek_char stream in
       if next = Some '=' then let _ = next_char stream in TCmpOp ">=" else TCmpOp ">"
@@ -128,7 +162,7 @@ let scan_token stream : token = try
       if next = Some '=' then let _ = next_char stream in TCmpOp "<=" else TCmpOp "<"
     | '#' ->
       let next = next_char stream in
-      get_cmp_op next
+      lex_hash next stream
     | _ -> lexer_error ("scan_token: Unrecognised token: " ^ (Char.escaped c))
   with Stream.Failure -> TEOF
 

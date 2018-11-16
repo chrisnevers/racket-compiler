@@ -24,9 +24,11 @@ type acmp =
 type aarg =
   | AVoid
   | AInt of int
+  | AChar of int
   | AVar of string
   | Reg of aregister
   | Deref of aregister * int
+  | DerefVar of aregister * aregister
   | ByteReg of aregister
   | GlobalValue of string
   | TypeRef of datatype
@@ -104,6 +106,7 @@ let get_aarg_of_carg c : aarg =
   | CVoid -> AVoid
   | CVar v -> AVar v
   | CInt i -> AInt i
+  | CChar c -> AChar (Char.code c)
   | CBool true -> AInt 1
   | CBool false -> AInt 0
   | CGlobalValue s -> GlobalValue s
@@ -160,9 +163,11 @@ let string_of_aarg a : string =
   match a with
   | AVoid -> "Void"
   | AInt i -> "Int " ^ (string_of_int i)
+  | AChar i -> "Char " ^ Char.escaped (Char.chr i)
   | AVar s -> "Var " ^ s
   | Reg r -> "Reg " ^ (string_of_register r)
   | Deref (r, i) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_int i)
+  | DerefVar (r, off) -> "Deref " ^ (string_of_register r) ^ " " ^ (string_of_register off)
   | ByteReg r -> "ByteReg " ^ (string_of_register r)
   | GlobalValue s -> "GlobalVal " ^ s
   | TypeRef dt -> "TypeRef " ^ string_of_datatype dt

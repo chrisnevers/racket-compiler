@@ -5,6 +5,7 @@ type ccmp =
 
 type carg =
   | CInt of int
+  | CChar of char
   | CVar of string
   | CBool of bool
   | CVoid (* can be 1, so evaluates to true *)
@@ -21,6 +22,7 @@ type cexp =
   | CCmp of ccmp * carg * carg
   | CAlloc of int * datatype
   | CVectorRef of carg * int
+  | CArrayRef of carg * carg
   | CApply of carg * carg list
 
 type cstmt =
@@ -30,6 +32,7 @@ type cstmt =
   | CWhile of cstmt list * cexp * cstmt list
   | CCollect of int
   | CVectorSet of carg * int * carg
+  | CArraySet of carg * carg * carg
 
 type var_type = ((string, datatype) Hashtbl.t)
 
@@ -51,6 +54,7 @@ let string_of_carg a : string =
   "(" ^ (fun e ->
   match a with
   | CInt i -> "Int " ^ (string_of_int i)
+  | CChar c -> "Char " ^ (Char.escaped c)
   | CVar v -> "Var " ^ v
   | CBool b -> "Bool " ^ (string_of_bool b)
   | CVoid -> "Void"
@@ -62,6 +66,7 @@ let string_of_carg a : string =
 let string_of_carg_type a : string =
   match a with
   | CInt _ -> "int"
+  | CChar _ -> "char"
   | CVar _ -> "var"
   | CBool _ -> "bool"
   | CVoid -> "void"
@@ -96,6 +101,7 @@ and string_of_cstmt a : string =
   | CWhile (cnds, cnda, thn) -> "While " ^ string_of_cstmts cnds ^ "\n\t\t" ^ string_of_cexp cnda ^ "\n\t\t" ^ string_of_cstmts thn
   | CCollect i -> "Collect " ^ string_of_int i
   | CVectorSet (v, i, e) -> "VectorSet " ^ string_of_carg v ^ " " ^ string_of_int i ^ " " ^ string_of_carg e
+  | CArraySet (v, i, e) -> "ArraySet " ^ string_of_carg v ^ " " ^ string_of_carg i ^ " " ^ string_of_carg e
   ) a
   ^ ")"
 

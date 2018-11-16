@@ -1,6 +1,7 @@
 open AProgram
 
 let is_deref arg = match arg with
+  | DerefVar _ -> true
   | Deref _ -> true
   | GlobalValue _ -> true
   | TypeRef _ -> true
