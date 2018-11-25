@@ -98,4 +98,5 @@ let () =
   test "arrays" "array-set" "#[#[1, 2, 3], #[42]]" None;
   test "arrays" "array-ref" "1" (Some "0");
   test "char" "char" "#[a,  , c]" None;
-  test "pattern-match" "case" "(vecy (#f, 3))" None;
+  test "pattern-match" "case" "#t" None;
+  test "pattern-match" "print" "(Booly #f)" None;

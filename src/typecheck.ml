@@ -6,11 +6,48 @@ exception TypecheckError of string
 
 let typecheck_error s = raise (TypecheckError s)
 
-let compare_args = (fun a b ->
-  let adt = get_datatype a in
-  if adt <> b then
-  typecheck_error ("args not the same type: " ^ (string_of_datatype (get_datatype a)) ^ " - " ^ string_of_datatype b)
-)
+let rec resolve_dt dt sigma =
+  match dt with
+  | TypeUser s -> begin try
+    let Some ndt = Hashtbl.find sigma s in ndt
+    with Not_found -> typecheck_error "undeclared type" end
+  | TypePlus (l, r) ->
+    TypePlus (resolve_dt l sigma, resolve_dt r sigma)
+  | TypeVector ts ->
+    TypeVector (map (fun d -> resolve_dt d sigma) ts)
+  | TypeArray d ->
+    TypeArray (resolve_dt d sigma)
+  | _ -> dt
+
+let rec compare_type a b =
+  match a with
+  | TypePlus (l, r) -> if b <> l && b <> r && a <> b then
+    typecheck_error "expected plus"
+  else ()
+  | TypeArray adt -> begin match b with
+    | TypeArray bdt -> compare_type adt bdt
+    | _ -> typecheck_error "Expected array"
+    end
+  | TypeVector adt -> begin match b with
+    | TypeVector bdt -> iter2 (fun a b -> compare_type a b) adt bdt
+    | _ -> typecheck_error "Expected vector"
+    end
+  | TypeFunction (aargs, aret) -> begin match b with
+    | TypeFunction (bargs, bret) ->
+      iter2 (fun a b -> compare_type a b) aargs bargs;
+      compare_type aret bret
+    | _ -> typecheck_error "Expected vector"
+    end
+  | TypeInt | TypeChar
+  | TypeVoid | TypeBool ->
+    if a <> b then
+      typecheck_error "expected int, char, bool"
+    else ()
+
+let compare_args a b sigma =
+  let adt = resolve_dt (get_datatype a) sigma in
+  let bdt = resolve_dt b sigma in
+  compare_type adt bdt
 
 let rec add_to_table asc tbl =
   match asc with
@@ -216,7 +253,7 @@ let rec typecheck_exp exp table sigma =
     let (fun_args, fun_ret) = get_some_func_types fdt in
     let new_args = map (fun e -> typecheck_exp_type e table sigma) args in
     (try
-      iter2 compare_args new_args fun_args;
+      iter2 (fun a b -> compare_args a b sigma) new_args fun_args;
       TypeIs (Some fun_ret, RApply (nid, new_args))
     with Invalid_argument _ -> typecheck_error "function arguments do not match parameters")
   | RInl (e, dt) ->
@@ -259,13 +296,6 @@ and typecheck_exp_type exp table sigma =
   match exp with
   | TypeIs (None, e) -> typecheck_exp e table sigma
   | TypeIs (dt, e) -> TypeIs (dt, e)
-
-(* let resolve_dt dt sigma =
-  match dt with
-  | TypeUser s -> begin try
-    let Some ndt = Hashtbl.find sigma s in ndt
-    with Not_found -> typecheck_error "undeclared type" end
-  | _ -> dt *)
 
 let rec typecheck_defs defs sigma =
   match defs with

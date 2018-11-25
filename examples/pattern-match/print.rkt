@@ -1,6 +1,5 @@
 (define-type NewType
-    [Neg Int]
-    [Add (Vector Int Int)])
+    [Inty Int]
+    [Booly Bool])
 
-(let ([x (Add (vector 5 (Neg 4)))])
-    (print x))
+(Booly #f)
