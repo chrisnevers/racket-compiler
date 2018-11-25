@@ -18,6 +18,7 @@ void print_void(short newline);
 void print_array(int64_t* v, int64_t* tag, short newline);
 void print_vector(int64_t* v, int64_t* tag, short newline);
 void print_function(int64_t* tag, short newline);
+void print_plus(int64_t* v, int64_t* tag, short newline);
 void print_any(int64_t val, int64_t* tag, short newline);
 void print_any_type (int64_t* tag, short newline);
 
@@ -25,6 +26,7 @@ void show_space (int64_t* start, int64_t* end, char* label);
 
 // Error methods
 void array_access_error (int64_t array_length, int64_t index);
+void match_error ();
 
 // Compiler determines number associated with type
 extern int64_t tint;
@@ -407,6 +409,18 @@ void print_function(int64_t* tag, short newline) {
     printf(")%s", newline ? "\n" : "");
 }
 
+void print_plus(int64_t* v, int64_t* tag, short newline) {
+    if (v[1] == 0) {
+        printf("(inl ");
+        print_any (v[2], (int64_t*) tag[1], 0);
+        printf(")%s", newline ? "\n" : "");
+    } else {
+        printf("(inr ");
+        print_any (v[3], (int64_t*) tag[2], 0);
+        printf(")%s", newline ? "\n" : "");
+    }
+}
+
 
 void print_type_int (short newline) {
     printf("Int%s", newline ? "\n" : "");
@@ -495,5 +509,10 @@ int64_t read_int() {
 
 void array_access_error (int64_t array_length, int64_t index) {
     fprintf(stderr, "Array Index Error: Array has %lld elements, cannot access index %lld\n", array_length, index);
+    abort();
+}
+
+void match_error () {
+    fprintf(stderr, "Error: Pattern matching failed\n");
     abort();
 }

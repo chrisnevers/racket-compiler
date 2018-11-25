@@ -217,6 +217,36 @@ let rec typecheck_exp exp table sigma =
       iter2 compare_args new_args fun_args;
       TypeIs (Some fun_ret, RApply (nid, new_args))
     with Invalid_argument _ -> typecheck_error "function arguments do not match parameters")
+  | RInl (e, dt) ->
+    let ne = typecheck_exp_type e table sigma in
+    let ety = get_datatype ne in
+    TypeIs (Some (TypePlus(ety, dt)), RInl (ne, dt))
+  | RInr (dt, e) ->
+    let ne = typecheck_exp_type e table sigma in
+    let ety = get_datatype ne in
+    TypeIs (Some (TypePlus(dt, ety)), RInr (dt, ne))
+  | RCase (e, cases) ->
+    let ne = typecheck_exp_type e table sigma in
+    let dt = get_datatype ne in
+    let ncases = map (fun (c, b) ->
+      let id, ty = begin match c with
+        | TypeIs (_, RInl (TypeIs (dt, RVar id), _)) -> (id, dt)
+        | TypeIs (_, RInr (_, TypeIs (dt, RVar id))) -> (id, dt)
+        end in Hashtbl.add table id ty;
+      let nc = typecheck_exp_type c table sigma in
+      let nb = typecheck_exp_type b table sigma in
+      (nc, nb)
+    ) cases in
+    let cnd_dts, body_dts = split ncases in
+    let valid_cnd = for_all (fun c ->
+      print_endline ("datatype c : " ^ string_of_datatype (get_datatype c));
+      print_endline ("datatype : " ^ string_of_datatype dt);
+      get_datatype c = dt) cnd_dts in
+    let expected_ret = get_datatype (hd body_dts) in
+    let valid_bod = for_all (fun b -> get_datatype b = expected_ret) body_dts in
+    if valid_cnd = false then typecheck_error "match case is not of correct type" else
+    if valid_bod = false then typecheck_error "match cases do not return same type" else
+    TypeIs (Some expected_ret, RCase (ne, ncases))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
@@ -245,6 +275,8 @@ let rec typecheck_defs defs sigma =
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type
       ^ ") than its body (" ^ string_of_datatype body_ret_type ^ ")")
+  | d :: t -> d :: typecheck_defs t sigma
+
 
 let typecheck program : rprogram =
   match program with

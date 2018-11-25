@@ -17,7 +17,7 @@ for f in order:
 
 drivers = """\n\n
 let run_lex program =
-    let stream = get_stream program `String in
+    let stream = get_stream program `File in
     scan_all_tokens stream []\n\n
 let run_parse program =
     let tokens = run_lex program in

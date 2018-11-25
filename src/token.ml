@@ -40,6 +40,8 @@ type token =
   | TTypeArray
   | TTypeVector
   | TLambda
+  | TDefineType
+  | TCase
   | TEOF
 
 let string_of_token t =
@@ -85,6 +87,8 @@ let string_of_token t =
   | TTypeArray -> "Array"
   | TTypeVector -> "Vector"
   | TLambda -> "lambda"
+  | TDefineType -> "define-type"
+  | TCase -> "case"
   | TEOF -> "EOF"
 
 let print_tokens tokens =

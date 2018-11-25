@@ -50,6 +50,22 @@ let rec uniquify_exp ast table sigma : rexp =
     let new_ids = map (fun id -> uniquify_name id table) ids in
     let new_args = combine new_ids dts in
     RLambda (new_args, ret, uniquify_exp_type e table sigma)
+  | RCase (e, cases) ->
+    let ne = uniquify_exp_type e table sigma in
+    let ncases = map (function
+      | (a, b) ->
+        let id = begin match a with
+        | TypeIs (_, RInl (TypeIs (_, RVar id), dt))
+        | TypeIs (_, RInr (dt, TypeIs (_, RVar id))) -> id
+        end in uniquify_name id table;
+        let na = uniquify_exp_type a table sigma in
+        let nb = uniquify_exp_type b table sigma in
+        (na,nb)
+        | _ -> uniquify_error "expected case condition to be converted to inl or inr"
+    ) cases in
+    RCase (ne, ncases)
+  | RInl (e, dt) -> RInl (uniquify_exp_type e table sigma, dt)
+  | RInr (dt, e) -> RInr (dt, uniquify_exp_type e table sigma)
   | _ -> ast
 
 and uniquify_exp_type ast table sigma : rexp_type =
@@ -68,6 +84,7 @@ let rec uniquify_defs defs sigma =
     let next_defs = uniquify_defs t sigma in
     let new_def = RDefine (new_id, new_args, ret_type, uniquify_exp_type body table sigma) in
     new_def :: next_defs
+  | d :: t -> d :: uniquify_defs t sigma
   | [] -> []
 
 let uniquify ast : rprogram =

@@ -43,6 +43,14 @@ let rec dt_to_x86 dt tbl =
       let _ = dt_to_x86 ret tbl in
       label
     end
+  | TypePlus (l, r) -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = Gensym.gen_str "_tplus" in
+      let _ = Hashtbl.add tbl dt label in
+      let _ = dt_to_x86 l tbl in
+      let _ = dt_to_x86 r tbl in
+      label
+    end
 
 let arg_to_x86 arg =
   match arg with
@@ -138,6 +146,11 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ string_of_int (List.length args) ^ "\n" ^
       List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" args ^
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
+    | TypePlus (l, r) ->
+      acc ^ v ^ ":\n" ^
+      "\t.quad 7\n" ^
+      "\t.quad " ^ dt_to_x86 l typetbl ^ "\n" ^
+      "\t.quad " ^ dt_to_x86 r typetbl ^ "\n\n"
     | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
   ) typetbl ""
 

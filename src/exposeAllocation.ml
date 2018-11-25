@@ -132,6 +132,16 @@ and expose_exp_type e =
     let if_expr = gen_arr_if_expr array_sets dt arr_name e (len + 1) in
     let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeArray dt)) in
     exp_sets
+  | TypeIs (Some (TypePlus (ldt, rdt)), RInl (e, dt)) ->
+    let vec_exp = RVector [TypeIs (Some TypeInt, RInt 0); e; TypeIs (Some rdt, RBool false)] in
+    let vec_dt = Some (TypeVector [TypeInt; ldt; rdt]) in
+    let vec = TypeIs (vec_dt, vec_exp) in
+    expose_exp_type vec
+  | TypeIs (Some (TypePlus (ldt, rdt)), RInr (dt, e)) ->
+    let vec_exp = RVector [TypeIs (Some TypeInt, RInt 1); TypeIs (Some ldt, RBool false); e] in
+    let vec_dt = Some (TypeVector [TypeInt; ldt; rdt]) in
+    let vec = TypeIs (vec_dt, vec_exp) in
+    expose_exp_type vec
   | TypeIs (dt, e) -> TypeIs (dt, expose_exp e)
 
 and expose_exp e =
@@ -155,12 +165,48 @@ and expose_exp e =
   | RLet (v, i, b) -> RLet (v, expose_exp_type i, expose_exp_type b)
   | RPrint e -> RPrint (expose_exp_type e)
   | RWhile (c, e) -> RWhile (expose_exp_type c, expose_exp_type e)
+  | RCase (e, cases) ->
+    let e_vec_id = Gensym.gen_str "case_e" in
+    let e_ty_id = Gensym.gen_str "case_ty" in
+    let gen_cases = expose_cases cases e_vec_id e_ty_id in
+    let vec_ref = TypeIs (Some TypeInt, RVectorRef (e, 0)) in
+    let get_ty = TypeIs (Some TypeVoid, RLet (e_ty_id, vec_ref, gen_cases)) in
+    let new_cases = RLet (e_vec_id, e, get_ty) in
+    expose_exp new_cases
   | _ -> e
+
+and expose_cases cases vec_id ty_id =
+  match cases with
+  | [] -> TypeIs (Some TypeVoid, RApply (TypeIs (Some TypeVoid, RFunctionRef "match_error"), []))
+  | (TypeIs (Some (TypePlus (ldt, rdt)),
+      RInl (TypeIs (_, RVar id), _)),
+      TypeIs (ret_ty, e)) :: t ->
+    let ty_var = TypeIs (Some TypeInt, RVar ty_id) in
+    let zero = TypeIs (Some TypeInt, RInt 0) in
+    let cmp_types = TypeIs (Some TypeBool, RCmp ("eq?", ty_var, zero)) in
+    let vec_ty = Some (TypeVector [TypeInt; ldt; rdt]) in
+    let vec_ref = TypeIs (Some ldt, RVectorRef (TypeIs (vec_ty, RVar vec_id), 1)) in
+    let assign_and_exec = TypeIs (ret_ty, RLet (id, vec_ref, TypeIs (ret_ty, e))) in
+    let els = expose_cases t vec_id ty_id in
+    TypeIs (ret_ty, RIf (cmp_types, assign_and_exec, els))
+  | (TypeIs (Some (TypePlus (ldt, rdt)),
+      RInr (_, TypeIs (_, RVar id))),
+      TypeIs (ret_ty, e)) :: t ->
+    let ty_var = TypeIs (Some TypeInt, RVar ty_id) in
+    let zero = TypeIs (Some TypeInt, RInt 0) in
+    let cmp_types = TypeIs (Some TypeBool, RCmp ("eq?", ty_var, zero)) in
+    let vec_ty = Some (TypeVector [TypeInt; ldt; rdt]) in
+    let vec_ref = TypeIs (Some rdt, RVectorRef (TypeIs (vec_ty, RVar vec_id), 2)) in
+    let assign_and_exec = TypeIs (ret_ty, RLet (id, vec_ref, TypeIs (ret_ty, e))) in
+    let els = expose_cases t vec_id ty_id in
+    TypeIs (ret_ty, RIf (cmp_types, assign_and_exec, els))
 
 let rec expose_defs defs =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
     RDefine (id, args, ret_type, expose_exp_type body) :: expose_defs t
+  | RDefType (id, dt) :: t -> RDefType (id, dt) :: expose_defs t
+  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: expose_defs t
   | [] -> []
 
 let expose_allocation program =

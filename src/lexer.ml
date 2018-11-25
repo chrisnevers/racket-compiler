@@ -100,6 +100,8 @@ let rec scan_identifier stream acc : token =
     | "Array"   -> TTypeArray
     | "Vector"  -> TTypeVector
     | "lambda"  -> TLambda
+    | "define-type" -> TDefineType
+    | "case"    -> TCase
     | _         -> TVar acc
 
 let is_closing c = c = ')' || c = ']'

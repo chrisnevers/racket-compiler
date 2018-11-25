@@ -114,7 +114,8 @@ let get_free_vars args exp =
       rm_bindings tbl free e
     | RVectorLength e | RVectorRef (e, _)
     | RPrint e | RWhile (_, e)
-    | RNot e | RUnOp (_, e) ->
+    | RNot e | RUnOp (_, e)
+    | RInl (e, _) | RInr (_, e) ->
       rm_bindings tbl free e
     | RAnd (l, r) | ROr (l, r) | RCmp (_, l, r)
     | RBinOp (_, l, r) | RVectorSet (l, _, r) ->

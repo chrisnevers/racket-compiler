@@ -6,6 +6,8 @@ type datatype =
   | TypeArray of datatype
   | TypeVector of datatype list
   | TypeFunction of datatype list * datatype
+  | TypeUser of string
+  | TypePlus of datatype * datatype
 
 type rexp_type =
   | TypeIs of datatype option * rexp
@@ -43,9 +45,19 @@ and rexp =
   | RWhile of rexp_type * rexp_type
   | RApply of rexp_type * rexp_type list
   | RLambda of (string * datatype) list * datatype * rexp_type
+  | RCase of rexp_type * (rexp_type * rexp_type) list
+  | RInl of rexp_type * datatype
+  | RInr of datatype * rexp_type
+  | RDatatype of datatype
+
+type side =
+  | Left
+  | Right
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
+  | RDefType of string * datatype
+  | RTypeCons of string * side * datatype
 
 type rprogram =
   | RProgram of datatype option * rdefine list * rexp_type
@@ -91,6 +103,8 @@ let rec string_of_datatype dt =
   | TypeVector datatypes -> "(" ^ string_of_datatypes datatypes ^ ")"
   | TypeArray datatype -> "[" ^ string_of_datatype datatype ^ "]"
   | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
+  | TypePlus (l, r) -> "plus (" ^ string_of_datatype l ^ ", " ^ string_of_datatype r ^ ")"
+  | TypeUser s -> "user " ^ s
 
 and string_of_datatypes dt =
   match dt with
@@ -161,6 +175,8 @@ let rec string_of_rexp e : string =
   | RApply (id, args) -> string_of_rexp_type id ^ "(" ^ (string_of_rexps_type args) ^ ")"
   | RFunctionRef id -> "FunctionRef" ^ id
   | RLambda _ -> "lambda"
+  | RInl (e, dt) -> "inl (" ^ string_of_rexp_type e ^ ", " ^ string_of_datatype dt ^ ")"
+  | RInr (dt, e) -> "inr (" ^ string_of_datatype dt^ ", " ^ string_of_rexp_type e ^ ")"
   ) e
   ^ ")\n"
 

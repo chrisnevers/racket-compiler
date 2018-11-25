@@ -42,6 +42,7 @@ let token_to_datatype token =
   | TTypeChar -> TypeChar
   | TTypeBool -> TypeBool
   | TTypeVoid -> TypeVoid
+  | TVar id -> TypeUser id
   | _ -> parser_error "expected int, bool, or void"
 
 let rec parse_types tokens =
@@ -59,6 +60,7 @@ and parse_type tokens =
   | TTypeChar -> TypeChar
   | TTypeBool -> TypeBool
   | TTypeVoid -> TypeVoid
+  | TVar id -> TypeUser id
   | TLParen ->
     let ty = parse_inner_type tokens in
     expect_token tokens TRParen;
@@ -77,7 +79,7 @@ and parse_inner_type tokens =
   | TArrow ->
     let ret = parse_type tokens in
     TypeFunction ([], ret)
-  | TTypeInt | TTypeBool | TTypeVoid ->
+  | TTypeInt | TTypeBool | TTypeVoid | TVar _ ->
     let types = token_to_datatype token :: parse_function_types tokens in
     let ret = last types in
     let args = rm_last types in
@@ -261,7 +263,22 @@ and parse_inner_exp tokens =
       RApply (TypeIs (None, lambda), exps)
     | _ -> parser_error "Expected (exp exp*): First argument must be lambda expression or variable in apply"
     end
+  | TCase ->
+    let expr = parse_typed_exp tokens in
+    let cases = parse_cases tokens in
+    RCase (expr, cases)
   | _ -> parser_error ("Error parsing exp. Did not expect " ^ string_of_token token)
+
+and parse_cases tokens =
+  let next = next_token tokens in
+  match next with
+  | TLBracket ->
+    expect_token tokens TLBracket;
+    let case = parse_typed_exp tokens in
+    let do_this = parse_typed_exp tokens in
+    expect_token tokens TRBracket;
+    (case, do_this) :: parse_cases tokens
+  | _ -> []
 
 let parse_def tokens =
   expect_token tokens TLParen;
@@ -276,12 +293,40 @@ let parse_def tokens =
   expect_token tokens TRParen;
   RDefine (id, args, ret, exp)
 
+let rec parse_sub_type tokens =
+  let next = next_token tokens in
+  match next with
+  | TLBracket ->
+    expect_token tokens TLBracket;
+    let id = parse_id tokens in
+    let ty = parse_type tokens in
+    expect_token tokens TRBracket;
+    (id, ty)
+  | _ -> parser_error "Expected [ while parsing variant"
+
+let parse_def_type tokens =
+  expect_token tokens TLParen;
+  expect_token tokens TDefineType;
+  let type_id = parse_id tokens in
+  let (l_id, l_ty) as l_type = parse_sub_type tokens in
+  let (r_id, r_ty) as r_type = parse_sub_type tokens in
+  expect_token tokens TRParen;
+  let plus_ty = TypePlus (l_ty, r_ty) in
+  RDefType (type_id, plus_ty) ::
+  RTypeCons (l_id, Left, plus_ty) :: RTypeCons (r_id, Right, plus_ty) ::
+  RDefine (l_id, [("x", l_ty)], plus_ty, TypeIs (Some plus_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty))) ::
+  RDefine (r_id, [("x", r_ty)], plus_ty, TypeIs (Some plus_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x")))) ::
+  []
+
 let rec parse_defs tokens =
   let token = peek_at tokens 2 in
   match token with
   | TDefine ->
     let def = parse_def tokens in
     def :: parse_defs tokens
+  | TDefineType ->
+    let defs = parse_def_type tokens in
+    defs @ parse_defs tokens
   | _ -> []
 
 let parse_program tokens =
