@@ -68,6 +68,8 @@ let rec patch_defs defs =
   | ADefine (id, num_params, vars, var_types, max_stack, vec_space, instrs) :: t ->
     let new_def = ADefine (id, num_params, vars, var_types, max_stack, vec_space, patch_instrs instrs) in
     new_def :: patch_defs t
+  | ADefType (id, dt) :: t -> ADefType (id, dt) :: patch_defs t
+  | ATypeCons (id, side, dt) :: t -> ATypeCons (id, side, dt) :: patch_defs t
   | [] -> []
 
 let patch_instructions program = match program with

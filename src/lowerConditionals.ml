@@ -30,6 +30,8 @@ let rec lower_defs defs uniq_count =
   | ADefine (id, num_params, vars, var_types, max_stack, vec_space, instrs) :: t ->
     let new_instrs = lower_instructions instrs uniq_count in
     ADefine (id, num_params, vars, var_types, max_stack, vec_space, new_instrs) :: lower_defs t uniq_count
+  | ADefType (id, dt) :: t -> ADefType (id, dt) :: lower_defs t uniq_count
+  | ATypeCons (id, side, dt) :: t -> ATypeCons (id, side, dt) :: lower_defs t uniq_count
   | [] -> []
 
 let lower_conditionals program =

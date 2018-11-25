@@ -193,7 +193,7 @@ and expose_cases cases vec_id ty_id =
       RInr (_, TypeIs (_, RVar id))),
       TypeIs (ret_ty, e)) :: t ->
     let ty_var = TypeIs (Some TypeInt, RVar ty_id) in
-    let zero = TypeIs (Some TypeInt, RInt 0) in
+    let zero = TypeIs (Some TypeInt, RInt 1) in
     let cmp_types = TypeIs (Some TypeBool, RCmp ("eq?", ty_var, zero)) in
     let vec_ty = Some (TypeVector [TypeInt; ldt; rdt]) in
     let vec_ref = TypeIs (Some rdt, RVectorRef (TypeIs (vec_ty, RVar vec_id), 2)) in

@@ -177,6 +177,8 @@ let rec select_defs defs =
     let instrs = movs @ map_movs @ select_stmts stmts in
     let new_args = map (fun (id, dt) -> AVar id) args in
     PDefine (id, num_params, new_args, var_types, max_stack, instrs) :: select_defs t
+  | CDefType (id, dt) :: t -> PDefType (id, dt) :: select_defs t
+  | CTypeCons (id, side, dt) :: t -> PTypeCons (id, side, dt) :: select_defs t
   | [] -> []
 
 let select_instructions program : pprogram =

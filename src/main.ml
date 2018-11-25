@@ -33,7 +33,7 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
-    (* let program = "examples/arrays/array-set.rkt" in *)
+    (* let program = "examples/pattern-match/list.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)

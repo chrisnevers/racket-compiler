@@ -114,8 +114,8 @@ let rec convert_defs defs ndefs =
     | _ -> (id, dt)
     ) args in
     RDefine (id, nargs, ret, convert_typed_exp body ndefs) :: convert_defs t ndefs
-  | RDefType (id, dt) :: t -> convert_defs t ndefs
-  | RTypeCons (id, side, dt) :: t -> convert_defs t ndefs
+  | RDefType (id, dt) :: t -> RDefType (id, dt) :: convert_defs t ndefs
+  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) ::  convert_defs t ndefs
   | [] -> []
 
 let rec add_vec_args defs =
@@ -127,8 +127,8 @@ let rec add_vec_args defs =
     with Not_found -> RDefine (id, args, ret, body))
     in
     def :: add_vec_args t
-  | RDefType (id, dt) :: t -> add_vec_args t
-  | RTypeCons (id, side, dt) :: t -> add_vec_args t
+  | RDefType (id, dt) :: t -> RDefType (id, dt) :: add_vec_args t
+  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: add_vec_args t
   | [] -> []
 
 let convert_closures program =

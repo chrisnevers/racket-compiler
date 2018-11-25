@@ -19,6 +19,7 @@ void print_array(int64_t* v, int64_t* tag, short newline);
 void print_vector(int64_t* v, int64_t* tag, short newline);
 void print_function(int64_t* tag, short newline);
 void print_plus(int64_t* v, int64_t* tag, short newline);
+void print_user(int64_t* v, int64_t* tag, short newline);
 void print_any(int64_t val, int64_t* tag, short newline);
 void print_any_type (int64_t* tag, short newline);
 
@@ -36,6 +37,8 @@ extern int64_t tvoid;
 extern int64_t tvector;
 extern int64_t tfunc;
 extern int64_t tarray;
+extern int64_t tplus;
+extern int64_t tuser;
 
 int64_t* rootstack_ptr      = NULL;
 int64_t* rootstack_begin    = NULL;
@@ -411,14 +414,17 @@ void print_function(int64_t* tag, short newline) {
 
 void print_plus(int64_t* v, int64_t* tag, short newline) {
     if (v[1] == 0) {
-        printf("(inl ");
         print_any (v[2], (int64_t*) tag[1], 0);
-        printf(")%s", newline ? "\n" : "");
     } else {
-        printf("(inr ");
         print_any (v[3], (int64_t*) tag[2], 0);
-        printf(")%s", newline ? "\n" : "");
     }
+}
+
+void print_user(int64_t* v, int64_t* tag, short newline) {
+    char* id = (char*) tag[1];
+    printf("(%s ", id);
+    print_any((int64_t)v, (int64_t*)tag[2], 0);
+    printf(")\n");
 }
 
 
@@ -458,6 +464,13 @@ void print_type_array (int64_t* tag, short newline) {
     printf(")%s", newline ? "\n" : "");
 }
 
+void print_type_plus (int64_t* tag, short newline) {
+    return;
+}
+
+void print_type_user (int64_t* tag, short newline) {
+    return;
+}
 
 void print_any_type (int64_t* tag, short newline) {
     if (tag[0] == tint) {
@@ -474,6 +487,10 @@ void print_any_type (int64_t* tag, short newline) {
         print_function (tag, newline);
     } else if (tag[0] == tarray) {
         print_type_array (tag, newline);
+    } else if (tag[0] == tplus) {
+        print_type_plus (tag, newline);
+    } else if (tag[0] == tuser) {
+        print_type_user (tag, newline);
     } else {
         fprintf(stderr, "Error: print_any_type() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -495,6 +512,10 @@ void print_any(int64_t val, int64_t* tag, short newline) {
         print_function (tag, newline);
     } else if (tag[0] == tarray) {
         print_array((int64_t*)val, tag, newline);
+    } else if (tag[0] == tplus) {
+        print_plus((int64_t*)val, tag, newline);
+    } else if (tag[0] == tuser) {
+        print_user((int64_t*)val, tag, newline);
     } else {
         fprintf(stderr, "Error: print_any() - Unknown type in tag[0]: %lld\n", tag[0]);
     }

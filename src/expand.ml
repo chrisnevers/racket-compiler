@@ -81,11 +81,12 @@ let rec expand_defs defs gamma =
     let new_def = RDefine (id, new_args, ret_type, new_body) in
     new_def :: expand_defs t gamma
   | RDefType (id, dt) :: t ->
+    let TypePlus (TypeUser ldt, TypeUser rdt) = dt in
     Hashtbl.add gamma id (None, dt);
+    Hashtbl.add gamma ldt (Some Left, dt);
+    Hashtbl.add gamma rdt (Some Right, dt);
     RDefType (id, dt) :: expand_defs t gamma
-  | RTypeCons (id, side, dt) :: t ->
-    Hashtbl.add gamma id (Some side, dt);
-    RTypeCons (id, side, dt) :: expand_defs t gamma
+  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: expand_defs t gamma
   | [] -> []
 
 let expand program =

@@ -311,9 +311,10 @@ let parse_def_type tokens =
   let (l_id, l_ty) as l_type = parse_sub_type tokens in
   let (r_id, r_ty) as r_type = parse_sub_type tokens in
   expect_token tokens TRParen;
-  let plus_ty = TypePlus (l_ty, r_ty) in
+  let plus_ty = TypePlus (TypeUser l_id, TypeUser r_id) in
+  let int_ty = TypePlus (l_ty, r_ty) in
   RDefType (type_id, plus_ty) ::
-  RTypeCons (l_id, Left, plus_ty) :: RTypeCons (r_id, Right, plus_ty) ::
+  RTypeCons (l_id, Left, int_ty) :: RTypeCons (r_id, Right, int_ty) ::
   RDefine (l_id, [("x", l_ty)], plus_ty, TypeIs (Some plus_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty))) ::
   RDefine (r_id, [("x", r_ty)], plus_ty, TypeIs (Some plus_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x")))) ::
   []

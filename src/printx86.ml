@@ -47,10 +47,9 @@ let rec dt_to_x86 dt tbl =
     with Not_found ->
       let label = Gensym.gen_str "_tplus" in
       let _ = Hashtbl.add tbl dt label in
-      let _ = dt_to_x86 l tbl in
-      let _ = dt_to_x86 r tbl in
       label
     end
+  | TypeUser s -> "_" ^ s
 
 let arg_to_x86 arg =
   match arg with
@@ -123,6 +122,10 @@ let get_x86_type_variables typetbl =
   "_tarray:\n\t.quad 6\n" ^
   "\n\t.globl _tchar\n" ^
   "_tchar:\n\t.quad 7\n" ^
+  "\n\t.globl _tplus\n" ^
+  "_tplus:\n\t.quad 8\n" ^
+  "\n\t.globl _tuser\n" ^
+  "_tuser:\n\t.quad 9\n" ^
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
@@ -148,7 +151,7 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
     | TypePlus (l, r) ->
       acc ^ v ^ ":\n" ^
-      "\t.quad 7\n" ^
+      "\t.quad 8\n" ^
       "\t.quad " ^ dt_to_x86 l typetbl ^ "\n" ^
       "\t.quad " ^ dt_to_x86 r typetbl ^ "\n\n"
     | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
@@ -189,7 +192,20 @@ let rec print_defs defs typetbl =
     "\tpop\t\t%rbp\n" ^
     "\tretq\n\n" ^
     print_defs t typetbl
+  | d :: t -> print_defs t typetbl
   | [] -> ""
+
+let rec get_type_cons defs typetbl =
+  match defs with
+  | [] -> ""
+  | ATypeCons (id, s, TypePlus (l, r)) :: t ->
+    "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
+    "_" ^ id ^ ":\n" ^
+    "\t.quad 9\n" ^
+    "\t.quad _" ^ id ^ "_str \n" ^
+    "\t.quad " ^ dt_to_x86 (if s = Left then l else r) typetbl ^ "\n\n"
+    ^ get_type_cons t typetbl
+  | _ :: t -> get_type_cons t typetbl
 
 let print_x86 program =
   match program with
@@ -197,8 +213,10 @@ let print_x86 program =
     let typetbl = Hashtbl.create 10 in
     let middle = print_instrs instrs typetbl in
     let defines = print_defs defs typetbl in
+    let type_cons = get_type_cons defs typetbl in
     let beginning = ".data\n" ^
                     get_x86_type_variables typetbl ^
+                    type_cons ^
                     ".text\n" ^
                     defines ^
                     "\t.globl " ^ os_label_prefix ^ "main\n\n" ^

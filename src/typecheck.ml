@@ -6,7 +6,9 @@ exception TypecheckError of string
 
 let typecheck_error s = raise (TypecheckError s)
 
-let compare_args = (fun a b -> if get_datatype a <> b then
+let compare_args = (fun a b ->
+  let adt = get_datatype a in
+  if adt <> b then
   typecheck_error ("args not the same type: " ^ (string_of_datatype (get_datatype a)) ^ " - " ^ string_of_datatype b)
 )
 
@@ -230,18 +232,17 @@ let rec typecheck_exp exp table sigma =
     let dt = get_datatype ne in
     let ncases = map (fun (c, b) ->
       let id, ty = begin match c with
-        | TypeIs (_, RInl (TypeIs (dt, RVar id), _)) -> (id, dt)
-        | TypeIs (_, RInr (_, TypeIs (dt, RVar id))) -> (id, dt)
-        end in Hashtbl.add table id ty;
+        | TypeIs (_, RInl (TypeIs (Some TypeUser dt, RVar id), _)) -> (id, Hashtbl.find sigma dt)
+        | TypeIs (_, RInr (_, TypeIs (Some TypeUser dt, RVar id))) -> (id, Hashtbl.find sigma dt)
+        end
+      in
+      let _ = Hashtbl.add table id ty in
       let nc = typecheck_exp_type c table sigma in
       let nb = typecheck_exp_type b table sigma in
       (nc, nb)
     ) cases in
     let cnd_dts, body_dts = split ncases in
-    let valid_cnd = for_all (fun c ->
-      print_endline ("datatype c : " ^ string_of_datatype (get_datatype c));
-      print_endline ("datatype : " ^ string_of_datatype dt);
-      get_datatype c = dt) cnd_dts in
+    let valid_cnd = for_all (fun c -> get_datatype c = dt) cnd_dts in
     let expected_ret = get_datatype (hd body_dts) in
     let valid_bod = for_all (fun b -> get_datatype b = expected_ret) body_dts in
     if valid_cnd = false then typecheck_error "match case is not of correct type" else
@@ -259,6 +260,13 @@ and typecheck_exp_type exp table sigma =
   | TypeIs (None, e) -> typecheck_exp e table sigma
   | TypeIs (dt, e) -> TypeIs (dt, e)
 
+(* let resolve_dt dt sigma =
+  match dt with
+  | TypeUser s -> begin try
+    let Some ndt = Hashtbl.find sigma s in ndt
+    with Not_found -> typecheck_error "undeclared type" end
+  | _ -> dt *)
+
 let rec typecheck_defs defs sigma =
   match defs with
   | [] -> []
@@ -275,6 +283,10 @@ let rec typecheck_defs defs sigma =
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type
       ^ ") than its body (" ^ string_of_datatype body_ret_type ^ ")")
+  | RTypeCons (id, side, dt) :: t ->
+    let TypePlus (l, r) = dt in
+    Hashtbl.add sigma id (if side = Left then Some l else Some r);
+    RTypeCons (id, side, dt) :: typecheck_defs t sigma
   | d :: t -> d :: typecheck_defs t sigma
 
 
