@@ -149,11 +149,7 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ string_of_int (List.length args) ^ "\n" ^
       List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" args ^
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
-    | TypePlus (l, r) ->
-      acc ^ v ^ ":\n" ^
-      "\t.quad 8\n" ^
-      "\t.quad " ^ dt_to_x86 l typetbl ^ "\n" ^
-      "\t.quad " ^ dt_to_x86 r typetbl ^ "\n\n"
+    | TypePlus (l, r) -> acc (* this was printed earlier *)
     | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
   ) typetbl ""
 
@@ -205,15 +201,25 @@ let rec get_type_cons defs typetbl =
     "\t.quad _" ^ id ^ "_str \n" ^
     "\t.quad " ^ dt_to_x86 (if s = Left then l else r) typetbl ^ "\n\n"
     ^ get_type_cons t typetbl
+  | ADefType (id, TypePlus (l, r)) :: t ->
+    let label = "_" ^ id in
+    let _ = Hashtbl.add typetbl (TypePlus (l, r)) label in
+    label ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
+    label ^ ":\n" ^
+    "\t.quad 8\n" ^
+    "\t.quad _" ^ id ^ "_str \n" ^
+    "\t.quad " ^ dt_to_x86 l typetbl ^ "\n" ^
+    "\t.quad " ^ dt_to_x86 r typetbl ^ "\n\n"
+    ^ get_type_cons t typetbl
   | _ :: t -> get_type_cons t typetbl
 
 let print_x86 program =
   match program with
   | AProgram (stack_space, rootstack_space, datatype, defs, instrs) ->
     let typetbl = Hashtbl.create 10 in
+    let type_cons = get_type_cons defs typetbl in
     let middle = print_instrs instrs typetbl in
     let defines = print_defs defs typetbl in
-    let type_cons = get_type_cons defs typetbl in
     let beginning = ".data\n" ^
                     get_x86_type_variables typetbl ^
                     type_cons ^

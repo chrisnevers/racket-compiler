@@ -414,9 +414,9 @@ void print_function(int64_t* tag, short newline) {
 
 void print_plus(int64_t* v, int64_t* tag, short newline) {
     if (v[1] == 0) {
-        print_any (v[2], (int64_t*) tag[1], 0);
+        print_any (v[2], (int64_t*) tag[2], 0);
     } else {
-        print_any (v[3], (int64_t*) tag[2], 0);
+        print_any (v[3], (int64_t*) tag[3], 0);
     }
 }
 
@@ -465,11 +465,13 @@ void print_type_array (int64_t* tag, short newline) {
 }
 
 void print_type_plus (int64_t* tag, short newline) {
-    return;
+    char* id = (char*) tag[1];
+    printf("%s%s", id, newline ? "\n" : "");
 }
 
 void print_type_user (int64_t* tag, short newline) {
-    return;
+    char* id = (char*) tag[1];
+    printf("%s%s", id, newline ? "\n" : "");
 }
 
 void print_any_type (int64_t* tag, short newline) {
