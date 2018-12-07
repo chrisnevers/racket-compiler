@@ -85,6 +85,7 @@ and convert_exp exp defs =
   | RWhile (c, e) -> RWhile (c, convert_typed_exp e defs)
   | RInl (e, dt) -> RInl (convert_typed_exp e defs, dt)
   | RInr (dt, e) -> RInr (dt, convert_typed_exp e defs)
+  | RCase (e, cnds) -> RCase (convert_typed_exp e defs, map (fun (a, b) -> (convert_typed_exp a defs, convert_typed_exp b defs)) cnds)
   | RApply (e, es) ->
     let ne = convert_typed_exp e defs in
     let vdt = get_datatype ne in
@@ -115,7 +116,8 @@ let rec convert_defs defs ndefs =
     ) args in
     RDefine (id, nargs, ret, convert_typed_exp body ndefs) :: convert_defs t ndefs
   | RDefType (id, dt) :: t -> RDefType (id, dt) :: convert_defs t ndefs
-  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) ::  convert_defs t ndefs
+  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: convert_defs t ndefs
+  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: convert_defs t ndefs
   | [] -> []
 
 let rec add_vec_args defs =
@@ -129,6 +131,7 @@ let rec add_vec_args defs =
     def :: add_vec_args t
   | RDefType (id, dt) :: t -> RDefType (id, dt) :: add_vec_args t
   | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: add_vec_args t
+  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: add_vec_args t
   | [] -> []
 
 let convert_closures program =

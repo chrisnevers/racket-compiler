@@ -100,3 +100,6 @@ let () =
   test "char" "char" "#[a,  , c]" None;
   test "pattern-match" "case" "#t" None;
   test "pattern-match" "print" "(Booly #f)" None;
+  test "pattern-match" "print-type" "(ascii -> Void)" None;
+  test "pattern-match" "list" "(Cons (4, (Cons (5, (Cons (6, (Nil #f)))))))" None;
+  test "pattern-match" "interp" "5" None;

@@ -66,6 +66,8 @@ let rec uniquify_exp ast table sigma : rexp =
     RCase (ne, ncases)
   | RInl (e, dt) -> RInl (uniquify_exp_type e table sigma, dt)
   | RInr (dt, e) -> RInr (dt, uniquify_exp_type e table sigma)
+  | RFold e -> RFold (uniquify_exp_type e table sigma)
+  | RUnfold e -> RUnfold (uniquify_exp_type e table sigma)
   | _ -> ast
 
 and uniquify_exp_type ast table sigma : rexp_type =

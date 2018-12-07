@@ -49,7 +49,14 @@ let rec dt_to_x86 dt tbl =
       let _ = Hashtbl.add tbl dt label in
       label
     end
-  | TypeUser s -> "_" ^ s
+  | TypeFix dt -> dt_to_x86 dt tbl
+  | TypeForAll (s, dt) -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = "_" ^ s in
+      let _ = Hashtbl.add tbl dt label in
+      label
+    end
+  | TypeUser s | TypeVar s -> "_" ^ s
 
 let arg_to_x86 arg =
   match arg with
@@ -150,7 +157,8 @@ let get_x86_type_variables typetbl =
       List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" args ^
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
     | TypePlus (l, r) -> acc (* this was printed earlier *)
-    | _ -> invalid_type "Printx86:get_x86_type_variables: expected type vector in type table"
+    | TypeFix _ -> acc (* this was printed earlier *)
+    | _ -> invalid_type ("Printx86: get_x86_type_variables: " ^ string_of_datatype k)
   ) typetbl ""
 
 let initialize rootstack heap =
@@ -191,33 +199,37 @@ let rec print_defs defs typetbl =
   | d :: t -> print_defs t typetbl
   | [] -> ""
 
-let rec get_type_cons defs typetbl =
+let rec get_type_cons defs typetbl deftbl =
   match defs with
   | [] -> ""
-  | ATypeCons (id, s, TypePlus (l, r)) :: t ->
+  | ADefTypeNames (id, l, r) :: t ->
+    Hashtbl.add deftbl id (TypeVar l, TypeVar r);
+    get_type_cons t typetbl deftbl
+  | ATypeCons (id, s, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
     "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
     "_" ^ id ^ ":\n" ^
     "\t.quad 9\n" ^
     "\t.quad _" ^ id ^ "_str \n" ^
     "\t.quad " ^ dt_to_x86 (if s = Left then l else r) typetbl ^ "\n\n"
-    ^ get_type_cons t typetbl
-  | ADefType (id, TypePlus (l, r)) :: t ->
+    ^ get_type_cons t typetbl deftbl
+  | ADefType (id, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
     let label = "_" ^ id in
+    let (l_id, r_id) = Hashtbl.find deftbl id in
     let _ = Hashtbl.add typetbl (TypePlus (l, r)) label in
     label ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
     label ^ ":\n" ^
     "\t.quad 8\n" ^
     "\t.quad _" ^ id ^ "_str \n" ^
-    "\t.quad " ^ dt_to_x86 l typetbl ^ "\n" ^
-    "\t.quad " ^ dt_to_x86 r typetbl ^ "\n\n"
-    ^ get_type_cons t typetbl
-  | _ :: t -> get_type_cons t typetbl
+    "\t.quad " ^ dt_to_x86 l_id typetbl ^ "\n" ^
+    "\t.quad " ^ dt_to_x86 r_id typetbl ^ "\n\n"
+    ^ get_type_cons t typetbl deftbl
+  | _ :: t -> get_type_cons t typetbl deftbl
 
 let print_x86 program =
   match program with
   | AProgram (stack_space, rootstack_space, datatype, defs, instrs) ->
     let typetbl = Hashtbl.create 10 in
-    let type_cons = get_type_cons defs typetbl in
+    let type_cons = get_type_cons defs typetbl (Hashtbl.create 10) in
     let middle = print_instrs instrs typetbl in
     let defines = print_defs defs typetbl in
     let beginning = ".data\n" ^

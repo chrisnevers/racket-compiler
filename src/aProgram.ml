@@ -68,26 +68,31 @@ type pdefine =
   | PDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * ainstr list
   | PDefType of string * datatype
   | PTypeCons of string * side * datatype
+  | PDefTypeNames of string * string * string
 
 type ldefine =
   | LDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * ainstr list
   | LDefType of string * datatype
   | LTypeCons of string * side * datatype
+  | LDefTypeNames of string * string * string
 
 type gdefine =
   | GDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * interference * ainstr list
   | GDefType of string * datatype
   | GTypeCons of string * side * datatype
+  | GDefTypeNames of string * string * string
 
 type gcdefine =
   | GCDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * colorgraph * ainstr list
   | GCDefType of string * datatype
   | GCTypeCons of string * side * datatype
+  | GCDefTypeNames of string * string * string
 
 type adefine =
   | ADefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * int * ainstr list
   | ADefType of string * datatype
   | ATypeCons of string * side * datatype
+  | ADefTypeNames of string * string * string
 
 type aprogram =
   AProgram of int * int * datatype * adefine list * ainstr list

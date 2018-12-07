@@ -57,6 +57,7 @@ let rec uncover_defs defs =
     LDefine (id, num_params, args, var_types, max_stack, live_afters, new_instrs) :: uncover_defs t
   | PDefType (id, dt) :: t -> LDefType (id, dt) :: uncover_defs t
   | PTypeCons (id, side, dt) :: t -> LTypeCons (id, side, dt) :: uncover_defs t
+  | PDefTypeNames (id, l, r) :: t -> LDefTypeNames (id, l, r) :: uncover_defs t
   | [] -> []
 
 let uncover_live program : lprogram =

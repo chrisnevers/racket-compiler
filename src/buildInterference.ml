@@ -111,6 +111,7 @@ let rec build_defs defs =
     GDefine (id, num_params, args, var_types, max_stack, lives, map, instrs) :: build_defs t
   | LDefType (id, dt) :: t -> GDefType (id, dt) :: build_defs t
   | LTypeCons (id, side, dt) :: t -> GTypeCons (id, side, dt) :: build_defs t
+  | LDefTypeNames (id, l, r) :: t -> GDefTypeNames (id, l, r) :: build_defs t
   | [] -> []
 
 

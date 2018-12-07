@@ -40,6 +40,7 @@ type cdefine =
   | CDefine of string * (string * datatype) list * datatype * var_type * cstmt list
   | CDefType of string * datatype
   | CTypeCons of string * side * datatype
+  | CDefTypeNames of string * string * string
 
 type cprogram =
   | CProgram of var_type * datatype * cdefine list * cstmt list

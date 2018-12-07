@@ -150,6 +150,7 @@ let rec allocate_defs defs =
     GCDefine (id, num_params, args, var_types, max_stack, lives, colors, instrs) :: allocate_defs t
   | GDefType (id, dt) :: t -> GCDefType (id, dt) :: allocate_defs t
   | GTypeCons (id, side, dt) :: t -> GCTypeCons (id, side, dt) :: allocate_defs t
+  | GDefTypeNames (id, l, r) :: t -> GCDefTypeNames (id, l, r) :: allocate_defs t
   | [] -> []
 
 let allocate_registers program : gcprogram =

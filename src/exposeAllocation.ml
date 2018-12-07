@@ -132,12 +132,12 @@ and expose_exp_type e =
     let if_expr = gen_arr_if_expr array_sets dt arr_name e (len + 1) in
     let exp_sets = gen_exp_sets xs2es if_expr (Some (TypeArray dt)) in
     exp_sets
-  | TypeIs (Some (TypePlus (ldt, rdt)), RInl (e, dt)) ->
+  | TypeIs (Some (TypeFix (TypeForAll (s, TypePlus (ldt, rdt)))), RInl (e, dt)) ->
     let vec_exp = RVector [TypeIs (Some TypeInt, RInt 0); e; TypeIs (Some rdt, RBool false)] in
     let vec_dt = Some (TypeVector [TypeInt; ldt; rdt]) in
     let vec = TypeIs (vec_dt, vec_exp) in
     expose_exp_type vec
-  | TypeIs (Some (TypePlus (ldt, rdt)), RInr (dt, e)) ->
+  | TypeIs (Some (TypeFix (TypeForAll (s, TypePlus (ldt, rdt)))), RInr (dt, e)) ->
     let vec_exp = RVector [TypeIs (Some TypeInt, RInt 1); TypeIs (Some ldt, RBool false); e] in
     let vec_dt = Some (TypeVector [TypeInt; ldt; rdt]) in
     let vec = TypeIs (vec_dt, vec_exp) in
@@ -207,6 +207,7 @@ let rec expose_defs defs =
     RDefine (id, args, ret_type, expose_exp_type body) :: expose_defs t
   | RDefType (id, dt) :: t -> RDefType (id, dt) :: expose_defs t
   | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: expose_defs t
+  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: expose_defs t
   | [] -> []
 
 let expose_allocation program =

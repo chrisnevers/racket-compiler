@@ -424,7 +424,7 @@ void print_user(int64_t* v, int64_t* tag, short newline) {
     char* id = (char*) tag[1];
     printf("(%s ", id);
     print_any((int64_t)v, (int64_t*)tag[2], 0);
-    printf(")\n");
+    printf(")%s", newline ? "\n" : "");
 }
 
 

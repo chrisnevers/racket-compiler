@@ -8,6 +8,18 @@ type datatype =
   | TypeFunction of datatype list * datatype
   | TypeUser of string
   | TypePlus of datatype * datatype
+  (*
+    TypeFix (rdt, dt),
+      rdt = the entire recursive type in dt
+      dt = the type
+    E.G :
+      TypeFix ("list",
+        TypePlus (bool, TypeVector ( int, TypeVar "list" ) )
+      )
+   *)
+  | TypeVar of string
+  | TypeFix of datatype
+  | TypeForAll of string * datatype
 
 type rexp_type =
   | TypeIs of datatype option * rexp
@@ -49,6 +61,8 @@ and rexp =
   | RInl of rexp_type * datatype
   | RInr of datatype * rexp_type
   | RDatatype of datatype
+  | RFold of rexp_type
+  | RUnfold of rexp_type
 
 type side =
   | Left
@@ -58,6 +72,7 @@ type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
   | RDefType of string * datatype
   | RTypeCons of string * side * datatype
+  | RDefTypeNames of string * string * string
 
 type rprogram =
   | RProgram of datatype option * rdefine list * rexp_type
@@ -105,6 +120,9 @@ let rec string_of_datatype dt =
   | TypeFunction (args, ret) -> (List.fold_left (fun acc e -> string_of_datatype e ^ " -> ") "" args) ^ string_of_datatype ret
   | TypePlus (l, r) -> "plus (" ^ string_of_datatype l ^ ", " ^ string_of_datatype r ^ ")"
   | TypeUser s -> "user " ^ s
+  | TypeVar s -> "var " ^ s
+  | TypeFix datatype -> "tfix (" ^ string_of_datatype datatype ^ ")"
+  | TypeForAll (s, datatype) -> "ForAll (" ^ s ^ ", " ^ string_of_datatype datatype ^ ")"
 
 and string_of_datatypes dt =
   match dt with

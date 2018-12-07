@@ -51,7 +51,7 @@ let rec patch_instrs instrs = match instrs with
     if is_deref a && is_deref b then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
     else if is_int a && is_int b then
-      Movq (a, Reg Rax) :: Movq (b, Reg Rcx) ::Cmpq (Reg Rax, Reg Rcx) :: patch_instrs tl
+      Movq (a, Reg Rax) :: Movq (b, Reg Rcx) :: Cmpq (Reg Rax, Reg Rcx) :: patch_instrs tl
     else if is_int a then
       Movq (a, Reg Rax) :: Cmpq (Reg Rax, b) :: patch_instrs tl
     else if is_int b then
@@ -68,8 +68,7 @@ let rec patch_defs defs =
   | ADefine (id, num_params, vars, var_types, max_stack, vec_space, instrs) :: t ->
     let new_def = ADefine (id, num_params, vars, var_types, max_stack, vec_space, patch_instrs instrs) in
     new_def :: patch_defs t
-  | ADefType (id, dt) :: t -> ADefType (id, dt) :: patch_defs t
-  | ATypeCons (id, side, dt) :: t -> ATypeCons (id, side, dt) :: patch_defs t
+  | h :: t -> h :: patch_defs t
   | [] -> []
 
 let patch_instructions program = match program with

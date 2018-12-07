@@ -208,6 +208,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let var_list = if v = None then (var_name, dt) :: concat flat_vars @ fun_vars else concat flat_vars @ fun_vars in
       (flat_arg, stmts, var_list)
     (* Invalid expressions *)
+    | RFold e | RUnfold e -> flatten_error "folds should have been eliminated after typechecking"
     | RLambda _ -> flatten_error "should not have lambda in vector"
     | RArray _ -> flatten_error "should not have array in flatten"
     | RVector _ -> flatten_error "should not have vector in flatten"
@@ -225,6 +226,7 @@ let rec flatten_defs defs =
     CDefine (id, args, ret, var2dt, stmts @ [CReturn arg]) :: flatten_defs t
   | RDefType (id, dt) :: t -> CDefType (id, dt) :: flatten_defs t
   | RTypeCons (id, side, dt) :: t -> CTypeCons (id, side, dt) :: flatten_defs t
+  | RDefTypeNames (ty, l, r) :: t -> CDefTypeNames (ty, l, r) :: flatten_defs t
   | [] -> []
 
 let flatten program : cprogram =
