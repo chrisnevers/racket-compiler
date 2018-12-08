@@ -39,9 +39,11 @@ let () =
     (* print_endline "Scan"; *)
     (* print_tokens tokens; *)
     let ast = parse tokens in
-    let expanded = expand ast in
     (* print_endline "\nParse"; *)
     (* print_rprogram ast; *)
+    let expanded = expand ast in
+    (* print_endline "\nExpand"; *)
+    (* print_rprogram expanded; *)
     let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)

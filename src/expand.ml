@@ -75,17 +75,19 @@ and expand_user_cases cases gamma =
   match cases with
   | (TypeIs (_, RApply (id, [TypeIs (_, arg)])), exp) :: t ->
     let TypeIs (_, RVar name) = id in
-    let (Some side, user_type) = Hashtbl.find gamma name in
-    let TypeFix (TypeForAll (dtid, TypePlus (l_ty, r_ty))) = user_type in
-    let l_ty = fold_type l_ty dtid user_type in
-    let r_ty = fold_type r_ty dtid user_type in
-    let dt = Some (TypePlus (l_ty, r_ty)) in
-    let ncnd = begin match side with
-    | Left  -> TypeIs (dt, RInl (TypeIs (Some l_ty, arg), r_ty))
-    | Right -> TypeIs (dt, RInr (l_ty, TypeIs (Some r_ty, arg)))
-    end in
-    let nexp = expand_exp_type exp gamma in
-    (ncnd, nexp) :: expand_user_cases t gamma
+    (try
+      let (Some side, user_type) = Hashtbl.find gamma name in
+      let TypeFix (TypeForAll (dtid, TypePlus (l_ty, r_ty))) = user_type in
+      let l_ty = fold_type l_ty dtid user_type in
+      let r_ty = fold_type r_ty dtid user_type in
+      let dt = Some (TypePlus (l_ty, r_ty)) in
+      let ncnd = begin match side with
+      | Left  -> TypeIs (dt, RInl (TypeIs (Some l_ty, arg), r_ty))
+      | Right -> TypeIs (dt, RInr (l_ty, TypeIs (Some r_ty, arg)))
+      end in
+      let nexp = expand_exp_type exp gamma in
+      (ncnd, nexp) :: expand_user_cases t gamma
+    with Not_found -> expand_error ("Unknown type constructor: " ^ name))
   | (e1, e2) :: t -> expand_error ("expected user case: " ^ string_of_rexp_type e1 ^ " : " ^ string_of_rexp_type e2)
   | [] -> []
 
