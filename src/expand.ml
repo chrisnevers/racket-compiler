@@ -14,14 +14,16 @@ let rec expand_user_dt ty gamma =
   match ty with
   | TypeInt | TypeBool | TypeVoid | TypeChar -> ty
   | TypeVector ts -> TypeVector (map _rec ts)
-  | TypeVar s -> let (_, dt) = Hashtbl.find gamma s in dt
-  | TypeUser s -> let (_, dt) = Hashtbl.find gamma s in dt
+  | TypeVar s | TypeUser s -> begin try
+      let (_, dt) = Hashtbl.find gamma s in dt
+      with Not_found -> expand_error ("Type not found in gamma: " ^ s)
+    end
   | TypeFix t -> TypeFix (_rec t)
   | TypeForAll (s, t) -> TypeForAll (s, _rec t)
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | TypeArray t -> TypeArray (_rec t)
   | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
-  | _ -> expand_error ("dt: " ^ string_of_datatype ty)
+  | _ -> expand_error ("Unknown datatype: " ^ string_of_datatype ty)
 
 let expand_user_type ty gamma =
   match ty with
