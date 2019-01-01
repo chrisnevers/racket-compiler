@@ -256,6 +256,11 @@ and parse_inner_exp tokens =
     let ret = parse_type tokens in
     let exp = parse_typed_exp tokens in
     RLambda (args, ret, exp)
+  | TTyLambda ->
+    expect_token tokens TTyLambda;
+    let id = parse_id tokens in
+    let exp = parse_typed_exp tokens in
+    RTyLambda (id, exp)
   | TVar id ->
     let exps = parse_typed_exps tokens in
     RApply (TypeIs (None, RVar id), exps)

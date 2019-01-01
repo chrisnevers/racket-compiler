@@ -102,6 +102,7 @@ let rec scan_identifier stream acc : token =
     | "Forall"  -> TTypeForAll
     | "Fix"     -> TTypeFix
     | "lambda"  -> TLambda
+    | "Lambda"  -> TTyLambda
     | "define-type" -> TDefineType
     | "case"    -> TCase
     | _         -> TVar acc

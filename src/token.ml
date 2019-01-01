@@ -42,6 +42,7 @@ type token =
   | TTypeForAll
   | TTypeFix
   | TLambda
+  | TTyLambda
   | TDefineType
   | TCase
   | TEOF
@@ -91,6 +92,7 @@ let string_of_token t =
   | TTypeForAll -> "forall"
   | TTypeFix -> "fix"
   | TLambda -> "lambda"
+  | TTyLambda -> "Lambda"
   | TDefineType -> "define-type"
   | TCase -> "case"
   | TEOF -> "EOF"
