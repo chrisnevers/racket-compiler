@@ -79,6 +79,13 @@ and parse_inner_type tokens =
   | TArrow ->
     let ret = parse_type tokens in
     TypeFunction ([], ret)
+  | TTypeForAll ->
+    let id = parse_id tokens in
+    let ty = parse_type tokens in
+    TypeForAll (id, ty)
+  | TTypeFix ->
+    let ty = parse_type tokens in
+    TypeFix ty
   | TTypeInt | TTypeBool | TTypeVoid | TVar _ ->
     let types = token_to_datatype token :: parse_function_types tokens in
     let ret = last types in

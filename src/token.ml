@@ -39,6 +39,8 @@ type token =
   | TTypeVoid
   | TTypeArray
   | TTypeVector
+  | TTypeForAll
+  | TTypeFix
   | TLambda
   | TDefineType
   | TCase
@@ -86,6 +88,8 @@ let string_of_token t =
   | TTypeVoid -> "Void"
   | TTypeArray -> "Array"
   | TTypeVector -> "Vector"
+  | TTypeForAll -> "forall"
+  | TTypeFix -> "fix"
   | TLambda -> "lambda"
   | TDefineType -> "define-type"
   | TCase -> "case"
