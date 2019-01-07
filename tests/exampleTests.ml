@@ -103,3 +103,5 @@ let () =
   test "pattern-match" "print-type" "(ascii -> Void)" None;
   test "pattern-match" "list" "(Cons (4, (Cons (5, (Cons (6, (Nil #f)))))))" None;
   test "pattern-match" "interp" "5" None;
+  test "polymorphism" "forall" "#t" None;
+  test "polymorphism" "or" "#f" None;

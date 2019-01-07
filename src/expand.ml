@@ -66,6 +66,10 @@ and expand_exp exp gamma : rexp =
   | RInr (dt, e) -> RInr (dt, expand_exp_type e gamma)
   | RFold e -> RFold (expand_exp_type e gamma)
   | RUnfold e -> RUnfold (expand_exp_type e gamma)
+  | RTyLambda (ty, e) ->
+    Hashtbl.add gamma ty (None, TypeVar ty);
+    RTyLambda (ty, expand_exp_type e gamma)
+  | RInst (e, ty) -> RInst (expand_exp_type e gamma, ty)
   | _ -> exp
 
 and expand_exp_type exp gamma : rexp_type =

@@ -68,6 +68,8 @@ let rec uniquify_exp ast table sigma : rexp =
   | RInr (dt, e) -> RInr (dt, uniquify_exp_type e table sigma)
   | RFold e -> RFold (uniquify_exp_type e table sigma)
   | RUnfold e -> RUnfold (uniquify_exp_type e table sigma)
+  | RTyLambda (ty, e) -> RTyLambda (ty, uniquify_exp_type e table sigma)
+  | RInst (e, ty) -> RInst (uniquify_exp_type e table sigma, ty)
   | _ -> ast
 
 and uniquify_exp_type ast table sigma : rexp_type =

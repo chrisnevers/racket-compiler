@@ -226,7 +226,8 @@ let rec typecheck_exp exp table sigma =
     let ne = typecheck_exp_type e table sigma in
     let dt = get_datatype ne in
     let ldt = TypeFunction (map (fun (id, dt) -> dt) args, ret) in
-    if dt <> ret then typecheck_error "lambda return type does not match body"
+    if dt <> ret then typecheck_error ("lambda return type does not match body: "
+      ^ string_of_datatype dt ^ " : " ^ string_of_datatype ret)
     else TypeIs (Some ldt, RLambda (args, ret, ne))
   | RApply (func, args) ->
     let nid = typecheck_exp_type func table sigma in

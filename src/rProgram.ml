@@ -64,6 +64,7 @@ and rexp =
   | RFold of rexp_type
   | RUnfold of rexp_type
   | RTyLambda of string * rexp_type
+  | RInst of rexp_type * datatype
 
 type side =
   | Left
@@ -197,6 +198,7 @@ let rec string_of_rexp e : string =
   | RInl (e, dt) -> "inl (" ^ string_of_rexp_type e ^ ", " ^ string_of_datatype dt ^ ")"
   | RInr (dt, e) -> "inr (" ^ string_of_datatype dt^ ", " ^ string_of_rexp_type e ^ ")"
   | RTyLambda (a, e) -> "Lambda " ^ a ^ " " ^ string_of_rexp_type e
+  | RInst (e, dt) -> "Inst " ^ string_of_rexp_type e ^ " " ^ string_of_datatype dt
   ) e
   ^ ")\n"
 

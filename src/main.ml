@@ -4,6 +4,7 @@ open Parser
 open RProgram
 open Expand
 open Uniquify
+open Monomorphification
 open Typecheck
 open ConvertClosures
 open ExposeAllocation
@@ -47,7 +48,8 @@ let () =
     let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
-    let typed = typecheck uniq in
+    let mono = monomorphize uniq in
+    let typed = typecheck mono in
     let convert = convert_closures typed in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)

@@ -257,10 +257,13 @@ and parse_inner_exp tokens =
     let exp = parse_typed_exp tokens in
     RLambda (args, ret, exp)
   | TTyLambda ->
-    expect_token tokens TTyLambda;
     let id = parse_id tokens in
     let exp = parse_typed_exp tokens in
     RTyLambda (id, exp)
+  | TInst ->
+    let exp = parse_typed_exp tokens in
+    let ty = parse_type tokens in
+    RInst (exp, ty)
   | TVar id ->
     let exps = parse_typed_exps tokens in
     RApply (TypeIs (None, RVar id), exps)
@@ -273,6 +276,13 @@ and parse_inner_exp tokens =
       expect_token tokens TRParen;
       let exps = parse_typed_exps tokens in
       RApply (TypeIs (None, lambda), exps)
+    | TInst ->
+      expect_token tokens TInst;
+      let exp = parse_typed_exp tokens in
+      let ty = parse_type tokens in
+      expect_token tokens TRParen;
+      let exps = parse_typed_exps tokens in
+      RApply (TypeIs (None, RInst (exp, ty)), exps)
     | _ -> parser_error "Expected (exp exp*): First argument must be lambda expression or variable in apply"
     end
   | TCase ->
