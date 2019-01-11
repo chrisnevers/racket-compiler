@@ -4,6 +4,12 @@ open List
 exception ExpandError of string
 let expand_error msg = raise (ExpandError msg)
 
+(* Adds TypeVars from TypeForAlls. Does not overwrite TypePlus data *)
+let add_to_tbl tbl ty =
+  match Hashtbl.mem tbl ty with
+  | false -> Hashtbl.add tbl ty (None, TypeVar ty)
+  | true -> ()
+
 let rec array_to_vector_type dt =
   match dt with
   | TypeArray a -> TypeVector [TypeInt; TypeArray (array_to_vector_type a)]
@@ -19,7 +25,9 @@ let rec expand_user_dt ty gamma =
       with Not_found -> expand_error ("Type not found in gamma: " ^ s)
     end
   | TypeFix t -> TypeFix (_rec t)
-  | TypeForAll (s, t) -> TypeForAll (s, _rec t)
+  | TypeForAll (s, t) ->
+    add_to_tbl gamma s;
+    TypeForAll (s, _rec t)
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | TypeArray t -> TypeArray (_rec t)
   | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
@@ -105,6 +113,8 @@ and fold_type ty id user =
 let rec expand_defs defs gamma =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
+    (* If typevar in return type add to gamma *)
+    expand_user_dt ret_type gamma;
     let new_args = map (fun a -> expand_user_type a gamma) args in
     let new_body = expand_exp_type body gamma in
     let new_def = RDefine (id, new_args, ret_type, new_body) in

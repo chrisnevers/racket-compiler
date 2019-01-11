@@ -85,6 +85,7 @@ and m_exp exp tbl =
     let TypeIs (_, e) = te in
     instantiate_type e ty dt
   (* Do nothing but process inner expressions *)
+  | RTyLambda (ty, te) -> RTyLambda (ty, _rec te)
   | RVar _ | RInt _ | RChar _ | RBool _
   | RCollect _ | RAllocate _ | RGlobalValue _ | RRead
   | RVoid | RFunctionRef _ | RDatatype _ -> exp
@@ -115,11 +116,15 @@ and m_exp exp tbl =
   | RInr (dt, e) -> RInr (dt, _rec e)
   | RFold e -> RFold (_rec e)
   | RUnfold e -> RUnfold (_rec e)
-  | _ -> mono_error "m_exp: Unexpected expression"
+  | _ -> mono_error ("m_exp: Unexpected expression: " ^ string_of_rexp exp)
 
 let rec m_def defs tbl =
   match defs with
   | [] -> []
+  | RDefine (id, args, ret, TypeIs (edt, (RTyLambda (ty, te) as ie))) :: t ->
+    let _ = Hashtbl.add tbl id ie in
+    let new_body = m_tyexp (TypeIs (edt, ie)) tbl in
+    RDefine (id, args, ret, new_body) ::  m_def t tbl
   | RDefine (id, args, ret, body) :: t ->
     let new_body = m_tyexp body tbl in
     RDefine (id, args, ret, new_body) :: m_def t tbl

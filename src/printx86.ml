@@ -50,13 +50,19 @@ let rec dt_to_x86 dt tbl =
       label
     end
   | TypeFix dt -> dt_to_x86 dt tbl
-  | TypeForAll (s, dt) -> begin try Hashtbl.find tbl dt
+  | TypeForAll (s, idt) -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = "_forAll" ^ s in
+      dt_to_x86 idt tbl;
+      let _ = Hashtbl.add tbl dt label in
+      label
+    end
+  | TypeUser s | TypeVar s ->  begin try Hashtbl.find tbl dt
     with Not_found ->
       let label = "_" ^ s in
       let _ = Hashtbl.add tbl dt label in
       label
     end
-  | TypeUser s | TypeVar s -> "_" ^ s
 
 let arg_to_x86 arg =
   match arg with
@@ -114,6 +120,20 @@ let rec print_instrs instrs typelbls =
   | XChg (a, b) :: tl -> "\txchg\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
 
+(* let type_tag dt =
+  match dt with
+  | TypeInt -> 0
+  | TypeBool -> 1
+  | TypeVoid -> 2
+  | TypeVector _ -> 4
+  | TypeFunction _ -> 5
+  | TypeArray _ -> 6
+  | TypeChar -> 7
+  | TypePlus _ -> 8
+  | TypeUser _ -> 9
+  | TypeForAll _ -> 10
+  | TypeVar _ -> 11 *)
+
 let get_x86_type_variables typetbl =
   "\n\t.globl _tint\n" ^
   "_tint:\n\t.quad	0\n" ^
@@ -133,6 +153,10 @@ let get_x86_type_variables typetbl =
   "_tplus:\n\t.quad 8\n" ^
   "\n\t.globl _tuser\n" ^
   "_tuser:\n\t.quad 9\n" ^
+  "\n\t.globl _tforall\n" ^
+  "_tforall:\n\t.quad 10\n" ^
+  "\n\t.globl _tvar\n" ^
+  "_tvar:\n\t.quad 11\n" ^
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
@@ -158,6 +182,18 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
     | TypePlus (l, r) -> acc (* this was printed earlier *)
     | TypeFix _ -> acc (* this was printed earlier *)
+    | TypeVar id ->
+      acc ^ v ^ ":\n" ^
+      "\t.quad 11\n" ^
+      "\t.quad _" ^ id ^ "_str \n\n"
+    | TypeForAll (s, dt) ->
+      acc ^
+      "_" ^ s ^ "_str:\n\t.string \"" ^ s ^ "\"\n\n" ^
+      v ^ ":\n" ^
+      "\t.quad 10\n" ^
+      (* "\t.quad " ^ string_of_int (type_tag dt) ^ "\n" ^ *)
+      "\t.quad _" ^ s ^ "_str \n" ^
+      "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
     | _ -> invalid_type ("Printx86: get_x86_type_variables: " ^ string_of_datatype k)
   ) typetbl ""
 

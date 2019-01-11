@@ -42,7 +42,7 @@ let token_to_datatype token =
   | TTypeChar -> TypeChar
   | TTypeBool -> TypeBool
   | TTypeVoid -> TypeVoid
-  | TVar id -> TypeUser id
+  | TVar id -> TypeVar id
   | _ -> parser_error "expected int, bool, or void"
 
 let rec parse_types tokens =

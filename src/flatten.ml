@@ -207,6 +207,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = concat flat_stmts @ fun_stmts @ [CAssign (var_name, apply)] in
       let var_list = if v = None then (var_name, dt) :: concat flat_vars @ fun_vars else concat flat_vars @ fun_vars in
       (flat_arg, stmts, var_list)
+    | RTyLambda _ -> (CVoid, [], [])
     (* Invalid expressions *)
     | RFold e | RUnfold e -> flatten_error "folds should have been eliminated after typechecking"
     | RLambda _ -> flatten_error "should not have lambda in vector"

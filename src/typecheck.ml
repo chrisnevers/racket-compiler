@@ -275,6 +275,10 @@ let rec typecheck_exp exp table sigma =
   | RUnfold e ->
     let TypeIs (Some dt, ne) = typecheck_exp_type e table sigma in
     TypeIs (Some (unfold_type dt), ne)
+  | RTyLambda (ty, e) ->
+    let ne = typecheck_exp_type e table sigma in
+    let dt = get_datatype ne in
+    TypeIs (Some (TypeForAll (ty, dt)), RTyLambda (ty, ne))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"
