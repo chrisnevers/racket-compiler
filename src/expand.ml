@@ -20,7 +20,8 @@ let rec expand_user_dt ty gamma =
   match ty with
   | TypeInt | TypeBool | TypeVoid | TypeChar -> ty
   | TypeVector ts -> TypeVector (map _rec ts)
-  | TypeVar s | TypeUser s -> begin try
+  (* | TypeUser s *)
+  | TypeVar s -> begin try
       let (_, dt) = Hashtbl.find gamma s in dt
       with Not_found -> expand_error ("Type not found in gamma: " ^ s)
     end
@@ -107,7 +108,7 @@ and expand_user_cases cases gamma =
 
 and fold_type ty id user =
   match ty with
-  | TypeVar s -> if s = id then user else TypeVar s
+  | TypeVar s when s = id -> user
   | _ -> ty
 
 let rec expand_defs defs gamma =
@@ -119,13 +120,11 @@ let rec expand_defs defs gamma =
     let new_body = expand_exp_type body gamma in
     let new_def = RDefine (id, new_args, ret_type, new_body) in
     new_def :: expand_defs t gamma
-  | RDefType (id, dt) :: t ->
+  | RDefType (id, l, r, dt) :: t ->
     Hashtbl.add gamma id (None, dt);
-    RDefType (id, dt) :: expand_defs t gamma
-  | RTypeCons (id, side, dt) :: t ->
-    Hashtbl.add gamma id (Some side, dt);
-    RTypeCons (id, side, dt) :: expand_defs t gamma
-  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: expand_defs t gamma
+    Hashtbl.add gamma l (Some Left, dt);
+    Hashtbl.add gamma r (Some Right, dt);
+    RDefType (id, l, r, dt) :: expand_defs t gamma
   | [] -> []
 
 let expand program =

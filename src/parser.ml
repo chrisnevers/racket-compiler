@@ -336,9 +336,9 @@ let parse_def_type tokens =
   let plus_ty = TypePlus (TypeUser l_id, TypeUser r_id) in
   let int_ty = TypePlus (l_ty, r_ty) in
   let tfix = TypeFix (TypeForAll (type_id, int_ty)) in
-  RDefTypeNames (type_id, l_id, r_id) ::
-  RDefType (type_id, tfix) ::
-  RTypeCons (l_id, Left, tfix) :: RTypeCons (r_id, Right, tfix) ::
+  (* RDefTypeNames (type_id, l_id, r_id) :: *)
+  RDefType (type_id, l_id, r_id, tfix) ::
+  (* RTypeCons (l_id, Left, tfix) :: RTypeCons (r_id, Right, tfix) :: *)
   RDefine (l_id, [("x", l_ty)], tfix, TypeIs (Some tfix, RFold (TypeIs (Some int_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty))))) ::
   RDefine (r_id, [("x", r_ty)], tfix, TypeIs (Some tfix, RFold (TypeIs (Some int_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x")))))) ::
   []

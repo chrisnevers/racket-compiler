@@ -199,9 +199,9 @@ let rec assign_defs defs =
     let max_stack = make_multiple_of_16 (- !stack_offset) in
     let vec_space = make_multiple_of_16 (- !rootstack_offset) in
     ADefine (id, num_params, vars, var_types, max_stack, vec_space, new_instrs) :: assign_defs t
-  | GCDefType (id, dt) :: t -> ADefType (id, dt) :: assign_defs t
-  | GCTypeCons (id, side, dt) :: t -> ATypeCons (id, side, dt) :: assign_defs t
-  | GCDefTypeNames (id, l, r) :: t -> ADefTypeNames (id, l, r) :: assign_defs t
+  | GCDefType (id, l, r, dt) :: t -> ADefType (id, l, r, dt) :: assign_defs t
+  (* | GCTypeCons (id, side, dt) :: t -> ATypeCons (id, side, dt) :: assign_defs t
+  | GCDefTypeNames (id, l, r) :: t -> ADefTypeNames (id, l, r) :: assign_defs t *)
   | [] -> []
 
 let assign_homes program =

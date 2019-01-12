@@ -483,9 +483,9 @@ void print_type_var (int64_t* tag, short newline) {
 
 void print_type_forall (int64_t* tag, short newline) {
     char* id = (char*) tag[1];
-    printf("Forall %s ", id);
+    printf("(Forall %s ", id);
     print_any_type((int64_t*) tag[2], 0);
-    printf("%s", newline ? "\n" : "");
+    printf(")%s", newline ? "\n" : "");
 }
 
 

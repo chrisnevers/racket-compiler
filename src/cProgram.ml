@@ -38,9 +38,7 @@ type var_type = ((string, datatype) Hashtbl.t)
 
 type cdefine =
   | CDefine of string * (string * datatype) list * datatype * var_type * cstmt list
-  | CDefType of string * datatype
-  | CTypeCons of string * side * datatype
-  | CDefTypeNames of string * string * string
+  | CDefType of string * string * string * datatype
 
 type cprogram =
   | CProgram of var_type * datatype * cdefine list * cstmt list

@@ -225,9 +225,9 @@ let rec flatten_defs defs =
     let (arg, stmts, vars) = flatten_typed_exp body in
     let var2dt = make_hashtable (vars @ args) in
     CDefine (id, args, ret, var2dt, stmts @ [CReturn arg]) :: flatten_defs t
-  | RDefType (id, dt) :: t -> CDefType (id, dt) :: flatten_defs t
-  | RTypeCons (id, side, dt) :: t -> CTypeCons (id, side, dt) :: flatten_defs t
-  | RDefTypeNames (ty, l, r) :: t -> CDefTypeNames (ty, l, r) :: flatten_defs t
+  | RDefType (id, l, r, dt) :: t -> CDefType (id, l, r, dt) :: flatten_defs t
+  (* | RTypeCons (id, side, dt) :: t -> CTypeCons (id, side, dt) :: flatten_defs t *)
+  (* | RDefTypeNames (ty, l, r) :: t -> CDefTypeNames (ty, l, r) :: flatten_defs t *)
   | [] -> []
 
 let flatten program : cprogram =

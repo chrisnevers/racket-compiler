@@ -309,10 +309,10 @@ let rec typecheck_defs defs sigma =
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type
       ^ ") than its body (" ^ string_of_datatype body_ret_type ^ ")")
-  | RTypeCons (id, side, dt) :: t ->
+  (* | RTypeCons (id, side, dt) :: t ->
     let TypeFix (TypeForAll (_, TypePlus (l, r))) = dt in
     Hashtbl.add sigma id (if side = Left then Some l else Some r);
-    RTypeCons (id, side, dt) :: typecheck_defs t sigma
+    RTypeCons (id, side, dt) :: typecheck_defs t sigma *)
   | d :: t -> d :: typecheck_defs t sigma
 
 

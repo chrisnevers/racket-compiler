@@ -109,9 +109,9 @@ let rec build_defs defs =
     add_directed_edges args callee_save_aregisters tbl;
     let map = build_graph instrs lives tbl var_types in
     GDefine (id, num_params, args, var_types, max_stack, lives, map, instrs) :: build_defs t
-  | LDefType (id, dt) :: t -> GDefType (id, dt) :: build_defs t
-  | LTypeCons (id, side, dt) :: t -> GTypeCons (id, side, dt) :: build_defs t
-  | LDefTypeNames (id, l, r) :: t -> GDefTypeNames (id, l, r) :: build_defs t
+  | LDefType (id, l, r, dt) :: t -> GDefType (id, l, r, dt) :: build_defs t
+  (* | LTypeCons (id, side, dt) :: t -> GTypeCons (id, side, dt) :: build_defs t
+  | LDefTypeNames (id, l, r) :: t -> GDefTypeNames (id, l, r) :: build_defs t *)
   | [] -> []
 
 

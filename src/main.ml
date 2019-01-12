@@ -81,6 +81,7 @@ let () =
     (* print_endline "\nPatch Instructions"; *)
     (* print_aprogram patchinstrs; *)
     let x86 = print_x86 patchinstrs in
+    (* print_endline "\nPrint Instructions"; *)
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;
     compile filename

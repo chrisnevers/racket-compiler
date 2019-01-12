@@ -72,9 +72,7 @@ type side =
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
-  | RDefType of string * datatype
-  | RTypeCons of string * side * datatype
-  | RDefTypeNames of string * string * string
+  | RDefType of string * string * string * datatype
 
 type rprogram =
   | RProgram of datatype option * rdefine list * rexp_type

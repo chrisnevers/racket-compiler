@@ -66,33 +66,23 @@ type colorgraph = ((aarg, int) Hashtbl.t)
 
 type pdefine =
   | PDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * ainstr list
-  | PDefType of string * datatype
-  | PTypeCons of string * side * datatype
-  | PDefTypeNames of string * string * string
+  | PDefType of string * string * string * datatype
 
 type ldefine =
   | LDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * ainstr list
-  | LDefType of string * datatype
-  | LTypeCons of string * side * datatype
-  | LDefTypeNames of string * string * string
+  | LDefType of string * string * string * datatype
 
 type gdefine =
   | GDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * interference * ainstr list
-  | GDefType of string * datatype
-  | GTypeCons of string * side * datatype
-  | GDefTypeNames of string * string * string
+  | GDefType of string * string * string * datatype
 
 type gcdefine =
   | GCDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * colorgraph * ainstr list
-  | GCDefType of string * datatype
-  | GCTypeCons of string * side * datatype
-  | GCDefTypeNames of string * string * string
+  | GCDefType of string * string * string * datatype
 
 type adefine =
   | ADefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * int * ainstr list
-  | ADefType of string * datatype
-  | ATypeCons of string * side * datatype
-  | ADefTypeNames of string * string * string
+  | ADefType of string * string * string * datatype
 
 type aprogram =
   AProgram of int * int * datatype * adefine list * ainstr list
