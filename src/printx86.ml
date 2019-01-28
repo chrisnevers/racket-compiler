@@ -180,7 +180,9 @@ let get_x86_type_variables typetbl =
       "\t.quad _" ^ s ^ "_str \n" ^
       "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
     (* these were printed earlier *)
-    | TypePlus _ | TypeFix _ | TypeVar _ -> acc
+    | TypePlus _
+      (* acc ^ v ^ ":\n" *)
+    | TypeFix _ | TypeVar _ -> acc
     | _ -> invalid_type ("Printx86: get_x86_type_variables: " ^ string_of_datatype k)
   ) typetbl ""
 
@@ -229,6 +231,12 @@ let print_user_type tbl id dt =
   "\t.quad _" ^ id ^ "_str \n" ^
   "\t.quad " ^ dt_to_x86 dt tbl ^ "\n\n"
 
+let print_var_type tbl id =
+  "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
+  "_" ^ id ^ ":\n" ^
+  "\t.quad 10\n" ^
+  "\t.quad _" ^ id ^ "_str \n\n"
+
 let print_plus_type tbl id l r =
   "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
   "_" ^ id ^ ":\n" ^
@@ -240,10 +248,11 @@ let print_plus_type tbl id l r =
 let rec get_type_cons defs typetbl deftbl =
   match defs with
   | [] -> ""
-  | ADefType (id, l_id, r_id, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
+  | ADefType (id, l_id, r_id, vars, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
     let label = "_" ^ id in
     let _ = Hashtbl.add typetbl (TypeVar id) label in
     let _ = Hashtbl.add typetbl (TypePlus (l, r)) label in
+    List.fold_left (fun acc s -> acc ^ print_var_type typetbl s) "" vars ^
     print_user_type typetbl l_id l ^
     print_user_type typetbl r_id r ^
     print_plus_type typetbl id l_id r_id ^

@@ -14,6 +14,7 @@ let rec replace_dt actual variable inst =
   | TypeVar id when id = variable -> inst
   | TypeUser id when id = variable -> inst
   | TypeForAll (id, t) when id = variable -> _rec t
+  | TypeForAll (id, t) -> TypeForAll (id, _rec t)
   | TypeArray t -> TypeArray (_rec t)
   | TypeVector ts -> TypeVector (map _rec ts)
   | TypeFunction (ts, t) -> TypeFunction (map _rec ts, _rec t)
@@ -21,16 +22,31 @@ let rec replace_dt actual variable inst =
   | TypeFix t -> TypeFix (_rec t)
   | _ -> actual
 
+let tbl = Hashtbl.create 10
+
+let mono_some_type ty sub =
+  match ty with
+  | TypeFix (TypeForAll (rec_id, dt)) -> begin try
+      let value = Hashtbl.find tbl rec_id in
+      Hashtbl.replace tbl rec_id (sub :: value)
+    with Not_found ->
+      Hashtbl.add tbl rec_id [sub]
+    end
+  | _ -> ()
+
 let rec instantiate_type exp var_ty inst_ty =
   (* recursive helpers *)
-  let _rec te = match te with TypeIs (dt, e) ->
-    TypeIs (dt, instantiate_type e var_ty inst_ty)
+  let _rec te = match te with
+    | TypeIs (Some dt, e) ->
+      TypeIs (Some (replace_dt dt var_ty inst_ty), instantiate_type e var_ty inst_ty)
+    | TypeIs (dt, e) -> TypeIs (dt, instantiate_type e var_ty inst_ty)
   in
   let _recs es = map _rec es in
   (* Replaces args *)
   let instantiate_types (arg, dt) = (arg, replace_dt dt var_ty inst_ty) in
   match exp with
   | RLambda (args, ret, e) ->
+    mono_some_type ret (var_ty, inst_ty);
     let new_args = map instantiate_types args in
     let new_ret = replace_dt ret var_ty inst_ty in
     RLambda (new_args, new_ret, _rec e)
@@ -61,8 +77,8 @@ let rec instantiate_type exp var_ty inst_ty =
   | RWhile (c, e) -> RWhile (_rec c, _rec e)
   | RLet (v, i, b) -> RLet (v, _rec i, _rec b)
   | RCase (m, cases) -> RCase (_rec m, map (fun (a, b) -> (_rec a, _rec b)) cases)
-  | RInl (e, dt) -> RInl (_rec e, dt)
-  | RInr (dt, e) -> RInr (dt, _rec e)
+  | RInl (e, dt) -> RInl (_rec e, replace_dt dt var_ty inst_ty)
+  | RInr (dt, e) -> RInr (replace_dt dt var_ty inst_ty, _rec e)
   | RFold e -> RFold (_rec e)
   | RUnfold e -> RUnfold (_rec e)
   | _ -> mono_error "instantiate_types: unexpected expression"
@@ -124,11 +140,25 @@ let rec m_def defs tbl =
   | RDefine (id, args, ret, TypeIs (edt, (RTyLambda (ty, te) as ie))) :: t ->
     let _ = Hashtbl.add tbl id ie in
     let new_body = m_tyexp (TypeIs (edt, ie)) tbl in
-    RDefine (id, args, ret, new_body) ::  m_def t tbl
+    RDefine (id, args, ret, new_body) ::
+    m_def t tbl
   | RDefine (id, args, ret, body) :: t ->
     let new_body = m_tyexp body tbl in
     RDefine (id, args, ret, new_body) :: m_def t tbl
   | def :: t -> def :: m_def t tbl
+
+(* Create toplevel type defs for instatiated polymorphic types *)
+let rec mono_types defs =
+  match defs with
+  | [] -> []
+  | RDefType (id, l, r, vars, dt) :: t -> begin try
+    let insts = Hashtbl.find tbl id in
+    fold_left (fun acc (ty_var, inst_var) ->
+      RDefType (id, l, r, vars, replace_dt dt ty_var inst_var) :: acc) [] insts
+    @ mono_types t
+    with Not_found -> RDefType (id, l, r, vars, dt) :: mono_types t
+    end
+  | d :: t -> d :: mono_types t
 
 let monomorphize program =
   match program with
@@ -136,4 +166,5 @@ let monomorphize program =
     let tbl = Hashtbl.create 10 in
     let new_defs = m_def defs tbl in
     let new_exp = m_tyexp exp tbl in
-    RProgram (dt, new_defs, new_exp)
+    let mono_defs = mono_types defs in
+    RProgram (dt, mono_defs, new_exp)

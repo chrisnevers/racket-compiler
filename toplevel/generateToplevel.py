@@ -32,7 +32,7 @@ let run_monomorphify program =
     let uniq = run_uniquify program in
     monomorphize uniq\n\n
 let run_typecheck program =
-    let uniq = run_uniquify program in
+    let uniq = run_monomorphify program in
     typecheck uniq\n\n
 let run_convert program =
     let typed = run_typecheck program in

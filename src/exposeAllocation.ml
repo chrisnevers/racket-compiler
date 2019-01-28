@@ -205,7 +205,7 @@ let rec expose_defs defs =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
     RDefine (id, args, ret_type, expose_exp_type body) :: expose_defs t
-  | RDefType (id, l, r, dt) :: t -> RDefType (id, l, r, dt) :: expose_defs t
+  | RDefType (id, l, r, vars, dt) :: t -> RDefType (id, l, r, vars, dt) :: expose_defs t
   | [] -> []
 
 let expose_allocation program =

@@ -326,19 +326,42 @@ let rec parse_sub_type tokens =
     (id, ty)
   | _ -> parser_error "Expected [ while parsing variant"
 
+let parse_forall tokens =
+  let next = next_token tokens in
+  match next with
+  | TVar id -> expect_token tokens (TVar id); Some id
+  | _ -> None
+
 let parse_def_type tokens =
   expect_token tokens TLParen;
   expect_token tokens TDefineType;
   let type_id = parse_id tokens in
+  let forall = parse_forall tokens in
   let (l_id, l_ty) = parse_sub_type tokens in
   let (r_id, r_ty) = parse_sub_type tokens in
   expect_token tokens TRParen;
-  let plus_ty = TypePlus (TypeUser l_id, TypeUser r_id) in
-  let int_ty = TypePlus (l_ty, r_ty) in
-  let tfix = TypeFix (TypeForAll (type_id, int_ty)) in
-  RDefType (type_id, l_id, r_id, tfix) ::
-  RDefine (l_id, [("x", l_ty)], tfix, TypeIs (Some tfix, RFold (TypeIs (Some int_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty))))) ::
-  RDefine (r_id, [("x", r_ty)], tfix, TypeIs (Some tfix, RFold (TypeIs (Some int_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x")))))) ::
+  let plus_ty = TypePlus (l_ty, r_ty) in
+  (* Fix point of recursive type *)
+  let ty_fix = TypeFix (TypeForAll (type_id, plus_ty)) in
+  let l_type = TypeFunction ([l_ty], ty_fix) in
+  let r_type = TypeFunction ([r_ty], ty_fix) in
+  (* Does it need to be wrapped in a ty variable if polymorphic? *)
+  let l_dt = if forall = None then ty_fix else
+    TypeForAll (get_some forall, ty_fix)
+  in
+  let r_dt = if forall = None then ty_fix else
+    TypeForAll (get_some forall, ty_fix)
+  in
+  let l_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty)))) in
+  let r_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x"))))) in
+  let l_lam = if forall = None then l_fold else TypeIs (Some l_type, RLambda ([("x", l_ty)], ty_fix, l_fold)) in
+  let r_lam = if forall = None then r_fold else TypeIs (Some r_type, RLambda ([("x", r_ty)], ty_fix, r_fold)) in
+  let l_exp = if forall = None then l_lam else TypeIs (Some l_dt, RTyLambda (get_some forall, l_lam)) in
+  let r_exp = if forall = None then r_lam else TypeIs (Some r_dt, RTyLambda (get_some forall, r_lam)) in
+  let vars = if forall = None then [] else [get_some forall] in
+  RDefType (type_id, l_id, r_id, vars, ty_fix) ::
+  RDefine (l_id, [("x", l_ty)], l_dt, l_exp) ::
+  RDefine (r_id, [("x", r_ty)], r_dt, r_exp) ::
   []
 
 let rec parse_defs tokens =

@@ -66,23 +66,23 @@ type colorgraph = ((aarg, int) Hashtbl.t)
 
 type pdefine =
   | PDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * ainstr list
-  | PDefType of string * string * string * datatype
+  | PDefType of string * string * string * string list * datatype
 
 type ldefine =
   | LDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * ainstr list
-  | LDefType of string * string * string * datatype
+  | LDefType of string * string * string * string list * datatype
 
 type gdefine =
   | GDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * interference * ainstr list
-  | GDefType of string * string * string * datatype
+  | GDefType of string * string * string * string list * datatype
 
 type gcdefine =
   | GCDefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * aarg list list * colorgraph * ainstr list
-  | GCDefType of string * string * string * datatype
+  | GCDefType of string * string * string * string list * datatype
 
 type adefine =
   | ADefine of string * int * aarg list * (string, datatype) Hashtbl.t * int * int * ainstr list
-  | ADefType of string * string * string * datatype
+  | ADefType of string * string * string * string list * datatype
 
 type aprogram =
   AProgram of int * int * datatype * adefine list * ainstr list

@@ -19,9 +19,16 @@ let rec subst_type a nty ty =
   | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
 
-let unfold_type ty =
+let rec unfold_type ty =
+  let _rec ty = unfold_type ty in
   match ty with
   | TypeFix (TypeForAll (a, ty')) -> subst_type a ty ty'
+  | TypeVector ts -> TypeVector (map _rec ts)
+  | TypeFix t -> TypeFix (_rec t)
+  | TypeForAll (s, t) -> TypeForAll (s, _rec t)
+  | TypeArray t -> TypeArray (_rec t)
+  | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
+  | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | _ -> ty
 
 let compare_type a b = a = b
@@ -232,6 +239,8 @@ let rec typecheck_exp exp table sigma =
   | RApply (func, args) ->
     let nid = typecheck_exp_type func table sigma in
     let fdt = get_datatype_option nid in
+    (* print_endline ("func: " ^ string_of_rexp_type func); *)
+    (* print_endline ("dt: " ^ string_of_datatype_option fdt); *)
     let (fun_args, fun_ret) = get_some_func_types fdt in
     let new_args = map (fun e -> typecheck_exp_type e table sigma) args in
     (try
@@ -262,6 +271,7 @@ let rec typecheck_exp exp table sigma =
       let _ = Hashtbl.add table id ty in
       let nc = typecheck_exp_type c table sigma in
       let nb = typecheck_exp_type b table sigma in
+      let ncdt = get_datatype nc in
       (nc, nb)
     ) cases in
     let cnd_dts, body_dts = split ncases in
@@ -285,12 +295,12 @@ let rec typecheck_exp exp table sigma =
   | RCollect _ -> typecheck_error "should not have collect in typecheck"
   | RAllocate (_, _) -> typecheck_error "should not have allocate in typecheck"
   | RGlobalValue _ -> typecheck_error "should not have globalvalue in typecheck"
+  | _ -> typecheck_error (string_of_rexp exp)
 
 and typecheck_exp_type exp table sigma =
   match exp with
   | TypeIs (None, e) -> typecheck_exp e table sigma
   | TypeIs (dt, RFold (TypeIs (_, e))) -> TypeIs (dt, e)
-  (* | TypeIs (Some dt, RUnfold (TypeIs (_, e))) -> TypeIs (Some (unfold_type dt), e) *)
   | TypeIs (dt, e) -> TypeIs (dt, e)
 
 let rec typecheck_defs defs sigma =
@@ -309,10 +319,6 @@ let rec typecheck_defs defs sigma =
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type
       ^ ") than its body (" ^ string_of_datatype body_ret_type ^ ")")
-  (* | RTypeCons (id, side, dt) :: t ->
-    let TypeFix (TypeForAll (_, TypePlus (l, r))) = dt in
-    Hashtbl.add sigma id (if side = Left then Some l else Some r);
-    RTypeCons (id, side, dt) :: typecheck_defs t sigma *)
   | d :: t -> d :: typecheck_defs t sigma
 
 

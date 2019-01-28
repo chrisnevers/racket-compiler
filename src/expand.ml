@@ -86,16 +86,30 @@ and expand_exp_type exp gamma : rexp_type =
   | TypeIs (dt, RBegin es) -> expand_exp_type (begin_to_let es) gamma
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e gamma)
 
+and get_adt_type dt =
+  match dt with
+  | TypeFix (TypeForAll (id, TypePlus (l, r))) -> (id, [], l, r)
+  | TypeForAll (id, idt) ->
+    let (rec_id, var_ids, l, r) = get_adt_type idt in
+    (rec_id, id :: var_ids, l, r)
+  | _ -> expand_error ("unknown invariant type: " ^ string_of_datatype dt)
+
+and mk_forall_type vars dt =
+  match vars with
+  | [] -> dt
+  | id :: t -> TypeForAll (id, mk_forall_type t dt)
+
 and expand_user_cases cases gamma =
   match cases with
   | (TypeIs (_, RApply (id, [TypeIs (_, arg)])), exp) :: t ->
     let TypeIs (_, RVar name) = id in
     (try
       let (Some side, user_type) = Hashtbl.find gamma name in
-      let TypeFix (TypeForAll (dtid, TypePlus (l_ty, r_ty))) = user_type in
-      let l_ty = fold_type l_ty dtid user_type in
-      let r_ty = fold_type r_ty dtid user_type in
-      let dt = Some (TypePlus (l_ty, r_ty)) in
+      let (rec_id, var_ids, l_ty, r_ty) = get_adt_type user_type in
+      let l_ty = fold_type l_ty rec_id user_type in
+      let r_ty = fold_type r_ty rec_id user_type in
+      (* dt should reflect type var *)
+      let dt = Some (mk_forall_type var_ids (TypePlus (l_ty, r_ty))) in
       let ncnd = begin match side with
       | Left  -> TypeIs (dt, RInl (TypeIs (Some l_ty, arg), r_ty))
       | Right -> TypeIs (dt, RInr (l_ty, TypeIs (Some r_ty, arg)))
@@ -107,8 +121,15 @@ and expand_user_cases cases gamma =
   | [] -> []
 
 and fold_type ty id user =
+  let _rec ty = fold_type ty id user in
   match ty with
   | TypeVar s when s = id -> user
+  | TypeVector ts -> TypeVector (map _rec ts)
+  | TypeFix t -> TypeFix (_rec t)
+  | TypeForAll (s, t) -> TypeForAll (s, _rec t)
+  | TypeArray t -> TypeArray (_rec t)
+  | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
+  | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | _ -> ty
 
 let rec expand_defs defs gamma =
@@ -120,11 +141,11 @@ let rec expand_defs defs gamma =
     let new_body = expand_exp_type body gamma in
     let new_def = RDefine (id, new_args, ret_type, new_body) in
     new_def :: expand_defs t gamma
-  | RDefType (id, l, r, dt) :: t ->
+  | RDefType (id, l, r, vars, dt) :: t ->
     Hashtbl.add gamma id (None, dt);
     Hashtbl.add gamma l (Some Left, dt);
     Hashtbl.add gamma r (Some Right, dt);
-    RDefType (id, l, r, dt) :: expand_defs t gamma
+    RDefType (id, l, r, vars, dt) :: expand_defs t gamma
   | [] -> []
 
 let expand program =

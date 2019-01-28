@@ -72,7 +72,8 @@ type side =
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
-  | RDefType of string * string * string * datatype
+  (* custom data type, left type cons, right type cons, var ids (polymorphic), dt *)
+  | RDefType of string * string * string * string list * datatype
 
 type rprogram =
   | RProgram of datatype option * rdefine list * rexp_type
@@ -197,6 +198,7 @@ let rec string_of_rexp e : string =
   | RInr (dt, e) -> "inr (" ^ string_of_datatype dt^ ", " ^ string_of_rexp_type e ^ ")"
   | RTyLambda (a, e) -> "Lambda " ^ a ^ " " ^ string_of_rexp_type e
   | RInst (e, dt) -> "Inst " ^ string_of_rexp_type e ^ " " ^ string_of_datatype dt
+  | RFold e -> "Fold " ^ string_of_rexp_type e
   ) e
   ^ ")\n"
 
