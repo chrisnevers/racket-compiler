@@ -99,10 +99,11 @@ let () =
   test "arrays" "array-ref" "1" (Some "0");
   test "char" "char" "#[a,  , c]" None;
   test "pattern-match" "case" "#t" None;
-  test "pattern-match" "print" "(Booly #t)" None;
+  test "pattern-match" "print" "#t" None;
   test "pattern-match" "print-type" "(ascii -> Void)" None;
-  test "pattern-match" "list" "(Cons (4, (Cons (5, (Cons (6, (Nil #f)))))))" None;
+  test "pattern-match" "list" "(4, (5, (6, #f)))" None;
   test "pattern-match" "interp" "5" None;
   test "polymorphism" "forall" "#t" None;
   test "polymorphism" "or" "#f" None;
-  test "polymorphism" "def" "((Forall A (A -> A)))" None
+  test "polymorphism" "def" "((Forall A (A -> A)))" None;
+  test "polymorphism" "list" "(6, 5)" None

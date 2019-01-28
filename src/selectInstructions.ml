@@ -25,8 +25,7 @@ let rec select_print_instrs dt arg =
     [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
   | TypeArray l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_array"]
   | TypePlus (l, r) -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_plus"]
-  | TypeFix dt -> select_print_instrs dt arg
-  | TypeForAll (s, (TypePlus (l, r) as idt)) -> select_print_instrs idt arg
+  | TypeFix (TypeForAll (s, (TypePlus (l, r)))) -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_plus"]
   | TypeForAll (s, vdt) ->
     [Leaq (TypeRef dt, Reg Rsi); Callq "print_forall"]
   | TypeVector l -> match l with

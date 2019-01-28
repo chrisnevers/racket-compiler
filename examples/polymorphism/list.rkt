@@ -2,6 +2,4 @@
     [Nil A]
     [Cons (Vector A List)])
 
-(let ([bool ((inst Nil Bool) #t)])
-(let ([int  ((inst Nil Int) 5)])
-    int))
+((inst Cons Int) (vector 6 ((inst Nil Int) 5)))
