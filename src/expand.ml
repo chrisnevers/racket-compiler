@@ -69,7 +69,7 @@ and expand_exp exp gamma : rexp =
   | RLet (v, i, b) -> RLet (v, expand_exp_type i gamma, expand_exp_type b gamma)
   | RWhile (c, e) -> RWhile (expand_exp_type c gamma, expand_exp_type e gamma)
   | RApply (e, args) -> RApply (expand_exp_type e gamma, map (fun a -> expand_exp_type a gamma) args)
-  | RLambda (args, ret, e) -> RLambda (map (fun a -> expand_user_type a gamma) args, ret, expand_exp_type e gamma)
+  | RLambda (args, ret, e) -> RLambda (map (fun a -> expand_user_type a gamma) args, expand_user_dt ret gamma, expand_exp_type e gamma)
   | RCase (e, cases) -> RCase (TypeIs (None, RUnfold (expand_exp_type e gamma)), expand_user_cases cases gamma)
   | RInl (e, dt)  -> RInl (expand_exp_type e gamma, dt)
   | RInr (dt, e) -> RInr (dt, expand_exp_type e gamma)
@@ -136,10 +136,10 @@ let rec expand_defs defs gamma =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
     (* If typevar in return type add to gamma *)
-    expand_user_dt ret_type gamma;
+    let new_ret = expand_user_dt ret_type gamma in
     let new_args = map (fun a -> expand_user_type a gamma) args in
     let new_body = expand_exp_type body gamma in
-    let new_def = RDefine (id, new_args, ret_type, new_body) in
+    let new_def = RDefine (id, new_args, new_ret, new_body) in
     new_def :: expand_defs t gamma
   | RDefType (id, l, r, vars, dt) :: t ->
     Hashtbl.add gamma id (None, dt);

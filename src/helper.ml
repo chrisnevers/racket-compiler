@@ -134,6 +134,12 @@ let get_free_vars args exp =
     | RVar v ->
       (try let _ = Hashtbl.find tbl v in ()
       with Not_found -> Hashtbl.add free v (get_some dt))
+    | RCase (s, cs) ->
+      rm_bindings tbl free s;
+      List.iter (fun (c, d) ->
+        rm_bindings tbl free c;
+        rm_bindings tbl free d
+      ) cs
     | RInt _ | RChar _ | RBool _ | RVoid
     | RFunctionRef _ | RCollect _
     | RAllocate _ | RGlobalValue _

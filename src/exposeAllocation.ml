@@ -165,6 +165,7 @@ and expose_exp e =
   | RLet (v, i, b) -> RLet (v, expose_exp_type i, expose_exp_type b)
   | RPrint e -> RPrint (expose_exp_type e)
   | RWhile (c, e) -> RWhile (expose_exp_type c, expose_exp_type e)
+  | RTyLambda (id, e) -> RTyLambda (id, expose_exp_type e)
   | RCase (e, cases) ->
     let e_vec_id = Gensym.gen_str "case_e" in
     let e_ty_id = Gensym.gen_str "case_ty" in

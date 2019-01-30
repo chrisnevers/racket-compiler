@@ -13,8 +13,7 @@ let rec subst_type a nty ty =
   | TypeVector ts -> TypeVector (map _rec ts)
   | TypeVar s -> if s = a then nty else ty
   | TypeFix t -> TypeFix (_rec t)
-  | TypeForAll (s, t) -> if s = a then ty
-    else TypeForAll (s, _rec t)
+  | TypeForAll (s, t) -> if s = a then ty else TypeForAll (s, _rec t)
   | TypeArray t -> TypeArray (_rec t)
   | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
@@ -31,15 +30,15 @@ let rec unfold_type ty =
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | _ -> ty
 
-let compare_type a b = a = b
+let compare_type a b = unfold_type a = unfold_type b
 
 let compare_args = (fun a b -> if not (compare_type a b) then
   typecheck_error ("args not the same type: " ^ (string_of_datatype a) ^ " - " ^ string_of_datatype b)
 )
 
-let rec add_to_table asc tbl =
+let rec add_args_to_gamma asc tbl =
   match asc with
-  | (id, dt) :: t -> Hashtbl.replace tbl id (Some dt); add_to_table t tbl
+  | (id, dt) :: t -> Hashtbl.replace tbl id (Some dt); add_args_to_gamma t tbl
   | [] -> ()
 
 let get_value sigma gamma id =
@@ -47,7 +46,7 @@ let get_value sigma gamma id =
   with Not_found -> try Hashtbl.find gamma id, RFunctionRef id
   with Not_found -> typecheck_error (id ^ " not found in sigma nor gamma")
 
-let get_some_func_types dt =
+let get_function_dt dt =
   match dt with
   | Some TypeFunction (args, ret) -> (args, ret)
   | _ -> typecheck_error ("expected function type: " ^ string_of_datatype_option dt)
@@ -71,68 +70,69 @@ let typecheck_array_elements exps =
   in datatype
 
 let rec typecheck_exp exp table sigma =
+  let _rec e = typecheck_exp_type e table sigma in
   match exp with
   | RInt i  -> make_tint (RInt i)
   | RChar c -> make_tchar (RChar c)
   | RBool b -> make_tbool (RBool b)
   | RVoid   -> make_tvoid RVoid
   | RArray (len, exps) ->
-    let typed_exps = map (fun t -> typecheck_exp_type t table sigma) exps in
-    (* Do not allow empty arrays while there is no 'any' type support *)
+    let typed_exps = map _rec exps in
+    (* Do not allow empty arrays *)
     if len < 1 then typecheck_error "array must have one element"
     else
       let datatype = typecheck_array_elements typed_exps in
       TypeIs (Some (TypeArray datatype), RArray (len, typed_exps))
   | RArraySet (v, i, e) ->
     (* Ensure array index is of type int *)
-    let ni = typecheck_exp_type i table sigma in
+    let ni = _rec i in
     let idt = get_datatype ni in
     begin match idt with
     | TypeInt -> ()
     | _ -> typecheck_error "typecheck_exp: array index must be type int." end;
     (* Ensure new value's type matches array's type *)
-    let nv = typecheck_exp_type v table sigma in
+    let nv = _rec v in
     let dt = get_datatype nv in (
     match dt with
     | TypeArray datatype ->
-      let ne = typecheck_exp_type e table sigma in
+      let ne = _rec e in
       let edt = get_datatype ne in
       if (compare_type datatype edt) then
         make_tvoid (RArraySet (nv, ni, ne))
       else typecheck_error ("typecheck_exp: array-set! must operate on same type. Expected " ^ (string_of_datatype datatype) ^ " but received " ^ (string_of_datatype edt))
     | _ -> typecheck_error ("typecheck_exp: array-set! must operate on array. Received: " ^ (string_of_datatype dt)))
   | RArrayRef (v, i) ->
-    let ni = typecheck_exp_type i table sigma in
+    let ni = _rec i in
     let idt = get_datatype ni in
     begin match idt with
     | TypeInt -> ()
     | _ -> typecheck_error "typecheck_exp: array index must be type int." end;
-    let nv = typecheck_exp_type v table sigma in
+    let nv = _rec v in
     let dt = get_datatype nv in (
       match dt with
       | TypeArray datatype -> TypeIs (Some datatype, RArrayRef (nv, ni))
       | _ -> typecheck_error ("typecheck_exp: Array-ref must operate on array. Received: " ^ (string_of_datatype dt))
     )
   | RVector exps ->
-    let typed_exps = List.map (fun t -> typecheck_exp_type t table sigma) exps in
+    let typed_exps = map _rec exps in
     let datatypes = get_datatypes typed_exps in
     TypeIs (Some (TypeVector datatypes), RVector typed_exps)
   | RVectorRef (v, i) ->
-    let nv = typecheck_exp_type v table sigma in
+    let nv = _rec v in
     let dt = get_datatype nv in (
     match dt with
     | TypeVector datatypes -> (try
-          let ref_type = List.nth datatypes i in
+          let ref_type = nth datatypes i in
           TypeIs (Some ref_type, RVectorRef (nv, i))
       with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
     | _ -> typecheck_error ("typecheck_exp: Vector-ref must operate on vector. Received: " ^ (string_of_datatype dt)))
   | RVectorSet (v, i, e) ->
-    let nv = typecheck_exp_type v table sigma in
+    let nv = _rec v in
     let dt = get_datatype nv in (
     match dt with
     | TypeVector datatypes -> (try
-      let tk = List.nth datatypes i in
-      let ne = typecheck_exp_type e table sigma in
+      let tk = nth datatypes i in
+      let ne = _rec e in
       let edt = get_datatype ne in
       if (compare_type tk edt) then
         make_tvoid (RVectorSet (nv, i, ne))
@@ -140,7 +140,7 @@ let rec typecheck_exp exp table sigma =
       with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
     | _ -> typecheck_error ("typecheck_exp: Vector-set! must operate on vector. Received: " ^ (string_of_datatype dt)))
   | RVectorLength v ->
-    let nv = typecheck_exp_type v table sigma in
+    let nv = _rec v in
     let vdt = get_datatype nv in
     if is_vector vdt then make_tint (RInt (get_vector_length vdt))
     else typecheck_error ("typecheck_exp: Vector-length must operate on vector. Received: " ^ (string_of_datatype vdt))
@@ -148,33 +148,33 @@ let rec typecheck_exp exp table sigma =
     let dt, var = get_value table sigma id in
     TypeIs (dt, var)
   | RAnd (l, r) ->
-    let nl = typecheck_exp_type l table sigma in
+    let nl = _rec l in
     let ldt = get_datatype nl in
-    let nr = typecheck_exp_type r table sigma in
+    let nr = _rec r in
     let rdt = get_datatype nr in
     if (compare_type ldt TypeBool) && (compare_type rdt TypeBool) then
       make_tbool (RAnd (nl, nr))
     else typecheck_error "typecheck_exp: And expressions must operate on boolean values"
   | ROr (l, r) ->
-    let nl = typecheck_exp_type l table sigma in
+    let nl = _rec l in
     let ldt = get_datatype nl in
-    let nr = typecheck_exp_type r table sigma in
+    let nr = _rec r in
     let rdt = get_datatype nr in
     if (compare_type ldt TypeBool) && (compare_type rdt TypeBool) then
       make_tbool (ROr (nl, nr))
     else typecheck_error "typecheck_exp: Or expressions must operate on boolean values"
   | RNot e ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let edt = get_datatype ne in
     if (compare_type edt TypeBool) then
       TypeIs (Some edt, RNot ne)
     else typecheck_error "typecheck_exp: Not expressions must operate on boolean values"
   | RIf (cnd, thn, els) ->
-    let ncnd = typecheck_exp_type cnd table sigma in
+    let ncnd = _rec cnd in
     let cndt = get_datatype ncnd in
-    let nthn = typecheck_exp_type thn table sigma in
+    let nthn = _rec thn in
     let thdt = get_datatype nthn in
-    let nels = typecheck_exp_type els table sigma in
+    let nels = _rec els in
     let eldt = get_datatype nels in
     if not (compare_type cndt TypeBool) then
       typecheck_error "typecheck_exp: If condition must evaluate to boolean value"
@@ -182,9 +182,9 @@ let rec typecheck_exp exp table sigma =
       TypeIs (Some thdt, RIf (ncnd, nthn, nels))
     else typecheck_error "typecheck_exp: If condition's then and else must evaluate to same type"
   | RCmp (o, l, r) ->
-    let nl = typecheck_exp_type l table sigma in
+    let nl = _rec l in
     let ldt = get_datatype nl in
-    let nr = typecheck_exp_type r table sigma in
+    let nr = _rec r in
     let rdt = get_datatype nr in
     (match o with
     | ">" | ">=" | "<" | "<=" ->
@@ -195,54 +195,52 @@ let rec typecheck_exp exp table sigma =
       else typecheck_error "typecheck_exp: eq? only compares same type"
     | _ -> typecheck_error "typecheck_exp: unexpected compare operator")
   | RUnOp ("-", e) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let edt = get_datatype ne in
     if (compare_type edt TypeInt) then make_tint (RUnOp ("-", ne))
     else typecheck_error ("typecheck_exp: - must be applied on integer")
   | RUnOp ("+", e) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let edt = get_datatype ne in
     if (compare_type edt TypeInt) then ne
     else typecheck_error ("typecheck_exp: + must be applied on integer")
   | RUnOp (o, e) -> typecheck_error ("typecheck_exp: " ^ o ^ " not a unary operator")
   | RBinOp (o, l, r) ->
-    let nl = typecheck_exp_type l table sigma in
+    let nl = _rec l in
     let ldt = get_datatype nl in
-    let nr = typecheck_exp_type r table sigma in
+    let nr = _rec r in
     let rdt = get_datatype nr in
     if (compare_type ldt TypeInt) && (compare_type rdt TypeInt) then make_tint (RBinOp (o, nl, nr))
     else typecheck_error ("typecheck_exp: " ^ o ^ " must be applied on integers")
   | RLet (v, i, b) ->
-    let ni = typecheck_exp_type i table sigma in
+    let ni = _rec i in
     let idt = get_datatype_option ni in
     let _ = Hashtbl.add table v idt in
-    let nb = typecheck_exp_type b table sigma in
+    let nb = _rec b in
     let bdt = get_datatype_option nb in
     TypeIs (bdt, RLet (v, ni, nb))
   | RRead -> make_tint (RRead)
   | RPrint e ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     make_tvoid (RPrint ne)
   | RWhile (c, e) ->
-    let nc = typecheck_exp_type c table sigma in
-    let ne = typecheck_exp_type e table sigma in
+    let nc = _rec c in
+    let ne = _rec e in
     let dt = get_datatype_option ne in
     TypeIs (dt, RWhile (nc, ne))
   | RLambda (args, ret, e) ->
-    add_to_table args table;
-    let ne = typecheck_exp_type e table sigma in
+    add_args_to_gamma args table;
+    let ne = _rec e in
     let dt = get_datatype ne in
     let ldt = TypeFunction (map (fun (id, dt) -> dt) args, ret) in
-    if dt <> ret then typecheck_error ("lambda return type does not match body: "
+    if unfold_type dt <> unfold_type ret then typecheck_error ("lambda return type does not match body: "
       ^ string_of_datatype dt ^ " : " ^ string_of_datatype ret)
     else TypeIs (Some ldt, RLambda (args, ret, ne))
   | RApply (func, args) ->
-    let nid = typecheck_exp_type func table sigma in
+    let nid = _rec func in
     let fdt = get_datatype_option nid in
-    (* print_endline ("func: " ^ string_of_rexp_type func); *)
-    (* print_endline ("dt: " ^ string_of_datatype_option fdt); *)
-    let (fun_args, fun_ret) = get_some_func_types fdt in
-    let new_args = map (fun e -> typecheck_exp_type e table sigma) args in
+    let (fun_args, fun_ret) = get_function_dt fdt in
+    let new_args = map _rec args in
     (try
       iter2 compare_args (map get_datatype new_args) fun_args;
       TypeIs (Some fun_ret, RApply (nid, new_args))
@@ -252,15 +250,15 @@ let rec typecheck_exp exp table sigma =
       typecheck_error "function arguments do not match parameters"
     )
   | RInl (e, dt) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let ety = get_datatype ne in
     TypeIs (Some (TypePlus(ety, dt)), RInl (ne, dt))
   | RInr (dt, e) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let ety = get_datatype ne in
     TypeIs (Some (TypePlus(dt, ety)), RInr (dt, ne))
   | RCase (e, cases) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let dt = get_datatype ne in
     let ncases = map (fun (c, b) ->
       let id, ty = begin match c with
@@ -269,8 +267,8 @@ let rec typecheck_exp exp table sigma =
         end
       in
       let _ = Hashtbl.add table id ty in
-      let nc = typecheck_exp_type c table sigma in
-      let nb = typecheck_exp_type b table sigma in
+      let nc = _rec c in
+      let nb = _rec b in
       let ncdt = get_datatype nc in
       (nc, nb)
     ) cases in
@@ -281,12 +279,12 @@ let rec typecheck_exp exp table sigma =
     if valid_cnd = false then typecheck_error "match case is not of correct type" else
     if valid_bod = false then typecheck_error "match cases do not return same type" else
     TypeIs (Some expected_ret, RCase (ne, ncases))
-  | RFold e -> typecheck_exp_type e table sigma
+  | RFold e -> _rec e
   | RUnfold e ->
-    let TypeIs (Some dt, ne) = typecheck_exp_type e table sigma in
+    let TypeIs (Some dt, ne) = _rec e in
     TypeIs (Some (unfold_type dt), ne)
   | RTyLambda (ty, e) ->
-    let ne = typecheck_exp_type e table sigma in
+    let ne = _rec e in
     let dt = get_datatype ne in
     TypeIs (Some (TypeForAll (ty, dt)), RTyLambda (ty, ne))
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
@@ -308,13 +306,13 @@ let rec typecheck_defs defs sigma =
   | [] -> []
   | RDefine (id, args, ret_type, body) :: t ->
     let gamma = Hashtbl.create 10 in
-    add_to_table args gamma;
-    let _, arg_types = List.split args in
+    add_args_to_gamma args gamma;
+    let _, arg_types = split args in
     Hashtbl.replace sigma id (Some (TypeFunction (arg_types, ret_type)));
     let next_defs = typecheck_defs t sigma in
     let new_body = typecheck_exp_type body gamma sigma in
     let body_ret_type = get_datatype new_body in
-    if body_ret_type = ret_type then
+    if unfold_type body_ret_type = unfold_type ret_type then
       RDefine (id, args, ret_type, new_body) :: next_defs
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type
