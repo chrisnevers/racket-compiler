@@ -40,6 +40,7 @@ let rec instantiate_type exp var_ty inst_ty =
     let new_ret = replace_dt ret var_ty inst_ty in
     RLambda (new_args, new_ret, _rec e)
   (* Process inner expressions of everything else *)
+  | RTyLambda (ty, e) -> RTyLambda (ty, _rec e)
   | RVar _ | RInt _ | RChar _ | RBool _
   | RCollect _ | RAllocate _ | RGlobalValue _ | RRead
   | RVoid | RFunctionRef _ | RDatatype _ -> exp
@@ -70,7 +71,7 @@ let rec instantiate_type exp var_ty inst_ty =
   | RInr (dt, e) -> RInr (replace_dt dt var_ty inst_ty, _rec e)
   | RFold e -> RFold (_rec e)
   | RUnfold e -> RUnfold (_rec e)
-  | _ -> mono_error "instantiate_types: unexpected expression"
+  | _ -> mono_error ("instantiate_types: unexpected expression - " ^ string_of_rexp exp)
 
 let rec m_tyexp exp tbl =
   match exp with
@@ -89,6 +90,7 @@ and m_exp exp tbl =
   | RInst (TypeIs (_, RTyLambda (ty, te)), dt) ->
     let TypeIs (_, e) = te in
     instantiate_type e ty dt
+  | RInst (ie, dt) -> m_exp (RInst (_rec ie, dt)) tbl
   (* Do nothing but process inner expressions *)
   | RTyLambda (ty, te) -> RTyLambda (ty, _rec te)
   | RVar _ | RInt _ | RChar _ | RBool _

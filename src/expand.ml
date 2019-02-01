@@ -84,6 +84,7 @@ and expand_exp exp gamma : rexp =
 and expand_exp_type exp gamma : rexp_type =
   match exp with
   | TypeIs (dt, RBegin es) -> expand_exp_type (begin_to_let es) gamma
+  | TypeIs (Some dt, e) -> TypeIs (Some (expand_user_dt dt gamma), expand_exp e gamma)
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e gamma)
 
 and get_adt_type dt =
