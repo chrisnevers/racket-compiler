@@ -313,7 +313,6 @@ let rec typecheck_defs defs sigma =
     let new_body = typecheck_exp_type body gamma sigma in
     let body_ret_type = get_datatype new_body in
     if body_ret_type = ret_type then
-    (* if unfold_type body_ret_type = unfold_type ret_type then *)
       RDefine (id, args, ret_type, new_body) :: next_defs
     else typecheck_error ("Typecheck Error: function " ^ id ^
       " has a different return type (" ^ string_of_datatype ret_type

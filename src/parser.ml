@@ -359,13 +359,6 @@ let parse_def_type tokens =
   let ty_fix = TypeFix (TypeForAll (type_id, plus_ty)) in
   let l_type = TypeFunction ([l_ty], ty_fix) in
   let r_type = TypeFunction ([r_ty], ty_fix) in
-  (* Does it need to be wrapped in a ty variable if polymorphic? *)
-  (* let l_dt = if forall = [] then ty_fix else
-    get_type_var_dt forall l_type
-  in
-  let r_dt = if forall = [] then ty_fix else
-    get_type_var_dt forall r_type
-  in *)
   let l_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty)))) in
   let r_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x"))))) in
   let l_lam = if forall = [] then l_fold else TypeIs (Some l_type, RLambda ([("x", l_ty)], ty_fix, l_fold)) in

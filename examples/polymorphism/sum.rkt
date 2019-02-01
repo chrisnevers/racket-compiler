@@ -1,4 +1,4 @@
-(define-type Product A B
+(define-type Sum A B
     [Inl A]
     [Inr B])
 

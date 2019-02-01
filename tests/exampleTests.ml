@@ -108,3 +108,4 @@ let () =
   test "polymorphism" "def" "((Forall A (A -> A)))" None;
   test "polymorphism" "list" "(6, 5)" None;
   test "polymorphism" "is-cons" "#t" None;
+  test "polymorphism" "sum" "5" None;
