@@ -136,14 +136,11 @@ let get_free_vars args exp =
       with Not_found -> Hashtbl.add free v (get_some dt))
     | RCase (s, cs) ->
       rm_bindings tbl free s;
-      List.iter (fun (c, d) ->
-        rm_bindings tbl free c;
-        rm_bindings tbl free d
-      ) cs
     | RInt _ | RChar _ | RBool _ | RVoid
     | RFunctionRef _ | RCollect _
     | RAllocate _ | RGlobalValue _
     | RRead -> ()
+    | _ -> raise (SomeError ("RmBinding: " ^ string_of_rexp exp))
   in
   let tbl   = Hashtbl.create 10 in
   let free  = Hashtbl.create 10 in

@@ -95,6 +95,9 @@ and convert_exp exp defs =
     let name = Gensym.gen_str "fclo" in
     let apply = TypeIs (Some ret, RApply (TypeIs (Some fdt, RVectorRef (TypeIs (Some vdt, RVar name), 0)), TypeIs (Some vdt, RVar name) :: nes)) in
     RLet (name, ne, apply)
+  | RTyLambda (s, e) -> (* Already instantiated *)
+    (* This only exists for function declarations, so we dont need body *)
+    RTyLambda (s, TypeIs (Some TypeVoid, RVoid))
   | RVar _ -> exp
   | RInt _ -> exp
   | RBool _ -> exp
