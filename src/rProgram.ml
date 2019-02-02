@@ -8,15 +8,6 @@ type datatype =
   | TypeFunction of datatype list * datatype
   | TypeUser of string
   | TypePlus of datatype * datatype
-  (*
-    TypeFix (rdt, dt),
-      rdt = the entire recursive type in dt
-      dt = the type
-    E.G :
-      TypeFix ("list",
-        TypePlus (bool, TypeVector ( int, TypeVar "list" ) )
-      )
-   *)
   | TypeVar of string
   | TypeFix of datatype
   | TypeForAll of string * datatype
@@ -199,6 +190,7 @@ let rec string_of_rexp e : string =
   | RTyLambda (a, e) -> "Lambda " ^ a ^ " " ^ string_of_rexp_type e
   | RInst (e, dt) -> "Inst " ^ string_of_rexp_type e ^ " " ^ string_of_datatype dt
   | RFold e -> "Fold " ^ string_of_rexp_type e
+  | RDatatype dt ->  "Datatype " ^ string_of_datatype dt
   ) e
   ^ ")\n"
 

@@ -217,6 +217,7 @@ let rec flatten_typed_exp ?(v=None) exp =
     | RBegin _ -> flatten_error "should not have begin in flatten"
     | RWhen (_, _) -> flatten_error "should not have when in flatten"
     | RUnless (_, _) -> flatten_error "should not have unless in flatten"
+    | _ -> flatten_error (string_of_rexp e)
   )
 
 let rec flatten_defs defs =

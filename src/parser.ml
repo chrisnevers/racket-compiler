@@ -321,7 +321,9 @@ let rec parse_sub_type tokens =
   | TLBracket ->
     expect_token tokens TLBracket;
     let id = parse_id tokens in
-    let ty = parse_type tokens in
+    let next = next_token tokens in
+    (* If no type specified, its type unit *)
+    let ty = if next != TRBracket then parse_type tokens else TypeVector [] in
     expect_token tokens TRBracket;
     (id, ty)
   | _ -> parser_error "Expected [ while parsing variant"
@@ -338,15 +340,17 @@ let rec get_type_var_dt vars dt =
   match vars with
   | id :: [] -> TypeForAll (id, dt)
   | id :: t -> TypeForAll (id, get_type_var_dt t dt)
-  | _ -> parser_error "never happen"
+  | [] -> dt
 
 let rec get_wrapped_ty_con vars dt exp =
   match vars with
   | [] -> exp
   | id :: t -> TypeIs (Some (get_type_var_dt vars dt), RTyLambda (id, get_wrapped_ty_con t dt exp))
-  (* | [] -> parser_error "never happen" *)
+
+let is_unit ty = ty = TypeVector []
 
 let parse_def_type tokens =
+  (* Parse type defs *)
   expect_token tokens TLParen;
   expect_token tokens TDefineType;
   let type_id = parse_id tokens in
@@ -354,22 +358,46 @@ let parse_def_type tokens =
   let (l_id, l_ty) = parse_sub_type tokens in
   let (r_id, r_ty) = parse_sub_type tokens in
   expect_token tokens TRParen;
+  (* Create Types *)
+  let l_unit = is_unit l_ty in
+  let r_unit = is_unit r_ty in
   let plus_ty = TypePlus (l_ty, r_ty) in
-  (* Fix point of recursive type *)
-  let ty_fix = TypeFix (TypeForAll (type_id, plus_ty)) in
-  let l_type = TypeFunction ([l_ty], ty_fix) in
-  let r_type = TypeFunction ([r_ty], ty_fix) in
-  let l_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInl (TypeIs (Some l_ty, RVar "x"), r_ty)))) in
-  let r_fold = TypeIs (Some ty_fix, RFold (TypeIs (Some plus_ty, RInr (l_ty, TypeIs (Some r_ty, RVar "x"))))) in
-  let l_lam = if forall = [] then l_fold else TypeIs (Some l_type, RLambda ([("x", l_ty)], ty_fix, l_fold)) in
-  let r_lam = if forall = [] then r_fold else TypeIs (Some r_type, RLambda ([("x", r_ty)], ty_fix, r_fold)) in
-  let l_exp = if forall = [] then l_lam else get_wrapped_ty_con forall l_type l_lam in
-  let r_exp = if forall = [] then r_lam else get_wrapped_ty_con forall r_type r_lam in
-  let l_dt = if forall = [] then ty_fix else get_type_var_dt forall l_type in
-  let r_dt = if forall = [] then ty_fix else get_type_var_dt forall r_type in
-  RDefType (type_id, l_id, r_id, forall, ty_fix) ::
-  RDefine (l_id, [("x", l_ty)], l_dt, l_exp) ::
-  RDefine (r_id, [("x", r_ty)], r_dt, r_exp) ::
+  let fix_ty = TypeFix (TypeForAll (type_id, plus_ty)) in
+  (* Polymorphic constructors wrapped in lambda - unit types have no args *)
+  let l_lam_ty = TypeFunction ((if l_unit then [] else [l_ty]), fix_ty) in
+  let r_lam_ty = TypeFunction ((if r_unit then [] else [r_ty]), fix_ty) in
+  (* If unit, we don't have a parameter *)
+  let inl_ie = if l_unit then RVector [] else RVar "x" in
+  let inr_ie = if r_unit then RVector [] else RVar "x" in
+  (* Construct the (Fold (Inl ...)) or (Fold (Inr ...)) *)
+  let inl_e = RInl (TypeIs (Some l_ty, inl_ie), r_ty) in
+  let inr_e = RInr (l_ty, TypeIs (Some r_ty, inr_ie)) in
+  let l_fold = TypeIs (Some fix_ty, RFold (TypeIs (Some plus_ty, inl_e))) in
+  let r_fold = TypeIs (Some fix_ty, RFold (TypeIs (Some plus_ty, inr_e))) in
+  (* If polymorphic wrap (Fold ...) in a lambda *)
+  let l_args = if l_unit then [] else [("x", l_ty)] in
+  let l_e = if forall = [] then l_fold else
+    TypeIs (Some l_lam_ty, RLambda (l_args, fix_ty, l_fold))
+  in
+  let r_args = if r_unit then [] else [("x", r_ty)] in
+  let r_e = if forall = [] then r_fold
+    else TypeIs (Some r_lam_ty, RLambda (r_args, fix_ty, r_fold))
+  in
+  (* Wrap constructor in necessary (TyLambda ...)'s *)
+  let l_exp = if forall = [] then l_e else get_wrapped_ty_con forall l_lam_ty l_e in
+  let r_exp = if forall = [] then r_e else get_wrapped_ty_con forall r_lam_ty r_e in
+  (* If type is not polymorphic, the return type is (TypeFix (TypeForAll (...))) *)
+  let l_bdt = if forall = [] then fix_ty else l_lam_ty in
+  let r_bdt = if forall = [] then fix_ty else r_lam_ty in
+  (* If type is polymorphic, the return type is wrapped in (ForAll ({type_var}, ...)) *)
+  let l_dt = if forall = [] then l_bdt else get_type_var_dt forall l_bdt in
+  let r_dt = if forall = [] then r_bdt else get_type_var_dt forall r_bdt in
+  (* Are any arguments needed for the type constructor functions *)
+  let l_args = if l_unit then [] else [("x", l_ty)] in
+  let r_ards = if r_unit then [] else [("x", r_ty)] in
+  RDefType (type_id, l_id, r_id, forall, fix_ty) ::
+  RDefine (l_id, l_args, l_dt, l_exp) ::
+  RDefine (r_id, r_ards, r_dt, r_exp) ::
   []
 
 let rec parse_defs tokens =
