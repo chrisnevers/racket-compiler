@@ -4,6 +4,12 @@ open List
 exception ExpandError of string
 let expand_error msg = raise (ExpandError msg)
 
+(* Adds TypeVars from TypeForAlls. Does not overwrite TypePlus data *)
+let add_to_tbl tbl ty =
+  match Hashtbl.mem tbl ty with
+  | false -> Hashtbl.add tbl ty (None, TypeVar ty)
+  | true -> ()
+
 let rec array_to_vector_type dt =
   match dt with
   | TypeArray a -> TypeVector [TypeInt; TypeArray (array_to_vector_type a)]
@@ -14,14 +20,19 @@ let rec expand_user_dt ty gamma =
   match ty with
   | TypeInt | TypeBool | TypeVoid | TypeChar -> ty
   | TypeVector ts -> TypeVector (map _rec ts)
-  | TypeVar s -> let (_, dt) = Hashtbl.find gamma s in dt
-  | TypeUser s -> let (_, dt) = Hashtbl.find gamma s in dt
+  (* | TypeUser s *)
+  | TypeVar s -> begin try
+      let (_, dt) = Hashtbl.find gamma s in dt
+      with Not_found -> expand_error ("Type not found in gamma: " ^ s)
+    end
   | TypeFix t -> TypeFix (_rec t)
-  | TypeForAll (s, t) -> TypeForAll (s, _rec t)
+  | TypeForAll (s, t) ->
+    add_to_tbl gamma s;
+    TypeForAll (s, _rec t)
   | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | TypeArray t -> TypeArray (_rec t)
   | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
-  | _ -> expand_error ("dt: " ^ string_of_datatype ty)
+  | _ -> expand_error ("Unknown datatype: " ^ string_of_datatype ty)
 
 let expand_user_type ty gamma =
   match ty with
@@ -58,18 +69,36 @@ and expand_exp exp gamma : rexp =
   | RLet (v, i, b) -> RLet (v, expand_exp_type i gamma, expand_exp_type b gamma)
   | RWhile (c, e) -> RWhile (expand_exp_type c gamma, expand_exp_type e gamma)
   | RApply (e, args) -> RApply (expand_exp_type e gamma, map (fun a -> expand_exp_type a gamma) args)
-  | RLambda (args, ret, e) -> RLambda (map (fun a -> expand_user_type a gamma) args, ret, expand_exp_type e gamma)
+  | RLambda (args, ret, e) -> RLambda (map (fun a -> expand_user_type a gamma) args, expand_user_dt ret gamma, expand_exp_type e gamma)
   | RCase (e, cases) -> RCase (TypeIs (None, RUnfold (expand_exp_type e gamma)), expand_user_cases cases gamma)
   | RInl (e, dt)  -> RInl (expand_exp_type e gamma, dt)
   | RInr (dt, e) -> RInr (dt, expand_exp_type e gamma)
   | RFold e -> RFold (expand_exp_type e gamma)
   | RUnfold e -> RUnfold (expand_exp_type e gamma)
+  | RTyLambda (ty, e) ->
+    Hashtbl.add gamma ty (None, TypeVar ty);
+    RTyLambda (ty, expand_exp_type e gamma)
+  | RInst (e, ty) -> RInst (expand_exp_type e gamma, ty)
   | _ -> exp
 
 and expand_exp_type exp gamma : rexp_type =
   match exp with
   | TypeIs (dt, RBegin es) -> expand_exp_type (begin_to_let es) gamma
+  | TypeIs (Some dt, e) -> TypeIs (Some (expand_user_dt dt gamma), expand_exp e gamma)
   | TypeIs (dt, e) -> TypeIs (dt, expand_exp e gamma)
+
+and get_adt_type dt =
+  match dt with
+  | TypeFix (TypeForAll (id, TypePlus (l, r))) -> (id, [], l, r)
+  | TypeForAll (id, idt) ->
+    let (rec_id, var_ids, l, r) = get_adt_type idt in
+    (rec_id, id :: var_ids, l, r)
+  | _ -> expand_error ("unknown invariant type: " ^ string_of_datatype dt)
+
+and mk_forall_type vars dt =
+  match vars with
+  | [] -> dt
+  | id :: t -> TypeForAll (id, mk_forall_type t dt)
 
 and expand_user_cases cases gamma =
   match cases with
@@ -77,10 +106,11 @@ and expand_user_cases cases gamma =
     let TypeIs (_, RVar name) = id in
     (try
       let (Some side, user_type) = Hashtbl.find gamma name in
-      let TypeFix (TypeForAll (dtid, TypePlus (l_ty, r_ty))) = user_type in
-      let l_ty = fold_type l_ty dtid user_type in
-      let r_ty = fold_type r_ty dtid user_type in
-      let dt = Some (TypePlus (l_ty, r_ty)) in
+      let (rec_id, var_ids, l_ty, r_ty) = get_adt_type user_type in
+      let l_ty = fold_type l_ty rec_id user_type in
+      let r_ty = fold_type r_ty rec_id user_type in
+      (* dt should reflect type var *)
+      let dt = Some (mk_forall_type var_ids (TypePlus (l_ty, r_ty))) in
       let ncnd = begin match side with
       | Left  -> TypeIs (dt, RInl (TypeIs (Some l_ty, arg), r_ty))
       | Right -> TypeIs (dt, RInr (l_ty, TypeIs (Some r_ty, arg)))
@@ -92,24 +122,31 @@ and expand_user_cases cases gamma =
   | [] -> []
 
 and fold_type ty id user =
+  let _rec ty = fold_type ty id user in
   match ty with
-  | TypeVar s -> if s = id then user else TypeVar s
+  | TypeVar s when s = id -> user
+  | TypeVector ts -> TypeVector (map _rec ts)
+  | TypeFix t -> TypeFix (_rec t)
+  | TypeForAll (s, t) -> TypeForAll (s, _rec t)
+  | TypeArray t -> TypeArray (_rec t)
+  | TypeFunction (args, ret) -> TypeFunction (map _rec args, _rec ret)
+  | TypePlus (l, r) -> TypePlus (_rec l, _rec r)
   | _ -> ty
 
 let rec expand_defs defs gamma =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
+    (* If typevar in return type add to gamma *)
+    let new_ret = expand_user_dt ret_type gamma in
     let new_args = map (fun a -> expand_user_type a gamma) args in
     let new_body = expand_exp_type body gamma in
-    let new_def = RDefine (id, new_args, ret_type, new_body) in
+    let new_def = RDefine (id, new_args, new_ret, new_body) in
     new_def :: expand_defs t gamma
-  | RDefType (id, dt) :: t ->
+  | RDefType (id, l, r, vars, dt) :: t ->
     Hashtbl.add gamma id (None, dt);
-    RDefType (id, dt) :: expand_defs t gamma
-  | RTypeCons (id, side, dt) :: t ->
-    Hashtbl.add gamma id (Some side, dt);
-    RTypeCons (id, side, dt) :: expand_defs t gamma
-  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: expand_defs t gamma
+    Hashtbl.add gamma l (Some Left, dt);
+    Hashtbl.add gamma r (Some Right, dt);
+    RDefType (id, l, r, vars, dt) :: expand_defs t gamma
   | [] -> []
 
 let expand program =

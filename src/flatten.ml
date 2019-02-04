@@ -207,6 +207,7 @@ let rec flatten_typed_exp ?(v=None) exp =
       let stmts = concat flat_stmts @ fun_stmts @ [CAssign (var_name, apply)] in
       let var_list = if v = None then (var_name, dt) :: concat flat_vars @ fun_vars else concat flat_vars @ fun_vars in
       (flat_arg, stmts, var_list)
+    | RTyLambda _ -> (CVoid, [], [])
     (* Invalid expressions *)
     | RFold e | RUnfold e -> flatten_error "folds should have been eliminated after typechecking"
     | RLambda _ -> flatten_error "should not have lambda in vector"
@@ -216,6 +217,7 @@ let rec flatten_typed_exp ?(v=None) exp =
     | RBegin _ -> flatten_error "should not have begin in flatten"
     | RWhen (_, _) -> flatten_error "should not have when in flatten"
     | RUnless (_, _) -> flatten_error "should not have unless in flatten"
+    | _ -> flatten_error (string_of_rexp e)
   )
 
 let rec flatten_defs defs =
@@ -224,9 +226,7 @@ let rec flatten_defs defs =
     let (arg, stmts, vars) = flatten_typed_exp body in
     let var2dt = make_hashtable (vars @ args) in
     CDefine (id, args, ret, var2dt, stmts @ [CReturn arg]) :: flatten_defs t
-  | RDefType (id, dt) :: t -> CDefType (id, dt) :: flatten_defs t
-  | RTypeCons (id, side, dt) :: t -> CTypeCons (id, side, dt) :: flatten_defs t
-  | RDefTypeNames (ty, l, r) :: t -> CDefTypeNames (ty, l, r) :: flatten_defs t
+  | RDefType (id, l, r, vars, dt) :: t -> CDefType (id, l, r, vars, dt) :: flatten_defs t
   | [] -> []
 
 let flatten program : cprogram =

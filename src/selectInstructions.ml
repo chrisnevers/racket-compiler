@@ -21,11 +21,13 @@ let rec select_print_instrs dt arg =
   | TypeChar -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_char"]
   | TypeBool -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_bool"]
   | TypeVoid -> [Movq (arg, Reg Rdi); Movq (AInt 1, Reg Rsi); Callq "print_void"]
-  | TypeFunction (args, ret) -> [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
+  | TypeFunction (args, ret) ->
+    [Leaq (TypeRef dt, Reg Rdi); Movq (AInt 1, Reg Rdx); Callq "print_function"]
   | TypeArray l -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_array"]
   | TypePlus (l, r) -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_plus"]
-  | TypeFix dt -> select_print_instrs dt arg
-  | TypeForAll (s, dt) -> select_print_instrs dt arg
+  | TypeFix (TypeForAll (s, (TypePlus (l, r)))) -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_plus"]
+  | TypeForAll (s, vdt) ->
+    [Leaq (TypeRef dt, Reg Rsi); Callq "print_forall"]
   | TypeVector l -> match l with
     | TypeFunction (args, ret) :: [] -> select_print_instrs (TypeFunction (args, ret)) arg
     | _ -> [Movq (arg, Reg Rdi); Leaq (TypeRef dt, Reg Rsi); Movq (AInt 1, Reg Rdx); Callq "print_vector"]
@@ -179,9 +181,7 @@ let rec select_defs defs =
     let instrs = movs @ map_movs @ select_stmts stmts in
     let new_args = map (fun (id, dt) -> AVar id) args in
     PDefine (id, num_params, new_args, var_types, max_stack, instrs) :: select_defs t
-  | CDefType (id, dt) :: t -> PDefType (id, dt) :: select_defs t
-  | CTypeCons (id, side, dt) :: t -> PTypeCons (id, side, dt) :: select_defs t
-  | CDefTypeNames (id, l, r) :: t -> PDefTypeNames (id, l, r) :: select_defs t
+  | CDefType (id, l, r, vars, dt) :: t -> PDefType (id, l, r, vars, dt) :: select_defs t
   | [] -> []
 
 let select_instructions program : pprogram =

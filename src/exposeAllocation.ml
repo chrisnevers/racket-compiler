@@ -165,6 +165,7 @@ and expose_exp e =
   | RLet (v, i, b) -> RLet (v, expose_exp_type i, expose_exp_type b)
   | RPrint e -> RPrint (expose_exp_type e)
   | RWhile (c, e) -> RWhile (expose_exp_type c, expose_exp_type e)
+  | RTyLambda (id, e) -> RTyLambda (id, expose_exp_type e)
   | RCase (e, cases) ->
     let e_vec_id = Gensym.gen_str "case_e" in
     let e_ty_id = Gensym.gen_str "case_ty" in
@@ -205,9 +206,7 @@ let rec expose_defs defs =
   match defs with
   | RDefine (id, args, ret_type, body) :: t ->
     RDefine (id, args, ret_type, expose_exp_type body) :: expose_defs t
-  | RDefType (id, dt) :: t -> RDefType (id, dt) :: expose_defs t
-  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: expose_defs t
-  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: expose_defs t
+  | RDefType (id, l, r, vars, dt) :: t -> RDefType (id, l, r, vars, dt) :: expose_defs t
   | [] -> []
 
 let expose_allocation program =

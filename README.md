@@ -56,9 +56,17 @@ Run example tests:
     - `(array 1 2 3)`
     - `(array-set! {array} {index} {exp})`
     - Runtime bound checking
+8. ~~Chars~~
+9. ~~Polymorphism~~
+    - Type lambdas: `(Lambda A M)`
+9. Type Constructors
+    - User defined sum types
+    - Polymorphic `(define-type List A [Nil A] [Cons (Vector A List)])`
+    - Case expressions
 
 TODO:
-* Pattern Matching
-* Chars
+* Macros
+* Exceptions
+* Bytecode & VM
 * LLVM
 * ...

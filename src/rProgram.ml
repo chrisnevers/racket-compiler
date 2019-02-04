@@ -8,15 +8,6 @@ type datatype =
   | TypeFunction of datatype list * datatype
   | TypeUser of string
   | TypePlus of datatype * datatype
-  (*
-    TypeFix (rdt, dt),
-      rdt = the entire recursive type in dt
-      dt = the type
-    E.G :
-      TypeFix ("list",
-        TypePlus (bool, TypeVector ( int, TypeVar "list" ) )
-      )
-   *)
   | TypeVar of string
   | TypeFix of datatype
   | TypeForAll of string * datatype
@@ -63,6 +54,8 @@ and rexp =
   | RDatatype of datatype
   | RFold of rexp_type
   | RUnfold of rexp_type
+  | RTyLambda of string * rexp_type
+  | RInst of rexp_type * datatype
 
 type side =
   | Left
@@ -70,9 +63,8 @@ type side =
 
 type rdefine =
   | RDefine of string * (string * datatype) list * datatype * rexp_type
-  | RDefType of string * datatype
-  | RTypeCons of string * side * datatype
-  | RDefTypeNames of string * string * string
+  (* custom data type, left type cons, right type cons, var ids (polymorphic), dt *)
+  | RDefType of string * string * string * string list * datatype
 
 type rprogram =
   | RProgram of datatype option * rdefine list * rexp_type
@@ -195,6 +187,10 @@ let rec string_of_rexp e : string =
   | RLambda _ -> "lambda"
   | RInl (e, dt) -> "inl (" ^ string_of_rexp_type e ^ ", " ^ string_of_datatype dt ^ ")"
   | RInr (dt, e) -> "inr (" ^ string_of_datatype dt^ ", " ^ string_of_rexp_type e ^ ")"
+  | RTyLambda (a, e) -> "Lambda " ^ a ^ " " ^ string_of_rexp_type e
+  | RInst (e, dt) -> "Inst " ^ string_of_rexp_type e ^ " " ^ string_of_datatype dt
+  | RFold e -> "Fold " ^ string_of_rexp_type e
+  | RDatatype dt ->  "Datatype " ^ string_of_datatype dt
   ) e
   ^ ")\n"
 

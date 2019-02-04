@@ -2,6 +2,7 @@ open AProgram
 open RProgram
 open Registers
 open Gensym
+open Typecheck
 open Helper
 
 exception InvalidInstructionException of string
@@ -9,6 +10,8 @@ let invalid_instruction msg = raise (InvalidInstructionException msg)
 
 exception InvalidTypeException of string
 let invalid_type msg = raise (InvalidTypeException msg)
+
+let type_cons = Hashtbl.create 10
 
 let rec add_save_registers registers op =
   match registers with
@@ -25,7 +28,6 @@ let rec dt_to_x86 dt tbl =
     with Not_found ->
       let label = Gensym.gen_str "_tarray" in
       let _ = Hashtbl.add tbl dt label in
-      (* dt_to_x86 l tbl; *)
       label
     end
   | TypeVector l -> begin try Hashtbl.find tbl dt
@@ -46,17 +48,49 @@ let rec dt_to_x86 dt tbl =
   | TypePlus (l, r) -> begin try Hashtbl.find tbl dt
     with Not_found ->
       let label = Gensym.gen_str "_tplus" in
+      let _ = dt_to_x86 l tbl in
+      let _ = dt_to_x86 r tbl in
       let _ = Hashtbl.add tbl dt label in
       label
     end
-  | TypeFix dt -> dt_to_x86 dt tbl
-  | TypeForAll (s, dt) -> begin try Hashtbl.find tbl dt
+  | TypeFix (TypeForAll (s, idt)) ->
+    let ndt = unfold_type dt in
+    begin try Hashtbl.find tbl ndt
     with Not_found ->
-      let label = "_" ^ s in
+      Hashtbl.add type_cons idt s;
+      let label = Gensym.gen_str "_tfix" in
+      let _ = Hashtbl.add tbl ndt label in
+      let _ = dt_to_x86 ndt tbl in
+      label
+    end
+  | TypeFix idt -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = Gensym.gen_str "_tfix" in
+      let _ = dt_to_x86 idt tbl in
       let _ = Hashtbl.add tbl dt label in
       label
     end
-  | TypeUser s | TypeVar s -> "_" ^ s
+  | TypeForAll (s, idt) -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      Hashtbl.add type_cons idt s;
+      let _   = dt_to_x86 (TypeVar s) tbl in
+      let lbl = dt_to_x86 idt tbl in
+      let label = "_forAll" ^ s ^ lbl in
+      let _ = Hashtbl.add tbl dt label in
+      label
+    end
+  | TypeUser s -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = "_tuser" ^ s in
+      let _ = Hashtbl.add tbl dt label in
+      label
+    end
+  | TypeVar s -> begin try Hashtbl.find tbl dt
+    with Not_found ->
+      let label = "_tvar" ^ s in
+      let _ = Hashtbl.add tbl dt label in
+      label
+    end
 
 let arg_to_x86 arg =
   match arg with
@@ -114,6 +148,41 @@ let rec print_instrs instrs typelbls =
   | XChg (a, b) :: tl -> "\txchg\t" ^ arg_to_x86 a ^ ", " ^ arg_to_x86 b ^ "\n" ^ (print_instrs tl typelbls)
   | a :: tl -> invalid_instruction ("invalid instruction " ^ string_of_ainstr a)
 
+(*
+  If TypeVar is from a ForAll, we need to print it.
+  If it's already printed from a TypePlus, ignore.
+*)
+let print_type_var tbl id =
+  match Hashtbl.mem tbl (TypeVar id) with
+  | true -> ""
+  | false ->
+    "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n" ^
+    "_" ^ id ^ ":\n" ^
+    "\t.quad 11\n" ^
+    "\t.quad _" ^ id ^ "_str \n\n"
+
+let print_user_type tbl id dt s =
+  "_" ^ id ^ "_str:\n\t.string \"" ^ s ^ "\"\n\n" ^
+  "_" ^ id ^ ":\n" ^
+  "\t.quad 9\n" ^
+  "\t.quad _" ^ id ^ "_str \n" ^
+  "\t.quad " ^ dt_to_x86 dt tbl ^ "\n\n"
+
+let print_var_type tbl id s =
+  id ^ "_str:\n\t.string \"" ^ s ^ "\"\n\n" ^
+  id ^ ":\n" ^
+  "\t.quad 11\n" ^
+  "\t.quad " ^ id ^ "_str \n\n"
+
+let print_plus_type tbl id l r =
+  let id_str = begin try Hashtbl.find type_cons (TypePlus (l, r)) with Not_found -> id end in
+  id ^ "_str:\n\t.string \"" ^ id_str ^ "\"\n\n" ^
+  id ^ ":\n" ^
+  "\t.quad 8\n" ^
+  "\t.quad " ^ id ^ "_str \n" ^
+  "\t.quad " ^ dt_to_x86 l tbl ^ "\n" ^
+  "\t.quad " ^ dt_to_x86 r tbl ^ "\n\n"
+
 let get_x86_type_variables typetbl =
   "\n\t.globl _tint\n" ^
   "_tint:\n\t.quad	0\n" ^
@@ -133,6 +202,12 @@ let get_x86_type_variables typetbl =
   "_tplus:\n\t.quad 8\n" ^
   "\n\t.globl _tuser\n" ^
   "_tuser:\n\t.quad 9\n" ^
+  "\n\t.globl _tforall\n" ^
+  "_tforall:\n\t.quad 10\n" ^
+  "\n\t.globl _tvar\n" ^
+  "_tvar:\n\t.quad 11\n" ^
+  "\n\t.globl _tfix\n" ^
+  "_tfix:\n\t.quad 12\n" ^
   "\n" ^
   Hashtbl.fold (fun k v acc ->
     match k with
@@ -156,8 +231,24 @@ let get_x86_type_variables typetbl =
       "\t.quad " ^ string_of_int (List.length args) ^ "\n" ^
       List.fold_left (fun acc2 e -> acc2 ^ "\t.quad " ^ dt_to_x86 e typetbl ^ "\n") "" args ^
       "\t.quad " ^ dt_to_x86 ret typetbl ^ "\n\n"
-    | TypePlus (l, r) -> acc (* this was printed earlier *)
-    | TypeFix _ -> acc (* this was printed earlier *)
+    | TypeForAll (s, dt) ->
+      let varData = print_type_var typetbl s in
+      acc ^ varData ^ v ^ ":\n" ^
+      "\t.quad 10\n" ^
+      "\t.quad _tvar" ^ s ^ "_str\n" ^
+      "\t.quad " ^ dt_to_x86 (TypeVar s) typetbl ^ "\n" ^
+      "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
+    | TypePlus (l, r) ->
+      acc ^ print_plus_type typetbl v l r
+    | TypeFix dt ->
+      acc ^ v ^ ":\n" ^
+      "\t.quad 12\n" ^
+      "\t.quad " ^ dt_to_x86 dt typetbl ^ "\n\n"
+    | TypeVar s ->
+      acc ^ print_var_type typetbl v s
+    | TypeUser s ->
+      print_endline "user";
+      acc
     | _ -> invalid_type ("Printx86: get_x86_type_variables: " ^ string_of_datatype k)
   ) typetbl ""
 
@@ -199,42 +290,30 @@ let rec print_defs defs typetbl =
   | d :: t -> print_defs t typetbl
   | [] -> ""
 
-let rec get_type_cons defs typetbl deftbl =
+(* let rec get_type_cons defs typetbl deftbl =
   match defs with
   | [] -> ""
-  | ADefTypeNames (id, l, r) :: t ->
-    Hashtbl.add deftbl id (TypeVar l, TypeVar r);
-    get_type_cons t typetbl deftbl
-  | ATypeCons (id, s, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
-    "_" ^ id ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
-    "_" ^ id ^ ":\n" ^
-    "\t.quad 9\n" ^
-    "\t.quad _" ^ id ^ "_str \n" ^
-    "\t.quad " ^ dt_to_x86 (if s = Left then l else r) typetbl ^ "\n\n"
-    ^ get_type_cons t typetbl deftbl
-  | ADefType (id, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
+  | ADefType (id, l_id, r_id, vars, TypeFix (TypeForAll (_, TypePlus (l, r)))) :: t ->
     let label = "_" ^ id in
-    let (l_id, r_id) = Hashtbl.find deftbl id in
+    let _ = Hashtbl.add typetbl (TypeVar id) label in
     let _ = Hashtbl.add typetbl (TypePlus (l, r)) label in
-    label ^ "_str:\n\t.string \"" ^ id ^ "\"\n\n" ^
-    label ^ ":\n" ^
-    "\t.quad 8\n" ^
-    "\t.quad _" ^ id ^ "_str \n" ^
-    "\t.quad " ^ dt_to_x86 l_id typetbl ^ "\n" ^
-    "\t.quad " ^ dt_to_x86 r_id typetbl ^ "\n\n"
-    ^ get_type_cons t typetbl deftbl
-  | _ :: t -> get_type_cons t typetbl deftbl
+    List.fold_left (fun acc s -> acc ^ print_var_type typetbl s) "" vars ^
+    print_user_type typetbl l_id l ^
+    print_user_type typetbl r_id r ^
+    print_plus_type typetbl id l_id r_id ^
+    get_type_cons t typetbl deftbl
+  | _ :: t -> get_type_cons t typetbl deftbl *)
 
 let print_x86 program =
   match program with
   | AProgram (stack_space, rootstack_space, datatype, defs, instrs) ->
     let typetbl = Hashtbl.create 10 in
-    let type_cons = get_type_cons defs typetbl (Hashtbl.create 10) in
+    (* let type_cons = get_type_cons defs typetbl (Hashtbl.create 10) in *)
     let middle = print_instrs instrs typetbl in
     let defines = print_defs defs typetbl in
     let beginning = ".data\n" ^
                     get_x86_type_variables typetbl ^
-                    type_cons ^
+                    (* type_cons ^ *)
                     ".text\n" ^
                     defines ^
                     "\t.globl " ^ os_label_prefix ^ "main\n\n" ^

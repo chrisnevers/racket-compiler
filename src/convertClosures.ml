@@ -95,6 +95,9 @@ and convert_exp exp defs =
     let name = Gensym.gen_str "fclo" in
     let apply = TypeIs (Some ret, RApply (TypeIs (Some fdt, RVectorRef (TypeIs (Some vdt, RVar name), 0)), TypeIs (Some vdt, RVar name) :: nes)) in
     RLet (name, ne, apply)
+  | RTyLambda (s, e) -> (* Already instantiated *)
+    (* This only exists for function declarations, so we dont need body *)
+    RTyLambda (s, TypeIs (Some TypeVoid, RVoid))
   | RVar _ -> exp
   | RInt _ -> exp
   | RBool _ -> exp
@@ -115,9 +118,7 @@ let rec convert_defs defs ndefs =
     | _ -> (id, dt)
     ) args in
     RDefine (id, nargs, ret, convert_typed_exp body ndefs) :: convert_defs t ndefs
-  | RDefType (id, dt) :: t -> RDefType (id, dt) :: convert_defs t ndefs
-  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: convert_defs t ndefs
-  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: convert_defs t ndefs
+  | RDefType (id, l, r, vars, dt) :: t -> RDefType (id, l, r, vars, dt) :: convert_defs t ndefs
   | [] -> []
 
 let rec add_vec_args defs =
@@ -129,9 +130,7 @@ let rec add_vec_args defs =
     with Not_found -> RDefine (id, args, ret, body))
     in
     def :: add_vec_args t
-  | RDefType (id, dt) :: t -> RDefType (id, dt) :: add_vec_args t
-  | RTypeCons (id, side, dt) :: t -> RTypeCons (id, side, dt) :: add_vec_args t
-  | RDefTypeNames (ty, l, r) :: t -> RDefTypeNames (ty, l, r) :: add_vec_args t
+  | RDefType (id, l, r, vars, dt) :: t -> RDefType (id, l, r, vars, dt) :: add_vec_args t
   | [] -> []
 
 let convert_closures program =

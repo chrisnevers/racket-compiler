@@ -1,5 +1,5 @@
 modules = ['List']
-order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'typecheck', 'convertClosures', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
+order = ['token', 'rProgram', 'cProgram', 'aProgram', 'helper', 'gensym', 'registers', 'lexer', 'parser', 'expand', 'uniquify', 'monomorphification', 'typecheck', 'convertClosures', 'exposeAllocation', 'flatten', 'selectInstructions', 'uncoverLive', 'buildInterference', 'allocateRegisters', 'assignHomes', 'lowerConditionals', 'patchInstructions', 'printx86']
 
 top_fp = open('top.ml', 'w')
 
@@ -28,8 +28,11 @@ let run_expand program =
 let run_uniquify program =
     let expand = run_expand program in
     uniquify expand\n\n
-let run_typecheck program =
+let run_monomorphify program =
     let uniq = run_uniquify program in
+    monomorphize uniq\n\n
+let run_typecheck program =
+    let uniq = run_monomorphify program in
     typecheck uniq\n\n
 let run_convert program =
     let typed = run_typecheck program in

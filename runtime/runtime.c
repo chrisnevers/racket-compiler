@@ -39,6 +39,9 @@ extern int64_t tfunc;
 extern int64_t tarray;
 extern int64_t tplus;
 extern int64_t tuser;
+extern int64_t tforall;
+extern int64_t tfix;
+extern int64_t tvar;
 
 int64_t* rootstack_ptr      = NULL;
 int64_t* rootstack_begin    = NULL;
@@ -420,6 +423,14 @@ void print_plus(int64_t* v, int64_t* tag, short newline) {
     }
 }
 
+void print_forall(int64_t* v, int64_t* tag, short newline) {
+    print_any(*v, (int64_t*) tag[3], newline);
+}
+
+void print_fix(int64_t* v, int64_t* tag, short newline) {
+    print_any(*v, (int64_t*) tag[2], newline);
+}
+
 void print_user(int64_t* v, int64_t* tag, short newline) {
     char* id = (char*) tag[1];
     printf("(%s ", id);
@@ -474,6 +485,25 @@ void print_type_user (int64_t* tag, short newline) {
     printf("%s%s", id, newline ? "\n" : "");
 }
 
+void print_type_var (int64_t* tag, short newline) {
+    char* id = (char*) tag[1];
+    printf("%s%s", id, newline ? "\n" : "");
+}
+
+void print_type_forall (int64_t* tag, short newline) {
+    char* id = (char*) tag[1];
+    printf("(Forall %s ", id);
+    print_any_type((int64_t*) tag[3], 0);
+    printf(")%s", newline ? "\n" : "");
+}
+
+void print_type_fix (int64_t* tag, short newline) {
+    char* id = (char*) tag[1];
+    printf("(Fix %s ", id);
+    print_any_type((int64_t*) tag[1], 0);
+    printf(")%s", newline ? "\n" : "");
+}
+
 void print_any_type (int64_t* tag, short newline) {
     if (tag[0] == tint) {
         print_type_int (newline);
@@ -493,6 +523,12 @@ void print_any_type (int64_t* tag, short newline) {
         print_type_plus (tag, newline);
     } else if (tag[0] == tuser) {
         print_type_user (tag, newline);
+    } else if (tag[0] == tforall) {
+        print_type_forall (tag, newline);
+    } else if (tag[0] == tfix) {
+        print_type_fix (tag, newline);
+    } else if (tag[0] == tvar) {
+        print_type_var (tag, newline);
     } else {
         fprintf(stderr, "Error: print_any_type() - Unknown type in tag[0]: %lld\n", tag[0]);
     }
@@ -516,6 +552,10 @@ void print_any(int64_t val, int64_t* tag, short newline) {
         print_array((int64_t*)val, tag, newline);
     } else if (tag[0] == tplus) {
         print_plus((int64_t*)val, tag, newline);
+    } else if (tag[0] == tforall) {
+        print_forall((int64_t*)val, tag, newline);
+    } else if (tag[0] == tfix) {
+        print_fix((int64_t*)val, tag, newline);
     } else if (tag[0] == tuser) {
         print_user((int64_t*)val, tag, newline);
     } else {

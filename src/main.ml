@@ -4,6 +4,7 @@ open Parser
 open RProgram
 open Expand
 open Uniquify
+open Monomorphification
 open Typecheck
 open ConvertClosures
 open ExposeAllocation
@@ -33,7 +34,7 @@ let compile filename =
 let () =
   try
     let program = Sys.argv.(1) in
-    (* let program = "examples/pattern-match/list.rkt" in *)
+    (* let program = "examples/polymorphism/list.rkt" in *)
     let stream = get_stream program `File in
     let tokens = scan_all_tokens stream [] in
     (* print_endline "Scan"; *)
@@ -47,7 +48,8 @@ let () =
     let uniq = uniquify expanded in
     (* print_endline "\nUniquify"; *)
     (* print_rprogram uniq; *)
-    let typed = typecheck uniq in
+    let mono = monomorphize uniq in
+    let typed = typecheck mono in
     let convert = convert_closures typed in
     (* print_endline "\nTypeCheck"; *)
     (* print_rprogram typed; *)
@@ -79,6 +81,7 @@ let () =
     (* print_endline "\nPatch Instructions"; *)
     (* print_aprogram patchinstrs; *)
     let x86 = print_x86 patchinstrs in
+    (* print_endline "\nPrint Instructions"; *)
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;
     compile filename
