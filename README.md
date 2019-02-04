@@ -59,9 +59,9 @@ Run example tests:
 8. ~~Chars~~
 9. ~~Polymorphism~~
     - Type lambdas: `(Lambda A M)`
-9. Type Constructors
+9. ~~Type Constructors~~
     - User defined sum types
-    - Polymorphic `(define-type List A [Nil A] [Cons (Vector A List)])`
+    - Polymorphic `(define-type List A [Nil] [Cons (Vector A List)])`
     - Case expressions
 
 TODO:
