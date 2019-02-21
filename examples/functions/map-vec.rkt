@@ -1,4 +1,4 @@
-(define (add [f : (Int -> Int)][v : (Vector Int Int)])
+(define (add [f : (-> Int Int)][v : (Vector Int Int)])
         : (Vector Int Int)
 
     (vector (f (vector-ref v 0)) (f (vector-ref v 1))))

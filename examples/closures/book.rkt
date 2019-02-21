@@ -1,4 +1,4 @@
-(define (f [x : Int]) : (Int -> Int)
+(define (f [x : Int]) : (-> Int Int)
     (let ([y 4])
         (lambda ([z : Int]) : Int
             (+ x (+ y z)))))

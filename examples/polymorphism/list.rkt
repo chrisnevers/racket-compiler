@@ -2,7 +2,7 @@
     [Nil]
     [Cons (Vector A List)])
 
-(define (id) : (Forall A (List -> List))
+(define (id) : (Forall A (-> List List))
     (Lambda A
         (lambda ([x : List]) : List x)))
 

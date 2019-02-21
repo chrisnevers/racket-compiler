@@ -2,7 +2,7 @@
     [Nil]
     [Cons (Vector A List)])
 
-(define (cons?) : (Forall A (List -> Bool))
+(define (cons?) : (Forall A (-> List Bool))
     (Lambda A
         (lambda ([x : List]) : Bool
             (case x

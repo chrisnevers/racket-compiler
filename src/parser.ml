@@ -77,8 +77,8 @@ and parse_inner_type tokens =
     let types = parse_types tokens in
     TypeVector types
   | TArrow ->
-    let ret = parse_type tokens in
-    TypeFunction ([], ret)
+    let ret = parse_types tokens in
+    TypeFunction (rm_last ret, last ret)
   | TTypeForAll ->
     let id = parse_id tokens in
     let ty = parse_type tokens in
@@ -86,22 +86,7 @@ and parse_inner_type tokens =
   | TTypeFix ->
     let ty = parse_type tokens in
     TypeFix ty
-  | TTypeInt | TTypeBool | TTypeVoid | TVar _ ->
-    let types = token_to_datatype token :: parse_function_types tokens in
-    let ret = last types in
-    let args = rm_last types in
-    TypeFunction (args, ret)
   | _ -> parser_error "expected type"
-
-and parse_function_types tokens =
-  let next = next_token tokens in
-  match next with
-  | TRParen -> []
-  | TArrow ->
-    expect_token tokens TArrow;
-    let ty = parse_type tokens in
-    ty :: parse_function_types tokens
-  | _ -> parser_error "expected -> or )"
 
 let parse_arg tokens =
   expect_token tokens TLBracket;

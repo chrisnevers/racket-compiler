@@ -1,4 +1,4 @@
-(define (vedy-interesting-type  [f : (Int -> Bool)]
+(define (vedy-interesting-type  [f : (-> Int Bool)]
                                 [v : (Vector Int Bool)]) : Void
         (vector-set! v 0 5))
 
