@@ -279,11 +279,11 @@ and parse_inner_exp tokens =
 and parse_cases tokens =
   let next = next_token tokens in
   match next with
-  | TLBracket ->
-    expect_token tokens TLBracket;
+  | TLParen ->
+    expect_token tokens TLParen;
     let case = parse_typed_exp tokens in
     let do_this = parse_typed_exp tokens in
-    expect_token tokens TRBracket;
+    expect_token tokens TRParen;
     (case, do_this) :: parse_cases tokens
   | _ -> []
 
@@ -303,13 +303,13 @@ let parse_def tokens =
 let rec parse_sub_type tokens =
   let next = next_token tokens in
   match next with
-  | TLBracket ->
-    expect_token tokens TLBracket;
+  | TLParen ->
+    expect_token tokens TLParen;
     let id = parse_id tokens in
     let next = next_token tokens in
     (* If no type specified, its type unit *)
-    let ty = if next != TRBracket then parse_type tokens else TypeVector [] in
-    expect_token tokens TRBracket;
+    let ty = if next != TRParen then parse_type tokens else TypeVector [] in
+    expect_token tokens TRParen;
     (id, ty)
   | _ -> parser_error "Expected [ while parsing variant"
 

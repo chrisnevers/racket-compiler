@@ -1,5 +1,5 @@
 (define-type NewType
-    [Inty Int]
-    [Booly Bool])
+    (Inty Int)
+    (Booly Bool))
 
 (Booly #t)
