@@ -26,6 +26,18 @@ let write_to_file file str =
   output_string channel str;
   close_out channel
 
+(* Prepends the stdlib to the current program
+    Outputs the result into a tmp file
+ *)
+let write_to_tmp streams =
+  let channel = open_out "tmp.rkt" in
+  List.iter (fun s ->
+    Stream.iter (fun c ->
+      output_char channel c
+    ) s
+  ) streams;
+  close_out channel
+
 let compile filename =
   let _ = Sys.command ("gcc -c " ^ filename ^ ".S -o " ^ filename ^ ".o") in
   let _ = Sys.command ("gcc " ^ filename ^ ".o" ^ " runtime/runtime.o -o " ^ filename) in
@@ -35,53 +47,32 @@ let () =
   try
     let program = Sys.argv.(1) in
     (* let program = "examples/polymorphism/list.rkt" in *)
+    let stdlib = get_stream "stdlib/stdlib.rkt" `File in
     let stream = get_stream program `File in
+    (* Write program with stdlib to tmp file *)
+    write_to_tmp [stdlib; stream];
+    (* Expand the macros *)
+    let expanded = MacroExpander.expand_macros "tmp.rkt" in
+    write_to_file "tmp.rkt" expanded;
+    (* Now compile expanded program with stdlib *)
+    let stream = get_stream "tmp.rkt" `File in
     let tokens = scan_all_tokens stream [] in
-    (* print_endline "Scan"; *)
-    (* print_tokens tokens; *)
-    let ast = parse tokens in
-    (* print_endline "\nParse"; *)
-    (* print_rprogram ast; *)
+    let ast = parse (tokens) in
     let expanded = expand ast in
-    (* print_endline "\nExpand"; *)
-    (* print_rprogram expanded; *)
     let uniq = uniquify expanded in
-    (* print_endline "\nUniquify"; *)
-    (* print_rprogram uniq; *)
     let mono = monomorphize uniq in
     let typed = typecheck mono in
     let convert = convert_closures typed in
-    (* print_endline "\nTypeCheck"; *)
-    (* print_rprogram typed; *)
     let exposed = expose_allocation convert in
-    (* print_endline "\nExpose"; *)
-    (* print_rprogram exposed; *)
     let flat = flatten exposed in
-    (* print_endline "\nFlatten"; *)
-    (* print_cprogram flat; *)
     let selinstr = select_instructions flat in
-    (* print_endline "\nSelect Instructions"; *)
-    (* print_pprogram selinstr; *)
     let uncovered = uncover_live selinstr in
-    (* print_endline "\nUncover Live"; *)
-    (* print_lprogram uncovered; *)
     let interfer = build_interference uncovered in
-    (* print_endline "\nBuild Interference"; *)
-    (* print_gprogram interfer; *)
     let alloc = allocate_registers interfer in
-    (* print_endline "\nAllocate Registers"; *)
-    (* print_gcprogram alloc; *)
     let assignhomes = assign_homes alloc in
-    (* print_endline "\nAssign Homes"; *)
-    (* print_aprogram assignhomes; *)
     let lowercnd = lower_conditionals assignhomes in
-    (* print_endline "\nLower Conditionals"; *)
-    (* print_aprogram lowercnd; *)
     let patchinstrs = patch_instructions lowercnd in
-    (* print_endline "\nPatch Instructions"; *)
-    (* print_aprogram patchinstrs; *)
     let x86 = print_x86 patchinstrs in
-    (* print_endline "\nPrint Instructions"; *)
     let filename = "output" in
     write_to_file (filename ^ ".S") x86;
     compile filename
