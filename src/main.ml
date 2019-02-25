@@ -47,17 +47,21 @@ let () =
   try
     let program = Sys.argv.(1) in
     (* let program = "examples/polymorphism/list.rkt" in *)
+    (* Scan in stdlib *)
     let stdlib = get_stream "stdlib/stdlib.rkt" `File in
+    let stdtokens = scan_all_tokens stdlib [] in
+    (* Scan in program *)
     let stream = get_stream program `File in
-    (* Write program with stdlib to tmp file *)
-    write_to_tmp [stdlib; stream];
-    (* Expand the macros *)
+    let tokens = scan_all_tokens stream [] in
+    (* Write new file with all dependencies to tmp *)
+    write_to_file "tmp.rkt" (String.concat " " (List.map string_of_token (stdtokens @ tokens)));
+    (* Expand macros in tmp *)
     let expanded = MacroExpander.expand_macros "tmp.rkt" in
     write_to_file "tmp.rkt" expanded;
-    (* Now compile expanded program with stdlib *)
+    (* Now compile tmp file *)
     let stream = get_stream "tmp.rkt" `File in
     let tokens = scan_all_tokens stream [] in
-    let ast = parse (tokens) in
+    let ast = parse tokens in
     let expanded = expand ast in
     let uniq = uniquify expanded in
     let mono = monomorphize uniq in

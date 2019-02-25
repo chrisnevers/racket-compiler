@@ -46,21 +46,24 @@ type token =
   | TInst
   | TDefineType
   | TCase
+  | TImport of string
   | TEOF
 
 let string_of_token t =
   match t with
   | TProgram -> "Program"
-  | TInt i -> "Int " ^ (string_of_int i)
-  | TChar c -> "Char " ^ (Char.escaped c)
-  | TBool b -> "Bool " ^ (string_of_bool b)
-  | TVar v -> "Var " ^ v
-  | TArithOp o -> "ArithOp " ^ o
-  | TCmpOp o -> "CmpOp " ^ o
-  | TLogOp o -> "LogOp " ^ o
-  | TRead -> "Read"
-  | TLet -> "Let"
-  | TIf -> "If"
+  | TInt i -> string_of_int i
+  | TChar ' ' -> "#\space"
+  | TChar c -> "#\\" ^ (Char.escaped c)
+  | TBool true -> "#t"
+  | TBool false -> "#f"
+  | TVar v -> v
+  | TArithOp o -> o
+  | TCmpOp o -> o
+  | TLogOp o -> o
+  | TRead -> "read"
+  | TLet -> "let"
+  | TIf -> "if"
   | TLParen -> "("
   | TRParen -> ")"
   | TLBracket -> "["
@@ -90,14 +93,15 @@ let string_of_token t =
   | TTypeVoid -> "Void"
   | TTypeArray -> "Array"
   | TTypeVector -> "Vector"
-  | TTypeForAll -> "forall"
-  | TTypeFix -> "fix"
+  | TTypeForAll -> "Forall"
+  | TTypeFix -> "Fix"
   | TLambda -> "lambda"
   | TTyLambda -> "Lambda"
   | TInst -> "inst"
   | TDefineType -> "define-type"
   | TCase -> "case"
-  | TEOF -> "EOF"
+  | TImport s -> "import " ^ s
+  | TEOF -> "\n"
 
 let print_tokens tokens =
   List.iter (fun t -> print_string ((string_of_token t) ^ " ")) tokens;

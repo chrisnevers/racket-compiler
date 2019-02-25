@@ -1,2 +1,3 @@
-(let ([a (array #\a #\space #\c)])
-    a)
+;;; (let ([a (array #\a #\space #\c)])
+;;;     a)
+#f

@@ -7,7 +7,6 @@
     (begin
         (print ((inst id Bool) #t))
         (print ((inst id Int) 5))
-        (print ((inst id Char) #\A))
         (print ((inst id (Array Int)) (array 3)))
         ((inst id (Vector Int Int)) (vector 1 2))))
 

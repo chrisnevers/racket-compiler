@@ -106,7 +106,19 @@ let rec scan_identifier stream acc : token =
     | "inst"    -> TInst
     | "define-type" -> TDefineType
     | "case"    -> TCase
+    | "import"  ->
+      let filename = scan_string stream in
+      TImport filename
     | _         -> TVar acc
+
+and scan_string stream =
+  let rec _helper acc is_open =
+  match next_char stream with
+  | '"' -> if is_open then acc
+    else _helper acc true
+  | c -> _helper (acc ^ (Char.escaped c)) is_open
+  in
+  _helper "" false
 
 let is_closing c = c = ')' || c = ']'
 let is_char_delim c = is_space c || is_closing c
@@ -172,7 +184,24 @@ let scan_token stream : token = try
     | _ -> lexer_error ("scan_token: Unrecognised token: " ^ (Char.escaped c))
   with Stream.Failure -> TEOF
 
+let imported = ref []
+
 let rec scan_all_tokens stream tokens : token list =
   let token = scan_token stream in
-  if token = TEOF then tokens @ [token]
+  if token = TEOF then
+    import (tokens @ [token])
   else scan_all_tokens stream (tokens @ [token])
+
+and import tokens =
+  let open List in
+  match tokens with
+  | TLParen :: TImport name :: TRParen :: tl when not (mem name !imported) ->
+    (* print_endline ("Importing dependency:  " ^ name); *)
+    imported := name :: !imported;
+    let file_tokens = scan_all_tokens (get_stream (name ^ ".rkt") `File) [] in
+    import (file_tokens @ tl)
+  | TLParen :: TImport name :: TRParen :: tl when mem name !imported ->
+    (* print_endline ("Dependency already included"); *)
+    import tl
+  | ow :: tl -> ow :: import tl
+  | [] -> []
