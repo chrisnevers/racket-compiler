@@ -1,2 +1,2 @@
-(let ([val #t])
+(let ((val #t))
     (print val))

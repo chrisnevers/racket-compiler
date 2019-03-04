@@ -1,9 +1,9 @@
 ;;; id : (Forall A (A -> A))
 ;;; (inst id Bool) : Bool -> Bool
 
-(let ([id (Lambda A
-            (lambda ([x : A]) : A
-                x))])
+(let ((id (Lambda A
+            (lambda ((x : A)) : A
+                x))))
     (begin
         (print ((inst id Bool) #t))
         (print ((inst id Int) 5))

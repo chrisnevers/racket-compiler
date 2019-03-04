@@ -1,5 +1,5 @@
-(let ([f (lambda ([x : (Vector Int Int)]): Bool
+(let ((f (lambda ((x : (Vector Int Int))): Bool
         (if (not (zero? (vector-ref x 1)))
             #t
-            #f))])
+            #f))))
     (print f))

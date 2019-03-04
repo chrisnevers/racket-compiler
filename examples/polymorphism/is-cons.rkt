@@ -4,10 +4,10 @@
 
 (define (cons?) : (Forall A (-> List Bool))
     (Lambda A
-        (lambda ([x : List]) : Bool
+        (lambda ((x : List)) : Bool
             (case x
                 ((Nil  b) #f)
                 ((Cons a) #t)))))
 
-(let ([my-list ((inst Cons Int) (vector 6 ((inst Nil Int))))])
+(let ((my-list ((inst Cons Int) (vector 6 ((inst Nil Int))))))
     ((inst cons? Int) my-list))

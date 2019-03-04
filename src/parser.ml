@@ -89,17 +89,17 @@ and parse_inner_type tokens =
   | _ -> parser_error "expected type"
 
 let parse_arg tokens =
-  expect_token tokens TLBracket;
+  expect_token tokens TLParen;
   let id = parse_id tokens in
   expect_token tokens TColon;
   let ty = parse_type tokens in
-  expect_token tokens TRBracket;
+  expect_token tokens TRParen;
   (id, ty)
 
 let rec parse_args tokens =
   let next = next_token tokens in
   match next with
-  | TLBracket ->
+  | TLParen ->
     let arg = parse_arg tokens in
     arg :: parse_args tokens
   | _ -> []

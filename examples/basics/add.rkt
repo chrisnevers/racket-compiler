@@ -1,2 +1,2 @@
-(let ([a (read)])
+(let ((a (read)))
     (+ (- 10) a))

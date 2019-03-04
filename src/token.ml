@@ -47,6 +47,7 @@ type token =
   | TDefineType
   | TCase
   | TImport of string
+  | TDot
   | TEOF
 
 let string_of_token t =
@@ -101,6 +102,7 @@ let string_of_token t =
   | TDefineType -> "define-type"
   | TCase -> "case"
   | TImport s -> "import " ^ s
+  | TDot -> "."
   | TEOF -> "\n"
 
 let print_tokens tokens =

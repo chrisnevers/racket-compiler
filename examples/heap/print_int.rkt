@@ -1,1 +1,1 @@
-(print (let ([x 5]) (+ x 45)))
+(print (let ((x 5)) (+ x 45)))

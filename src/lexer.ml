@@ -181,7 +181,8 @@ let scan_token stream : token = try
     | '#' ->
       let next = next_char stream in
       lex_hash next stream
-    | _ -> lexer_error ("scan_token: Unrecognised token: " ^ (Char.escaped c))
+    | '.' -> TDot
+    | ow -> TVar (Char.escaped ow)
   with Stream.Failure -> TEOF
 
 let imported = ref []
