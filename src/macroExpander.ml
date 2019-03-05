@@ -100,7 +100,9 @@ let rec scan_id stream acc =
   | Some c when is_id c ->
     let _ = next_char stream in
     scan_id stream (acc ^ (Char.escaped c))
-  | _ -> StId acc
+  | _ -> match acc with
+    | ":" -> StColon
+    | _ -> StId acc
 
 let rec scan_num stream acc =
   let c = peek_char stream in
@@ -127,7 +129,6 @@ let scan_token stream =
   | Some '[' -> StLBracket
   | Some ']' -> StRBracket
   | Some '\'' -> StQuote
-  | Some ':' -> StColon
   | Some '#' -> scan_hash stream "#"
   | Some c when is_digit c -> scan_num stream (Char.escaped c)
   | Some c -> scan_id stream (Char.escaped c)
@@ -336,6 +337,9 @@ and parse_inner_type input =
   | StId "Fix" ->
     let ty = parse_ty input in
     TyFix ty
+  | StId "Ref" ->
+    let ty = parse_ty input in
+    TyVector [ty]
   | ow -> macro_error ("Parse_inner_type: Expected a type: " ^ str_s_token ow)
 
 and parse_id input =
@@ -795,7 +799,7 @@ let core_primitive_ids = ["datum->syntax"; "syntax->datum"; "syntax-e"; "list";
   "array"; "vector-ref"; "vector-set!"; "define-type"; "void"; "vector-length";
   "read"; "zero?"; "pos?"; "not"; ">" ; ">="; "<"; "<="; "while"; "neg?";
   "unless"; "inst"; "Syntax"; "Int"; "Bool"; "Vector"; "Array"; "->"; "Char";
-  "Void"; "Lambda"; "..."; ":"; "case"]
+  "Void"; "Lambda"; "..."; ":"; "inl"; "inr"; "inl?"; "case"]
 
 let core_primitives = List.map _id core_primitive_ids
 
@@ -939,6 +943,7 @@ and expand_let_stx let_id lhs rhs body env =
   add_binding id binding;
   let value = eval_for_syntax_binding rhs env in
   env_extend env binding value;
+  (* print_endline ("process body of: " ^ str_syntax id); *)
   expand (add_scope body sc) ~env:env
 
 and expand_define define_id id args ty body nxt env =
@@ -983,6 +988,7 @@ and expand_define_type define_id id vars tys nxt env =
 and expand_id_app stx env =
   let SOList (id::_) = stx in
   let binding = resolve id in
+  (* print_endline ("expand id app: " ^ str_syntax id); *)
   let value = if binding = 0 then Var else env_lookup env binding in
   match value with
   | MacroFn fn -> expand (apply_transformer fn stx) ~env:env

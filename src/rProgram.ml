@@ -51,6 +51,8 @@ and rexp =
   | RCase of rexp_type * (rexp_type * rexp_type) list
   | RInl of rexp_type * datatype
   | RInr of datatype * rexp_type
+  | RIsInl of rexp_type
+  | RIsInr of rexp_type
   | RDatatype of datatype
   | RFold of rexp_type
   | RUnfold of rexp_type
@@ -191,6 +193,8 @@ let rec string_of_rexp e : string =
   | RInst (e, dt) -> "Inst " ^ string_of_rexp_type e ^ " " ^ string_of_datatype dt
   | RFold e -> "Fold " ^ string_of_rexp_type e
   | RDatatype dt ->  "Datatype " ^ string_of_datatype dt
+  | RIsInl e -> "inl?" ^ string_of_rexp_type e
+  | RIsInr e -> "inr?" ^ string_of_rexp_type e
   ) e
   ^ ")\n"
 

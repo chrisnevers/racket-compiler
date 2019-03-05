@@ -125,6 +125,11 @@ let rec typecheck_exp exp table sigma =
           let ref_type = nth datatypes i in
           TypeIs (Some ref_type, RVectorRef (nv, i))
       with Failure _ -> typecheck_error ("typecheck_exp: Cannot access " ^ (string_of_int i) ^ " field in tuple: " ^ (string_of_datatype dt)))
+    (* Allow user to vector-ref plus types *)
+    | TypeFix (TypeForAll (_, TypePlus (l, r)))
+    | TypeForAll (_, TypePlus (l, r)) | TypePlus (l, r) ->
+      let ty = if i = 1 then l else if i = 2 then r else typecheck_error ("cannot get index beyond 1 of plus type") in
+      TypeIs (Some ty, RVectorRef (nv, i))
     | _ -> typecheck_error ("typecheck_exp: Vector-ref must operate on vector. Received: " ^ (string_of_datatype dt)))
   | RVectorSet (v, i, e) ->
     let nv = _rec v in
@@ -287,6 +292,12 @@ let rec typecheck_exp exp table sigma =
     let ne = _rec e in
     let dt = get_datatype ne in
     TypeIs (Some (TypeForAll (ty, dt)), RTyLambda (ty, ne))
+  | RIsInl e ->
+    let ne = _rec e in
+    TypeIs (Some TypeBool, RIsInl ne)
+  | RIsInr e ->
+    let ne = _rec e in
+    TypeIs (Some TypeBool, RIsInr ne)
   | RBegin _ -> typecheck_error "should not have begin in typecheck"
   | RWhen (_, _) -> typecheck_error "should not have when in typecheck"
   | RUnless (_, _) -> typecheck_error "should not have unless in typecheck"

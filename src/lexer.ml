@@ -46,7 +46,7 @@ and next_char_with_space stream : char = Stream.next stream
 let peek_char stream : char option = Stream.peek stream
 
 let is_valid_id c : bool =
-  is_alpha c || is_digit c || c = '_' || c = '?' || c = '-' || c = '!'
+  is_alpha c || is_digit c || c = '_' || c = '?' || c = '-' || c = '!' || c = '>' || c = '='
 
 let is_stream_empty stream : bool =
   try Stream.empty stream; true
@@ -106,6 +106,11 @@ let rec scan_identifier stream acc : token =
     | "inst"    -> TInst
     | "define-type" -> TDefineType
     | "case"    -> TCase
+    | "inl"     -> TInl
+    | "inr"     -> TInr
+    | "inl?"    -> TIsInl
+    | "inr?"    -> TIsInr
+    | ":"       -> TColon
     | "import"  ->
       let filename = scan_string stream in
       TImport filename
@@ -170,7 +175,6 @@ let scan_token stream : token = try
     | ')' -> TRParen
     | '[' -> TLBracket
     | ']' -> TRBracket
-    | ':' -> TColon
     | '_' -> TVar "_"
     | '>' ->
       let next = peek_char stream in
@@ -182,7 +186,7 @@ let scan_token stream : token = try
       let next = next_char stream in
       lex_hash next stream
     | '.' -> TDot
-    | ow -> TVar (Char.escaped ow)
+    | ow -> scan_identifier stream (Char.escaped ow)
   with Stream.Failure -> TEOF
 
 let imported = ref []

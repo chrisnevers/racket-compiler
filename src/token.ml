@@ -48,6 +48,10 @@ type token =
   | TCase
   | TImport of string
   | TDot
+  | TInl
+  | TInr
+  | TIsInl
+  | TIsInr
   | TEOF
 
 let string_of_token t =
@@ -103,6 +107,10 @@ let string_of_token t =
   | TCase -> "case"
   | TImport s -> "import " ^ s
   | TDot -> "."
+  | TInl -> "inl"
+  | TInr -> "inr"
+  | TIsInl -> "inl?"
+  | TIsInr -> "inr?"
   | TEOF -> "\n"
 
 let print_tokens tokens =

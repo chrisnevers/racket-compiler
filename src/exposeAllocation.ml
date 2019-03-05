@@ -174,6 +174,12 @@ and expose_exp e =
     let get_ty = TypeIs (Some TypeVoid, RLet (e_ty_id, vec_ref, gen_cases)) in
     let new_cases = RLet (e_vec_id, e, get_ty) in
     expose_exp new_cases
+  | RIsInl e ->
+    let vec_ref = TypeIs (Some TypeInt, RVectorRef (e, 0)) in
+    RCmp ("eq?", vec_ref, TypeIs (Some TypeInt, RInt 0))
+  | RIsInr e ->
+    let vec_ref = TypeIs (Some TypeInt, RVectorRef (e, 0)) in
+    RCmp ("eq?", vec_ref, TypeIs (Some TypeInt, RInt 1))
   | _ -> e
 
 and expose_cases cases vec_id ty_id =

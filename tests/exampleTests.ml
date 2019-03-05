@@ -111,3 +111,9 @@ let () =
   test "polymorphism" "sum" "5" None;
   test "polymorphism" "nil" "()" None;
   test "polymorphism" "boolean" "()" None;
+  test "macros" "aif" "5" (Some "5");
+  test "macros" "define" "#t" None;
+  test "macros" "for" "0" None;
+  test "macros" "mutable" "5" None;
+  test "macros" "split" "10" None;
+  test "macros" "xor" "#f" None;

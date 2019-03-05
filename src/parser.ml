@@ -274,6 +274,12 @@ and parse_inner_exp tokens =
     let expr = parse_typed_exp tokens in
     let cases = parse_cases tokens in
     RCase (expr, cases)
+  | TIsInl ->
+    let expr = parse_typed_exp tokens in
+    RIsInl expr
+  | TIsInr ->
+    let expr = parse_typed_exp tokens in
+    RIsInr expr
   | _ -> parser_error ("Error parsing exp. Did not expect " ^ string_of_token token)
 
 and parse_cases tokens =

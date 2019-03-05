@@ -69,6 +69,8 @@ let rec instantiate_type exp var_ty inst_ty =
   | RCase (m, cases) -> RCase (_rec m, map (fun (a, b) -> (_rec a, _rec b)) cases)
   | RInl (e, dt) -> RInl (_rec e, replace_dt dt var_ty inst_ty)
   | RInr (dt, e) -> RInr (replace_dt dt var_ty inst_ty, _rec e)
+  | RIsInl e -> RIsInl (_rec e)
+  | RIsInr e -> RIsInr (_rec e)
   | RFold e -> RFold (_rec e)
   | RUnfold e -> RUnfold (_rec e)
   | _ -> mono_error ("instantiate_types: unexpected expression - " ^ string_of_rexp exp)
@@ -123,6 +125,8 @@ and m_exp exp tbl =
   | RInr (dt, e) -> RInr (dt, _rec e)
   | RFold e -> RFold (_rec e)
   | RUnfold e -> RUnfold (_rec e)
+  | RIsInl e -> RIsInl (_rec e)
+  | RIsInr e -> RIsInr (_rec e)
   | _ -> mono_error ("m_exp: Unexpected expression: " ^ string_of_rexp exp)
 
 let rec m_def defs tbl =
