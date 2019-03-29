@@ -63,10 +63,16 @@ Run example tests:
     - User defined sum types
     - Polymorphic `(define-type List A [Nil] [Cons (Vector A List)])`
     - Case expressions
+10. ~~Macros~~
+    - Hygienic macros by example
+    - `let-syntax, define-syntax, syntax-case`
+11. Bytecode & VM
 
 TODO:
-* Macros
+* ML Modules
+* Unit Testing Macros
 * Exceptions
-* Bytecode & VM
 * LLVM
+* Hashtable
+* Type Inference
 * ...
