@@ -66,13 +66,15 @@ Run example tests:
 10. ~~Macros~~
     - Hygienic macros by example
     - `let-syntax, define-syntax, syntax-case`
-11. Bytecode & VM
+
+Other features I have implemented, but are not in this compiler:
+1. ~~[Bytecode & VM](https://github.com/chrisnevers/jit-compiler)~~
+2. ~~[ML Modules](https://github.com/chrisnevers/ml-modules)~~
+3. ~~[Type Inference](https://github.com/chrisnevers/type-inference)~~
 
 TODO:
-* ML Modules
 * Unit Testing Macros
 * Exceptions
 * LLVM
 * Hashtable
-* Type Inference
 * ...
